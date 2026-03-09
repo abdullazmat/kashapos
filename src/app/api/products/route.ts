@@ -1,0 +1,73 @@
+import { NextRequest } from "next/server";
+import dbConnect from "@/lib/db";
+import Product from "@/models/Product";
+import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+
+export async function GET(request: NextRequest) {
+  try {
+    await dbConnect();
+    const auth = getAuthContext(request);
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const search = searchParams.get("search") || "";
+    const category = searchParams.get("category") || "";
+    const active = searchParams.get("active");
+
+    const query: Record<string, unknown> = { tenantId: auth.tenantId };
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { sku: { $regex: search, $options: "i" } },
+        { barcode: { $regex: search, $options: "i" } },
+      ];
+    }
+    if (category) query.categoryId = category;
+    if (active !== null && active !== undefined)
+      query.isActive = active === "true";
+
+    const [products, total] = await Promise.all([
+      Product.find(query)
+        .populate("categoryId", "name")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Product.countDocuments(query),
+    ]);
+
+    return apiSuccess({
+      products,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    console.error("Products GET error:", error);
+    return apiError("Internal server error", 500);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    await dbConnect();
+    const auth = getAuthContext(request);
+    if (auth.role === "cashier") {
+      return apiError("Insufficient permissions", 403);
+    }
+
+    const body = await request.json();
+    const product = await Product.create({
+      ...body,
+      tenantId: auth.tenantId,
+    });
+
+    return apiSuccess(product, 201);
+  } catch (error: unknown) {
+    console.error("Products POST error:", error);
+    if ((error as { code?: number }).code === 11000) {
+      return apiError("Product with this SKU already exists", 409);
+    }
+    return apiError("Internal server error", 500);
+  }
+}
