@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "./layout";
@@ -15,9 +15,66 @@ import {
   Smartphone,
   Banknote,
   Clock,
+  Receipt,
+  Wallet,
+  RotateCcw,
+  FileText,
+  Warehouse,
+  Settings,
+  BarChart3,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
+
+type TimePeriod = "today" | "7days" | "mtd" | "3months" | "6months" | "annual";
+
+const periodLabels: Record<TimePeriod, string> = {
+  today: "Today",
+  "7days": "Last 7 Days",
+  mtd: "Month to Date",
+  "3months": "3 Months",
+  "6months": "6 Months",
+  annual: "Annual",
+};
+
+const periodApiMap: Record<TimePeriod, string> = {
+  today: "day",
+  "7days": "week",
+  mtd: "month",
+  "3months": "quarter",
+  "6months": "half",
+  annual: "year",
+};
+
+const formatChartLabel = (key: string, period: TimePeriod) => {
+  if (period === "today") {
+    const hour = key.split(" ")[1]?.split(":")[0];
+    if (!hour) return key;
+    return `${hour}:00`;
+  }
+
+  if (period === "annual" || period === "6months") {
+    const [year, month] = key.split("-");
+    if (!year || !month) return key;
+    return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString(
+      "en",
+      { month: "short" },
+    );
+  }
+
+  if (period === "3months") {
+    const [year, week] = key.split("-");
+    if (!year || !week) return key;
+    return `Wk ${Number(week)}`;
+  }
+
+  const date = new Date(key);
+  if (Number.isNaN(date.getTime())) return key;
+
+  return period === "mtd"
+    ? date.toLocaleDateString("en", { day: "numeric", month: "short" })
+    : date.toLocaleDateString("en", { weekday: "short" });
+};
 
 interface DashboardData {
   summary: {
@@ -49,16 +106,104 @@ interface RecentSale {
   customerId?: { name: string };
 }
 
+const quickActions = [
+  {
+    icon: ShoppingCart,
+    label: "Add Sale",
+    href: "/dashboard/pos",
+    color: "text-orange-600",
+    bg: "bg-orange-50",
+  },
+  {
+    icon: TrendingDown,
+    label: "Add Expense",
+    href: "/dashboard/expenses",
+    color: "text-red-600",
+    bg: "bg-red-50",
+  },
+  {
+    icon: Users,
+    label: "Manage Customers",
+    href: "/dashboard/customers",
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+  },
+  {
+    icon: Package,
+    label: "Manage Items",
+    href: "/dashboard/inventory",
+    color: "text-green-600",
+    bg: "bg-green-50",
+  },
+  {
+    icon: Warehouse,
+    label: "Stock Transfer",
+    href: "/dashboard/stock",
+    color: "text-purple-600",
+    bg: "bg-purple-50",
+  },
+  {
+    icon: Package,
+    label: "View Stock",
+    href: "/dashboard/stock",
+    color: "text-amber-600",
+    bg: "bg-amber-50",
+  },
+  {
+    icon: Wallet,
+    label: "Manage Suppliers",
+    href: "/dashboard/vendors",
+    color: "text-teal-600",
+    bg: "bg-teal-50",
+  },
+  {
+    icon: CreditCard,
+    label: "Manage Purchases",
+    href: "/dashboard/purchases",
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+  },
+  {
+    icon: FileText,
+    label: "Create Invoice",
+    href: "/dashboard/invoices",
+    color: "text-cyan-600",
+    bg: "bg-cyan-50",
+  },
+  {
+    icon: RotateCcw,
+    label: "Process Return",
+    href: "/dashboard/returns",
+    color: "text-pink-600",
+    bg: "bg-pink-50",
+  },
+  {
+    icon: BarChart3,
+    label: "View Reports",
+    href: "/dashboard/reports",
+    color: "text-violet-600",
+    bg: "bg-violet-50",
+  },
+  {
+    icon: Settings,
+    label: "Settings",
+    href: "/dashboard/settings",
+    color: "text-gray-600",
+    bg: "bg-gray-50",
+  },
+];
+
 export default function DashboardPage() {
   const { user, tenant } = useSession();
   const [data, setData] = useState<DashboardData | null>(null);
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<TimePeriod>("7days");
 
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async (p: TimePeriod) => {
     try {
       const [dashRes, salesRes] = await Promise.all([
-        fetch("/api/dashboard?period=week"),
+        fetch(`/api/dashboard?period=${periodApiMap[p]}`),
         fetch("/api/sales?limit=5"),
       ]);
       if (dashRes.ok) setData(await dashRes.json());
@@ -74,27 +219,33 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    setLoading(true);
+    fetchDashboard(period);
+  }, [fetchDashboard, period]);
 
   const currency = tenant?.settings?.currency || "UGX";
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
+
   const summaryCards = [
     {
-      title: "Today's Revenue",
+      title: "Revenue",
       value: formatCurrency(data?.summary.todaySales || 0, currency),
       growth: data?.summary.salesGrowth || 0,
       icon: DollarSign,
-      gradient: "from-teal-500 to-emerald-600",
-      bgLight: "bg-teal-50",
+      gradient: "from-orange-500 to-amber-600",
     },
     {
-      title: "Total Orders",
+      title: "Orders",
       value: String(data?.summary.todayOrders || 0),
       growth: data?.summary.ordersGrowth || 0,
       icon: ShoppingCart,
       gradient: "from-blue-500 to-indigo-600",
-      bgLight: "bg-blue-50",
     },
     {
       title: "Items in Stock",
@@ -102,15 +253,13 @@ export default function DashboardPage() {
       growth: 0,
       icon: Package,
       gradient: "from-amber-500 to-orange-600",
-      bgLight: "bg-amber-50",
     },
     {
-      title: "Active Customers",
+      title: "Customers",
       value: String(data?.summary.totalCustomers || 0),
       growth: 0,
       icon: Users,
       gradient: "from-violet-500 to-purple-600",
-      bgLight: "bg-violet-50",
     },
   ];
 
@@ -128,13 +277,31 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-          Welcome back, {user?.name?.split(" ")[0]} 👋
-        </h1>
-        <p className="text-gray-500 mt-1 text-sm">
-          Here&apos;s what&apos;s happening at {tenant?.name} today.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            {getGreeting()}, {user?.name?.split(" ")[0]}
+          </h1>
+          <p className="text-gray-500 mt-1 text-sm">
+            Here&apos;s what&apos;s happening at {tenant?.name}.
+          </p>
+        </div>
+        {/* Period Selector */}
+        <div className="flex flex-wrap gap-1.5 bg-white rounded-xl border border-gray-200 p-1">
+          {(Object.keys(periodLabels) as TimePeriod[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                period === p
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {periodLabels[p]}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -163,23 +330,19 @@ export default function DashboardPage() {
                 )}
                 {card.growth !== 0 && !loading && (
                   <div
-                    className={`inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      card.growth > 0
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-red-50 text-red-700"
-                    }`}
+                    className={`inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${card.growth > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
                   >
                     {card.growth > 0 ? (
                       <TrendingUp className="w-3 h-3" />
                     ) : (
                       <TrendingDown className="w-3 h-3" />
                     )}
-                    {Math.abs(card.growth)}% vs yesterday
+                    {Math.abs(card.growth)}% vs previous
                   </div>
                 )}
               </div>
               <div
-                className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-lg shadow-${card.gradient.split("-")[1]}-500/25`}
+                className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-lg`}
               >
                 <card.icon className="w-5 h-5 text-white" />
               </div>
@@ -189,61 +352,76 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Weekly Sales Chart */}
+        {/* Sales Chart */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-base font-semibold text-gray-900">
-                Weekly Sales
+                Sales Trend
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Revenue trend for the last 7 days
+                Revenue for {periodLabels[period].toLowerCase()}
               </p>
             </div>
             <Link
               href="/dashboard/sales"
-              className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+              className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
             >
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           {loading ? (
             <div className="h-56 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-teal-500" />
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-orange-500" />
             </div>
           ) : data?.weeklySales && data.weeklySales.length > 0 ? (
-            <div className="h-56 flex items-end gap-3 px-2">
-              {data.weeklySales.map((day, i) => {
+            <div className="h-56 flex items-end gap-2 overflow-hidden px-2">
+              {(() => {
                 const maxVal = Math.max(
                   ...data.weeklySales.map((d) => d.total),
                 );
-                const height = maxVal > 0 ? (day.total / maxVal) * 100 : 0;
-                return (
-                  <div
-                    key={i}
-                    className="flex-1 flex flex-col items-center gap-2 group/bar"
-                  >
-                    <span className="text-[10px] font-medium text-gray-500 opacity-0 group-hover/bar:opacity-100 transition-opacity">
-                      {formatCurrency(day.total, currency)}
-                    </span>
-                    <div className="w-full relative">
-                      <div
-                        className="w-full bg-gradient-to-t from-teal-500 to-emerald-400 rounded-t-lg transition-all duration-500 hover:from-teal-600 hover:to-emerald-500 cursor-pointer relative group/tooltip"
-                        style={{ height: `${Math.max(height * 1.8, 6)}px` }}
-                      >
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded-lg opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                          {day.count} orders
+                const sorted = [...data.weeklySales]
+                  .map((d) => d.total)
+                  .sort((a, b) => b - a);
+                const getBarColor = (total: number) => {
+                  if (total === 0)
+                    return "from-gray-300 to-gray-200 hover:from-gray-400 hover:to-gray-300";
+                  const rank = sorted.indexOf(total);
+                  if (rank === 0)
+                    return "from-emerald-500 to-green-400 hover:from-emerald-600 hover:to-green-500";
+                  if (rank === sorted.length - 1)
+                    return "from-red-500 to-rose-400 hover:from-red-600 hover:to-rose-500";
+                  return "from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500";
+                };
+                return data.weeklySales.map((day, i) => {
+                  const height = maxVal > 0 ? (day.total / maxVal) * 100 : 0;
+                  return (
+                    <div
+                      key={i}
+                      className="flex min-w-0 flex-1 flex-col items-center gap-2 group/bar"
+                    >
+                      <span className="text-[10px] font-medium text-gray-500 opacity-0 group-hover/bar:opacity-100 transition-opacity">
+                        {formatCurrency(day.total, currency)}
+                      </span>
+                      <div className="w-full relative">
+                        <div
+                          className={`w-full bg-gradient-to-t ${getBarColor(day.total)} rounded-t-lg transition-all duration-500 cursor-pointer relative group/tooltip`}
+                          style={{
+                            height: `${Math.max(Math.min(height, 92) * 1.6, 6)}px`,
+                          }}
+                        >
+                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded-lg opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                            {day.count} orders
+                          </div>
                         </div>
                       </div>
+                      <span className="text-center text-[11px] font-medium text-gray-400">
+                        {formatChartLabel(day._id, period)}
+                      </span>
                     </div>
-                    <span className="text-[11px] font-medium text-gray-400">
-                      {new Date(day._id).toLocaleDateString("en", {
-                        weekday: "short",
-                      })}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           ) : (
             <div className="h-56 flex flex-col items-center justify-center text-gray-400">
@@ -264,7 +442,7 @@ export default function DashboardPage() {
             </h2>
             <Link
               href="/dashboard/inventory"
-              className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+              className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
             >
               View all <ArrowRight className="w-3 h-3" />
             </Link>
@@ -293,7 +471,7 @@ export default function DashboardPage() {
                   >
                     <div className="flex items-center justify-between relative z-10">
                       <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-lg bg-teal-50 text-teal-600 text-xs font-bold flex items-center justify-center">
+                        <span className="w-6 h-6 rounded-lg bg-orange-50 text-orange-600 text-xs font-bold flex items-center justify-center">
                           {i + 1}
                         </span>
                         <div>
@@ -311,7 +489,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 rounded-full transition-all duration-700"
+                        className="h-full bg-gradient-to-r from-orange-400 to-amber-400 rounded-full transition-all duration-700"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -328,6 +506,31 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-4">
+          Quick Actions
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {quickActions.map((action, i) => (
+            <Link
+              key={i}
+              href={action.href}
+              className="flex flex-col items-center gap-2 rounded-xl p-4 border border-gray-100 hover:shadow-md hover:border-orange-200 transition-all group"
+            >
+              <div
+                className={`w-10 h-10 ${action.bg} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}
+              >
+                <action.icon className={`w-5 h-5 ${action.color}`} />
+              </div>
+              <span className="text-xs font-medium text-gray-700 text-center">
+                {action.label}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Transactions */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
@@ -337,7 +540,7 @@ export default function DashboardPage() {
             </h2>
             <Link
               href="/dashboard/sales"
-              className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+              className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
             >
               View all <ArrowRight className="w-3 h-3" />
             </Link>
@@ -361,7 +564,7 @@ export default function DashboardPage() {
                         <span className="text-[11px] text-gray-400">
                           {sale.customerId?.name || "Walk-in"}
                         </span>
-                        <span className="text-gray-300">·</span>
+                        <span className="text-gray-300">Â·</span>
                         <span className="text-[11px] text-gray-400 flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {new Date(sale.createdAt).toLocaleDateString("en", {
@@ -403,12 +606,12 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-              Low Stock Alerts
+              <AlertTriangle className="w-4 h-4 text-amber-500" /> Low Stock
+              Alerts
             </h2>
             <Link
               href="/dashboard/stock"
-              className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+              className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
             >
               Manage <ArrowRight className="w-3 h-3" />
             </Link>

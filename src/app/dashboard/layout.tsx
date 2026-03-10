@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Package,
   TrendingUp,
+  TrendingDown,
   ShoppingBag,
   Users,
   FileText,
@@ -35,6 +36,12 @@ import {
   CheckCircle2,
   Info,
   User,
+  RotateCcw,
+  Truck,
+  Layers,
+  Moon,
+  Sun,
+  Building2,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 
@@ -103,11 +110,13 @@ const navigation = [
       { name: "Sales", href: "/dashboard/sales", icon: TrendingUp },
       { name: "Purchases", href: "/dashboard/purchases", icon: ShoppingBag },
       { name: "Customers", href: "/dashboard/customers", icon: Users },
+      { name: "Vendors", href: "/dashboard/vendors", icon: Truck },
     ],
   },
   {
     label: "FINANCE",
     items: [
+      { name: "Expenses", href: "/dashboard/expenses", icon: TrendingDown },
       { name: "Invoices", href: "/dashboard/invoices", icon: FileText },
       { name: "Taxes", href: "/dashboard/taxes", icon: Receipt },
       { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
@@ -116,7 +125,9 @@ const navigation = [
   {
     label: "SYSTEM",
     items: [
-      { name: "Warehouses", href: "/dashboard/warehouses", icon: Warehouse },
+      { name: "Stock", href: "/dashboard/stock", icon: Warehouse },
+      { name: "Batches", href: "/dashboard/batches", icon: Layers },
+      { name: "Returns", href: "/dashboard/returns", icon: RotateCcw },
       { name: "Integrations", href: "/dashboard/integrations", icon: Plug },
       { name: "Automation", href: "/dashboard/automation", icon: Zap },
       { name: "Templates", href: "/dashboard/templates", icon: FileStack },
@@ -142,8 +153,36 @@ export default function DashboardLayout({
   const [searchFocused, setSearchFocused] = useState(false);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  };
+
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.documentElement.classList.toggle("dark", next);
+    try {
+      localStorage.setItem("meka-dark-mode", next ? "1" : "0");
+    } catch {}
+  };
+
+  // Restore dark mode preference
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("meka-dark-mode");
+      if (saved === "1") {
+        setDarkMode(true);
+        document.documentElement.classList.add("dark");
+      }
+    } catch {}
+  }, []);
 
   // All navigation items flattened for search
   const allNavItems = navigation.flatMap((s) => s.items);
@@ -326,12 +365,12 @@ export default function DashboardLayout({
         >
           {/* Logo */}
           <div className="h-16 flex items-center px-4 border-b border-white/5">
-            <div className="w-9 h-9 bg-gradient-to-br from-teal-400 to-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-teal-500/20">
+            <div className="w-9 h-9 bg-gradient-to-br from-orange-400 to-amber-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-500/20">
               <ShoppingCart className="w-5 h-5 text-white" />
             </div>
             {!sidebarCollapsed && (
               <span className="ml-3 text-lg font-bold tracking-tight text-white">
-                KashaPOS
+                Meka PoS
               </span>
             )}
             <button
@@ -365,17 +404,17 @@ export default function DashboardLayout({
                         href={item.href}
                         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 ${
                           isActive
-                            ? "bg-gradient-to-r from-teal-500/20 to-emerald-500/10 text-teal-400 shadow-sm shadow-teal-500/5"
+                            ? "bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-orange-400 shadow-sm shadow-orange-500/5"
                             : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
                         }`}
                         title={sidebarCollapsed ? item.name : undefined}
                       >
                         <item.icon
-                          className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-teal-400" : ""}`}
+                          className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-orange-400" : ""}`}
                         />
                         {!sidebarCollapsed && item.name}
                         {isActive && !sidebarCollapsed && (
-                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-teal-400" />
+                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-400" />
                         )}
                       </Link>
                     );
@@ -389,7 +428,7 @@ export default function DashboardLayout({
           {!sidebarCollapsed && (
             <div className="p-3 mx-2 mb-3 rounded-xl bg-white/5 border border-white/5">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center text-white text-xs font-bold">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center text-white text-xs font-bold">
                   {user?.name ? getInitials(user.name) : "?"}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -410,8 +449,32 @@ export default function DashboardLayout({
           className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? "ml-[68px]" : "ml-60"}`}
         >
           {/* Top bar */}
-          <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-gray-200/60 flex items-center justify-between px-6 sticky top-0 z-30">
-            <div className="flex items-center gap-3">
+          <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-gray-200/60 flex items-center justify-between px-6 sticky top-0 z-30 dark:bg-gray-900/80 dark:border-gray-700/60">
+            <div className="flex items-center gap-4">
+              {/* Greeting */}
+              <div className="hidden lg:block">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
+                </p>
+                <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                  {tenant?.businessName && (
+                    <>
+                      <Building2 className="h-3 w-3" />
+                      <span>{tenant.businessName}</span>
+                      <span className="text-gray-300 dark:text-gray-600">
+                        |
+                      </span>
+                    </>
+                  )}
+                  <span>
+                    {new Date().toLocaleDateString("en-UG", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+              </div>
               {/* Search with results dropdown */}
               <div className="relative" ref={searchRef}>
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -432,7 +495,7 @@ export default function DashboardLayout({
                       setSearchFocused(false);
                     }
                   }}
-                  className="pl-9 pr-8 py-2 bg-gray-50 hover:bg-gray-100 rounded-xl text-sm border border-gray-200/60 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500/30 w-72 transition-colors"
+                  className="pl-9 pr-8 py-2 bg-gray-50 hover:bg-gray-100 rounded-xl text-sm border border-gray-200/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/30 w-60 lg:w-72 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-750"
                 />
                 {searchQuery && (
                   <button
@@ -456,8 +519,8 @@ export default function DashboardLayout({
                           }}
                           className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-                            <item.icon className="w-4 h-4 text-teal-600" />
+                          <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+                            <item.icon className="w-4 h-4 text-orange-600" />
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-900">
@@ -480,14 +543,40 @@ export default function DashboardLayout({
             </div>
             <div className="flex items-center gap-3">
               {/* Tenant badge */}
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="text-sm font-medium text-gray-700">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-100 dark:bg-gray-800 dark:border-gray-700">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                   {tenant?.name}
                 </span>
-                <span className="text-[10px] bg-gradient-to-r from-teal-500 to-emerald-500 text-white px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+                <span className="text-[10px] bg-gradient-to-r from-orange-500 to-amber-500 text-white px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
                   {tenant?.plan}
                 </span>
               </div>
+
+              {/* Dark mode toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                title={
+                  darkMode ? "Switch to light mode" : "Switch to dark mode"
+                }
+              >
+                {darkMode ? (
+                  <Sun className="w-[18px] h-[18px]" />
+                ) : (
+                  <Moon className="w-[18px] h-[18px]" />
+                )}
+              </button>
+
+              {/* Quick settings for admin */}
+              {user?.role === "admin" && (
+                <Link
+                  href="/dashboard/settings"
+                  className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                  title="Settings"
+                >
+                  <Settings className="w-[18px] h-[18px]" />
+                </Link>
+              )}
 
               {/* Notifications */}
               <div className="relative" ref={notifRef}>
@@ -524,7 +613,7 @@ export default function DashboardLayout({
                         {notifications.length > 0 && unreadCount > 0 && (
                           <button
                             onClick={() => void markAllNotificationsRead()}
-                            className="text-[10px] font-medium text-teal-600 hover:text-teal-700"
+                            className="text-[10px] font-medium text-orange-600 hover:text-orange-700"
                           >
                             Mark all read
                           </button>
@@ -534,14 +623,14 @@ export default function DashboardLayout({
                     <div className="max-h-80 overflow-y-auto">
                       {notificationsLoading ? (
                         <div className="flex items-center justify-center py-10">
-                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-teal-500" />
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-orange-500" />
                         </div>
                       ) : notifications.length > 0 ? (
                         notifications.map((notif) => (
                           <button
                             key={notif.id}
                             onClick={() => void openNotification(notif)}
-                            className={`w-full px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors text-left ${!notif.read ? "bg-teal-50/30" : ""}`}
+                            className={`w-full px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors text-left ${!notif.read ? "bg-orange-50/30" : ""}`}
                           >
                             <div className="flex gap-3">
                               <div
@@ -573,7 +662,7 @@ export default function DashboardLayout({
                                 </p>
                               </div>
                               {!notif.read && (
-                                <div className="w-2 h-2 bg-teal-500 rounded-full mt-1.5 shrink-0" />
+                                <div className="w-2 h-2 bg-orange-500 rounded-full mt-1.5 shrink-0" />
                               )}
                             </div>
                           </button>
@@ -597,7 +686,7 @@ export default function DashboardLayout({
                           setShowNotifications(false);
                           router.push("/dashboard/reports");
                         }}
-                        className="w-full text-center text-xs text-teal-600 hover:text-teal-700 font-medium"
+                        className="w-full text-center text-xs text-orange-600 hover:text-orange-700 font-medium"
                       >
                         Open reports
                       </button>
@@ -615,7 +704,7 @@ export default function DashboardLayout({
                   }}
                   className="flex items-center gap-2 hover:bg-gray-50 pl-1 pr-2 py-1 rounded-xl transition-colors"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-br from-teal-400 to-emerald-600 rounded-xl flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-600 rounded-xl flex items-center justify-center text-white text-xs font-bold shadow-sm">
                     {user?.name ? getInitials(user.name) : "?"}
                   </div>
                   <ChevronDown

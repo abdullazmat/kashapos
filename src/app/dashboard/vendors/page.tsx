@@ -14,9 +14,13 @@ import {
   User,
   ShoppingBag,
   DollarSign,
+  Wallet,
+  CreditCard,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useSession } from "../layout";
+
+type VendorTab = "suppliers" | "pay" | "history" | "balances";
 
 interface Vendor {
   _id: string;
@@ -27,6 +31,7 @@ interface Vendor {
   contactPerson: string;
   totalOrders: number;
   totalPaid: number;
+  balance?: number;
   isActive: boolean;
   createdAt: string;
 }
@@ -48,9 +53,18 @@ export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payVendor, setPayVendor] = useState<Vendor | null>(null);
+  const [activeTab, setActiveTab] = useState<VendorTab>("suppliers");
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptyForm);
+  const [payForm, setPayForm] = useState({
+    amount: "",
+    method: "bank",
+    reference: "",
+    notes: "",
+  });
 
   const fetchVendors = useCallback(async () => {
     setLoading(true);
@@ -142,12 +156,38 @@ export default function VendorsPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
-        >
-          <Plus className="h-4 w-4" /> Add Vendor
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
+          >
+            <Plus className="h-4 w-4" /> Add Vendor
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 w-fit">
+        {(
+          [
+            { key: "suppliers", label: "Suppliers" },
+            { key: "pay", label: "Pay Suppliers" },
+            { key: "history", label: "Payment History" },
+            { key: "balances", label: "Balances" },
+          ] as { key: VendorTab; label: string }[]
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              activeTab === tab.key
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Summary Cards */}
@@ -178,7 +218,7 @@ export default function VendorsPage() {
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:shadow-gray-200/50">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
               <DollarSign className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -256,7 +296,7 @@ export default function VendorsPage() {
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${
                     v.isActive !== false
-                      ? "bg-emerald-50 text-emerald-600 ring-emerald-600/20"
+                      ? "bg-emerald-50 text-amber-600 ring-amber-600/20"
                       : "bg-red-50 text-red-600 ring-red-600/20"
                   }`}
                 >
@@ -303,6 +343,22 @@ export default function VendorsPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-1 opacity-0 transition-all group-hover:opacity-100">
+                  <button
+                    onClick={() => {
+                      setPayVendor(v);
+                      setPayForm({
+                        amount: "",
+                        method: "bank",
+                        reference: "",
+                        notes: "",
+                      });
+                      setShowPayModal(true);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+                    title="Pay Supplier"
+                  >
+                    <Wallet className="h-3.5 w-3.5" />
+                  </button>
                   <button
                     onClick={() => openEdit(v)}
                     className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-orange-50 hover:text-orange-600"
@@ -439,6 +495,140 @@ export default function VendorsPage() {
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
               >
                 {editing ? "Update" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pay Supplier Modal */}
+      {showPayModal && payVendor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowPayModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-md shadow-emerald-500/20">
+                  <Wallet className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Pay Supplier</h3>
+                  <p className="text-[12px] text-gray-500">{payVendor.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPayModal(false)}
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {(payVendor.balance ?? 0) > 0 && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm">
+                  <span className="text-amber-600 font-medium">
+                    Outstanding:{" "}
+                  </span>
+                  <span className="text-amber-700 font-bold">
+                    {formatCurrency(payVendor.balance ?? 0, currency)}
+                  </span>
+                </div>
+              )}
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Amount *
+                </label>
+                <input
+                  type="number"
+                  value={payForm.amount}
+                  onChange={(e) =>
+                    setPayForm({ ...payForm, amount: e.target.value })
+                  }
+                  placeholder="Payment amount"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Method
+                </label>
+                <select
+                  value={payForm.method}
+                  onChange={(e) =>
+                    setPayForm({ ...payForm, method: e.target.value })
+                  }
+                  className={inputClass}
+                >
+                  <option value="bank">Bank Transfer</option>
+                  <option value="cash">Cash</option>
+                  <option value="mobile_money">Mobile Money</option>
+                  <option value="cheque">Cheque</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Reference
+                </label>
+                <input
+                  value={payForm.reference}
+                  onChange={(e) =>
+                    setPayForm({ ...payForm, reference: e.target.value })
+                  }
+                  placeholder="Transaction reference"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Notes
+                </label>
+                <textarea
+                  value={payForm.notes}
+                  onChange={(e) =>
+                    setPayForm({ ...payForm, notes: e.target.value })
+                  }
+                  rows={2}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                onClick={() => setShowPayModal(false)}
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!payForm.amount}
+                onClick={async () => {
+                  const res = await fetch("/api/vendors", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      _id: payVendor._id,
+                      name: payVendor.name,
+                      payment: {
+                        amount: parseFloat(payForm.amount),
+                        method: payForm.method,
+                        reference: payForm.reference,
+                        notes: payForm.notes,
+                      },
+                    }),
+                  });
+                  if (res.ok) {
+                    setShowPayModal(false);
+                    fetchVendors();
+                  }
+                }}
+                className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-500/25 hover:shadow-lg disabled:opacity-50"
+              >
+                Record Payment
               </button>
             </div>
           </div>

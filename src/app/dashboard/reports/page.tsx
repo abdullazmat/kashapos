@@ -18,7 +18,33 @@ import {
   ArrowLeft,
   Calendar,
 } from "lucide-react";
-import { downloadCsv, formatCurrency } from "@/lib/utils";
+import { downloadCsv, formatCurrency, printHtml } from "@/lib/utils";
+
+function generateReportPdf(title: string, period: string, html: string) {
+  const body = `
+      <style>
+        body { font-family: system-ui, -apple-system, sans-serif; padding: 32px; color: #1a1a1a; }
+        h1 { font-size: 22px; margin-bottom: 4px; }
+        .meta { color: #888; font-size: 13px; margin-bottom: 24px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
+        th { text-align: left; border-bottom: 2px solid #e5e7eb; padding: 8px 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; font-size: 11px; }
+        td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+        .text-right { text-align: right; }
+        .stat-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+        .stat-label { color: #6b7280; }
+        .stat-value { font-weight: 600; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .badge-green { background: #ecfdf5; color: #059669; }
+        .badge-red { background: #fef2f2; color: #dc2626; }
+        .badge-amber { background: #fffbeb; color: #d97706; }
+        @media print { body { padding: 0; } }
+      </style>
+      <h1>${title}</h1>
+      <div class="meta">Period: ${period} &bull; Generated: ${new Date().toLocaleDateString("en-UG", { year: "numeric", month: "long", day: "numeric" })}</div>
+      ${html}
+  `;
+  printHtml(title, body);
+}
 
 interface DashboardData {
   summary: {
@@ -87,8 +113,8 @@ const reportCards = [
     title: "Sales Report",
     description: "Revenue, orders, and trends",
     icon: TrendingUp,
-    gradient: "from-teal-500 to-emerald-600",
-    shadow: "shadow-teal-500/20",
+    gradient: "from-orange-500 to-amber-600",
+    shadow: "shadow-orange-500/20",
   },
   {
     key: "inventory" as ReportView,
@@ -103,8 +129,8 @@ const reportCards = [
     title: "Receivables",
     description: "Outstanding customer payments",
     icon: DollarSign,
-    gradient: "from-emerald-500 to-green-600",
-    shadow: "shadow-emerald-500/20",
+    gradient: "from-amber-500 to-green-600",
+    shadow: "shadow-amber-500/20",
   },
   {
     key: "purchases" as ReportView,
@@ -260,6 +286,91 @@ export default function ReportsPage() {
     downloadCsv(`report-${view}-${period}.csv`, rows);
   }, [exportRowsForView, period, view]);
 
+  const handlePdfExport = useCallback(() => {
+    const titles: Record<string, string> = {
+      overview: "Business Overview",
+      sales: "Sales Report",
+      inventory: "Inventory Report",
+      receivables: "Receivables Report",
+      purchases: "Purchases Report",
+      profit_loss: "Profit & Loss Statement",
+      activity: "Activity Log",
+    };
+
+    let html = "";
+    switch (view) {
+      case "sales": {
+        const prods = data?.topProducts || [];
+        html = `
+          <div class="stat-row"><span class="stat-label">Total Sales</span><span class="stat-value">${formatCurrency(data?.summary.todaySales || 0, currency)}</span></div>
+          <div class="stat-row"><span class="stat-label">Orders</span><span class="stat-value">${data?.summary.todayOrders || 0}</span></div>
+          <div class="stat-row"><span class="stat-label">Products</span><span class="stat-value">${data?.summary.totalProducts || 0}</span></div>
+          <table><thead><tr><th>#</th><th>Product</th><th class="text-right">Qty Sold</th><th class="text-right">Revenue</th></tr></thead>
+          <tbody>${prods.map((p, i) => `<tr><td>${i + 1}</td><td>${p.name}</td><td class="text-right">${p.totalQuantity}</td><td class="text-right">${formatCurrency(p.totalRevenue, currency)}</td></tr>`).join("")}</tbody></table>`;
+        break;
+      }
+      case "inventory": {
+        const alerts = data?.lowStockAlerts || [];
+        html = `
+          <div class="stat-row"><span class="stat-label">Total Stock</span><span class="stat-value">${(data?.summary.totalStock || 0).toLocaleString()}</span></div>
+          <div class="stat-row"><span class="stat-label">Low Stock Alerts</span><span class="stat-value">${alerts.length}</span></div>
+          <table><thead><tr><th>Product</th><th>SKU</th><th>Branch</th><th class="text-right">Current</th><th class="text-right">Reorder</th></tr></thead>
+          <tbody>${alerts.map((s) => `<tr><td>${s.productId?.name || "—"}</td><td>${s.productId?.sku || "—"}</td><td>${s.branchId?.name || "—"}</td><td class="text-right">${s.quantity}</td><td class="text-right">${s.reorderLevel}</td></tr>`).join("")}</tbody></table>`;
+        break;
+      }
+      case "receivables":
+        html = `
+          <div class="stat-row"><span class="stat-label">Total Outstanding</span><span class="stat-value">${formatCurrency(totalReceivable, currency)}</span></div>
+          <div class="stat-row"><span class="stat-label">Overdue</span><span class="stat-value">${overdueReceivables.length} invoices</span></div>
+          <table><thead><tr><th>Invoice #</th><th>Customer</th><th>Due Date</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Status</th></tr></thead>
+          <tbody>${receivables.map((inv) => `<tr><td>${inv.invoiceNumber}</td><td>${inv.customerId?.name || "—"}</td><td>${inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}</td><td class="text-right">${formatCurrency(inv.total, currency)}</td><td class="text-right">${formatCurrency(inv.amountPaid, currency)}</td><td class="text-right">${formatCurrency(inv.balance || inv.total - inv.amountPaid, currency)}</td><td>${inv.status}</td></tr>`).join("")}</tbody></table>`;
+        break;
+      case "purchases":
+        html = `
+          <div class="stat-row"><span class="stat-label">Total Purchased</span><span class="stat-value">${formatCurrency(totalPurchased, currency)}</span></div>
+          <table><thead><tr><th>Order #</th><th>Vendor</th><th>Date</th><th class="text-right">Total</th><th>Status</th></tr></thead>
+          <tbody>${purchaseOrders.map((po) => `<tr><td>${po.orderNumber}</td><td>${po.vendorId?.name || "—"}</td><td>${new Date(po.createdAt).toLocaleDateString()}</td><td class="text-right">${formatCurrency(po.total, currency)}</td><td>${po.status}</td></tr>`).join("")}</tbody></table>`;
+        break;
+      case "profit_loss": {
+        const revenue = data?.summary.todaySales || 0;
+        const cogs = revenue * 0.45;
+        const gross = revenue - cogs;
+        const exp = revenue * 0.12;
+        const net = gross - exp;
+        html = `
+          <div class="stat-row"><span class="stat-label">Revenue</span><span class="stat-value">${formatCurrency(revenue, currency)}</span></div>
+          <div class="stat-row"><span class="stat-label">Cost of Goods Sold</span><span class="stat-value" style="color:#dc2626">(${formatCurrency(cogs, currency)})</span></div>
+          <div class="stat-row" style="background:#ecfdf5;padding:10px;border-radius:8px"><span class="stat-label"><strong>Gross Profit</strong></span><span class="stat-value">${formatCurrency(gross, currency)}</span></div>
+          <div class="stat-row"><span class="stat-label">Operating Expenses</span><span class="stat-value">(${formatCurrency(exp, currency)})</span></div>
+          <div class="stat-row" style="background:#fff7ed;padding:10px;border-radius:8px"><span class="stat-label"><strong>Net Profit</strong></span><span class="stat-value">${formatCurrency(net, currency)}</span></div>
+          <p style="color:#9ca3af;font-size:11px;margin-top:16px">* COGS and expenses estimated based on typical operating ratios.</p>`;
+        break;
+      }
+      default: {
+        const sales = data?.weeklySales || [];
+        const prods = data?.topProducts || [];
+        html = `
+          <h3 style="margin-top:16px">Revenue Trend</h3>
+          <table><thead><tr><th>Date</th><th class="text-right">Total</th><th class="text-right">Orders</th></tr></thead>
+          <tbody>${sales.map((d) => `<tr><td>${d._id}</td><td class="text-right">${formatCurrency(d.total, currency)}</td><td class="text-right">${d.count}</td></tr>`).join("")}</tbody></table>
+          <h3 style="margin-top:24px">Top Products</h3>
+          <table><thead><tr><th>Product</th><th class="text-right">Qty</th><th class="text-right">Revenue</th></tr></thead>
+          <tbody>${prods.map((p) => `<tr><td>${p.name}</td><td class="text-right">${p.totalQuantity}</td><td class="text-right">${formatCurrency(p.totalRevenue, currency)}</td></tr>`).join("")}</tbody></table>`;
+      }
+    }
+    generateReportPdf(titles[view] || "Report", period, html);
+  }, [
+    view,
+    data,
+    currency,
+    period,
+    totalReceivable,
+    overdueReceivables,
+    receivables,
+    purchaseOrders,
+    totalPurchased,
+  ]);
+
   const periodSelector = (
     <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-1.5 py-1">
       {[
@@ -273,7 +384,7 @@ export default function ReportsPage() {
           onClick={() => setPeriod(p.val)}
           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
             period === p.val
-              ? "bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm"
+              ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-sm"
               : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
           }`}
         >
@@ -304,8 +415,14 @@ export default function ReportsPage() {
           <div className="flex items-center gap-3">
             {periodSelector}
             <button
+              onClick={handlePdfExport}
+              className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <FileText className="h-4 w-4" /> PDF
+            </button>
+            <button
               onClick={handleExport}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
             >
               <Download className="h-4 w-4" /> Export All
             </button>
@@ -327,7 +444,7 @@ export default function ReportsPage() {
                   <card.icon className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800 group-hover:text-teal-700 transition-colors">
+                  <h3 className="font-semibold text-gray-800 group-hover:text-orange-700 transition-colors">
                     {card.title}
                   </h3>
                   <p className="mt-0.5 text-[13px] text-gray-400">
@@ -392,8 +509,8 @@ export default function ReportsPage() {
               value: formatCurrency(data?.summary.todaySales || 0, currency),
               growth: data?.summary.salesGrowth || 0,
               sub: "vs yesterday",
-              gradient: "from-teal-500 to-emerald-600",
-              shadow: "shadow-teal-500/20",
+              gradient: "from-orange-500 to-amber-600",
+              shadow: "shadow-orange-500/20",
             },
             {
               label: "Outstanding Receivables",
@@ -445,7 +562,7 @@ export default function ReportsPage() {
                   </p>
                   {s.growth !== undefined ? (
                     <div
-                      className={`flex items-center gap-0.5 text-[11px] font-medium ${s.growth >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                      className={`flex items-center gap-0.5 text-[11px] font-medium ${s.growth >= 0 ? "text-amber-600" : "text-red-600"}`}
                     >
                       {s.growth >= 0 ? (
                         <ArrowUpRight className="h-3 w-3" />
@@ -490,8 +607,14 @@ export default function ReportsPage() {
       <div className="flex items-center gap-3">
         {periodSelector}
         <button
+          onClick={handlePdfExport}
+          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <FileText className="h-4 w-4" /> PDF
+        </button>
+        <button
           onClick={handleExport}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
         >
           <Download className="h-4 w-4" /> Export
         </button>
@@ -621,7 +744,7 @@ export default function ReportsPage() {
                     <div className="flex-1">
                       <div className="h-8 rounded-full bg-gray-50">
                         <div
-                          className="flex h-8 items-center rounded-full bg-gradient-to-r from-teal-500 to-emerald-600 px-3 text-xs font-semibold text-white"
+                          className="flex h-8 items-center rounded-full bg-gradient-to-r from-orange-500 to-amber-600 px-3 text-xs font-semibold text-white"
                           style={{ width: `${Math.max(width, 10)}%` }}
                         >
                           {formatCurrency(d.total, currency)}
@@ -888,7 +1011,7 @@ export default function ReportsPage() {
       draft: "bg-gray-50 text-gray-600 ring-gray-600/20",
       ordered: "bg-blue-50 text-blue-600 ring-blue-600/20",
       partial: "bg-amber-50 text-amber-600 ring-amber-600/20",
-      received: "bg-emerald-50 text-emerald-600 ring-emerald-600/20",
+      received: "bg-emerald-50 text-amber-600 ring-amber-600/20",
       cancelled: "bg-red-50 text-red-600 ring-red-600/20",
     };
 
@@ -908,7 +1031,7 @@ export default function ReportsPage() {
             label="Received"
             value={formatCurrency(byStatus["received"]?.total || 0, currency)}
             sub={`${byStatus["received"]?.count || 0} orders`}
-            color="text-emerald-600"
+            color="text-amber-600"
           />
           <StatCard
             label="Pending"
@@ -1027,13 +1150,13 @@ export default function ReportsPage() {
           <StatCard
             label="Gross Profit"
             value={formatCurrency(grossProfit, currency)}
-            color="text-emerald-600"
+            color="text-amber-600"
           />
           <StatCard
             label="Net Profit"
             value={formatCurrency(netProfit, currency)}
             sub={`Margin: ${margin.toFixed(1)}%`}
-            color="text-teal-700"
+            color="text-orange-700"
           />
         </div>
 
@@ -1074,9 +1197,9 @@ export default function ReportsPage() {
                 ({formatCurrency(expenses, currency)})
               </span>
             </div>
-            <div className="mt-2 flex justify-between rounded-xl bg-teal-50 px-4 py-3">
-              <span className="font-bold text-teal-900">Net Profit</span>
-              <span className="font-bold text-teal-900">
+            <div className="mt-2 flex justify-between rounded-xl bg-orange-50 px-4 py-3">
+              <span className="font-bold text-orange-900">Net Profit</span>
+              <span className="font-bold text-orange-900">
                 {formatCurrency(netProfit, currency)}
               </span>
             </div>
@@ -1162,12 +1285,12 @@ export default function ReportsPage() {
       invoice: FileText,
     };
     const typeGradients: Record<string, string> = {
-      sale: "from-teal-500 to-emerald-600",
+      sale: "from-orange-500 to-amber-600",
       customer: "from-blue-500 to-indigo-600",
       stock: "from-purple-500 to-violet-600",
       alert: "from-amber-500 to-orange-600",
       system: "from-gray-400 to-gray-500",
-      report: "from-emerald-500 to-green-600",
+      report: "from-amber-500 to-green-600",
       invoice: "from-indigo-500 to-purple-600",
     };
 

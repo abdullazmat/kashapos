@@ -458,8 +458,8 @@ export default function TemplatesPage() {
     receipt: {
       label: "Receipt",
       icon: Receipt,
-      color: "text-teal-600",
-      bg: "bg-teal-50",
+      color: "text-orange-600",
+      bg: "bg-orange-50",
     },
     invoice: {
       label: "Invoice",
@@ -723,14 +723,14 @@ export default function TemplatesPage() {
       <div className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.14),transparent_34%),radial-gradient(circle_at_top_right,rgba(79,70,229,0.12),transparent_28%),linear-gradient(180deg,#ffffff,#f8fafc)] px-7 py-8">
         <div className="absolute right-5 top-5 rounded-2xl border border-white/60 bg-white/75 px-3 py-2 backdrop-blur">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-            <Sparkles className="h-4 w-4 text-teal-500" />
+            <Sparkles className="h-4 w-4 text-orange-500" />
             Live business previews
           </div>
         </div>
         <div className="flex items-center justify-between gap-6">
           <div>
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-500/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/20">
                 <FileStack className="h-6 w-6" />
               </div>
               <div>
@@ -749,14 +749,14 @@ export default function TemplatesPage() {
                 Updated for {tenant?.name || "your business"}
               </span>
               <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70">
-                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                <ShieldCheck className="h-4 w-4 text-amber-500" />
                 Dynamic fields resolved in preview
               </span>
             </div>
           </div>
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 transition-all hover:shadow-xl"
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-all hover:shadow-xl"
           >
             <Plus className="w-4 h-4" />
             New Template
@@ -772,7 +772,7 @@ export default function TemplatesPage() {
             placeholder="Search templates..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-2xl bg-white/90 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+            className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-2xl bg-white/90 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20"
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -901,7 +901,7 @@ export default function TemplatesPage() {
                     <>
                       <button
                         onClick={() => setDefault(template.id)}
-                        className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-teal-50 hover:text-teal-600"
+                        className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600"
                         title="Set as default"
                       >
                         <Check className="w-4 h-4" />
@@ -943,7 +943,7 @@ export default function TemplatesPage() {
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="Template name"
                   />
                 </div>
@@ -959,7 +959,7 @@ export default function TemplatesPage() {
                         type: e.target.value as Template["type"],
                       })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="receipt">Receipt</option>
                     <option value="invoice">Invoice</option>
@@ -978,7 +978,7 @@ export default function TemplatesPage() {
                   onChange={(e) =>
                     setForm({ ...form, description: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="Brief description"
                 />
               </div>
@@ -996,7 +996,7 @@ export default function TemplatesPage() {
                   onChange={(e) =>
                     setForm({ ...form, content: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono"
                   rows={16}
                   placeholder="Template content with {{variables}}"
                 />
@@ -1023,7 +1023,7 @@ export default function TemplatesPage() {
                   ].map((v) => (
                     <code
                       key={v}
-                      className="text-[10px] bg-white px-1.5 py-0.5 rounded border text-gray-600 cursor-pointer hover:bg-teal-50"
+                      className="text-[10px] bg-white px-1.5 py-0.5 rounded border text-gray-600 cursor-pointer hover:bg-orange-50"
                       onClick={() =>
                         setForm({ ...form, content: form.content + `{{${v}}}` })
                       }
@@ -1044,7 +1044,7 @@ export default function TemplatesPage() {
               <button
                 onClick={handleSave}
                 disabled={!form.name || !form.content}
-                className="px-4 py-2 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50"
               >
                 {selectedTemplate ? "Update" : "Create"}
               </button>

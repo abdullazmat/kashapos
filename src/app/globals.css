@@ -34,7 +34,7 @@
   --card-foreground: 222.2 84% 4.9%;
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
-  --primary: 168 76% 36%;
+  --primary: 25 95% 53%;
   --primary-foreground: 0 0% 100%;
   --secondary: 210 40% 96%;
   --secondary-foreground: 222.2 47.4% 11.2%;
@@ -46,10 +46,10 @@
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 168 76% 36%;
+  --ring: 25 95% 53%;
   --sidebar-bg: 222 47% 11%;
   --sidebar-fg: 210 20% 80%;
-  --sidebar-active: 168 76% 36%;
+  --sidebar-active: 25 95% 53%;
 }
 
 .dark {
@@ -59,7 +59,7 @@
   --card-foreground: 210 40% 98%;
   --popover: 222.2 84% 4.9%;
   --popover-foreground: 210 40% 98%;
-  --primary: 168 76% 36%;
+  --primary: 25 95% 53%;
   --primary-foreground: 0 0% 100%;
   --secondary: 217.2 32.6% 17.5%;
   --secondary-foreground: 210 40% 98%;
@@ -71,14 +71,20 @@
   --destructive-foreground: 210 40% 98%;
   --border: 217.2 32.6% 17.5%;
   --input: 217.2 32.6% 17.5%;
-  --ring: 168 76% 36%;
+  --ring: 25 95% 53%;
   --sidebar-bg: 220 25% 10%;
   --sidebar-fg: 210 20% 80%;
-  --sidebar-active: 168 76% 36%;
+  --sidebar-active: 25 95% 53%;
 }
 
 * {
   border-color: hsl(var(--border));
+}
+
+html {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 body {
@@ -87,6 +93,38 @@ body {
   font-feature-settings:
     "rlig" 1,
     "calt" 1;
+}
+
+/* Smooth dark mode transitions */
+*,
+*::before,
+*::after {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* Orange accent glow for focus states */
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  outline: none;
+}
+
+/* Print styles */
+@media print {
+  nav,
+  header,
+  aside,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
 }
 
 ::-webkit-scrollbar {

@@ -172,8 +172,25 @@ export function printHtml(title: string, body: string) {
     </html>
   `);
   printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.close();
+
+  let didPrint = false;
+  const runPrint = () => {
+    if (didPrint) return;
+    didPrint = true;
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  printWindow.addEventListener("afterprint", () => {
+    printWindow.close();
+  });
+
+  if (printWindow.document.readyState === "complete") {
+    runPrint();
+  } else {
+    printWindow.addEventListener("load", runPrint, { once: true });
+    window.setTimeout(runPrint, 250);
+  }
+
   return true;
 }

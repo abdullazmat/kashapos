@@ -121,17 +121,22 @@ export default function TaxesPage() {
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Taxes</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Tax collection overview and reports (VAT {taxRate}%)
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
+            <Receipt className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Taxes</h1>
+            <p className="text-[13px] text-gray-400">
+              Tax collection overview &amp; reports (VAT {taxRate}%)
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-600 transition-colors focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
           >
             <option value="today">Today</option>
             <option value="week">This Week</option>
@@ -142,7 +147,7 @@ export default function TaxesPage() {
           <button
             onClick={exportTaxes}
             disabled={!data}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm hover:bg-teal-700 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30 disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
             Export
@@ -151,78 +156,73 @@ export default function TaxesPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
         </div>
       ) : (
         <>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-500">
-                  Total Tax Collected
-                </span>
-                <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <Receipt className="w-5 h-5 text-emerald-600" />
+            {[
+              {
+                label: "Total Tax Collected",
+                value: formatCurrency(data?.summary.totalTax || 0, currency),
+                sub: `VAT @ ${taxRate}%`,
+                icon: Receipt,
+                gradient: "from-emerald-500 to-teal-600",
+                shadow: "shadow-emerald-500/20",
+              },
+              {
+                label: "Total Sales",
+                value: formatCurrency(data?.summary.totalSales || 0, currency),
+                sub: `${data?.summary.count || 0} transactions`,
+                icon: DollarSign,
+                gradient: "from-blue-500 to-indigo-600",
+                shadow: "shadow-blue-500/20",
+              },
+              {
+                label: "Taxable Amount",
+                value: formatCurrency(
+                  data?.summary.totalSubtotal || 0,
+                  currency,
+                ),
+                sub: "Before tax",
+                icon: TrendingUp,
+                gradient: "from-amber-500 to-orange-600",
+                shadow: "shadow-amber-500/20",
+              },
+              {
+                label: "Effective Tax Rate",
+                value: `${data?.summary.totalSales ? ((data.summary.totalTax / data.summary.totalSales) * 100).toFixed(1) : "0"}%`,
+                sub: "Of total revenue",
+                icon: FileText,
+                gradient: "from-purple-500 to-violet-600",
+                shadow: "shadow-purple-500/20",
+              },
+            ].map((card) => (
+              <div
+                key={card.label}
+                className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:shadow-gray-200/50"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[13px] text-gray-400">
+                    {card.label}
+                  </span>
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${card.gradient} shadow-lg ${card.shadow}`}
+                  >
+                    <card.icon className="h-4 w-4 text-white" />
+                  </div>
                 </div>
+                <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+                <p className="text-[12px] text-gray-400 mt-1">{card.sub}</p>
               </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(data?.summary.totalTax || 0, currency)}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">VAT @ {taxRate}%</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-500">Total Sales</span>
-                <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-blue-600" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(data?.summary.totalSales || 0, currency)}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {data?.summary.count || 0} transactions
-              </p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-500">Taxable Amount</span>
-                <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-amber-600" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {formatCurrency(data?.summary.totalSubtotal || 0, currency)}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">Before tax</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-500">
-                  Effective Tax Rate
-                </span>
-                <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-purple-600" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-gray-900">
-                {data?.summary.totalSales
-                  ? (
-                      (data.summary.totalTax / data.summary.totalSales) *
-                      100
-                    ).toFixed(1)
-                  : "0"}
-                %
-              </p>
-              <p className="text-xs text-gray-400 mt-1">Of total revenue</p>
-            </div>
+            ))}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Tax by Month */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold text-gray-900">
                   Monthly Tax Collection
@@ -249,7 +249,7 @@ export default function TaxesPage() {
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-2">
                           <div
-                            className="bg-teal-500 h-2 rounded-full transition-all"
+                            className="bg-orange-500 h-2 rounded-full transition-all"
                             style={{ width: `${Math.max(pct, 2)}%` }}
                           />
                         </div>
@@ -272,7 +272,7 @@ export default function TaxesPage() {
             </div>
 
             {/* Tax by Payment Method */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <h3 className="text-base font-semibold text-gray-900 mb-4">
                 Tax by Payment Method
               </h3>
@@ -312,8 +312,8 @@ export default function TaxesPage() {
           </div>
 
           {/* Tax by Product */}
-          <div className="bg-white rounded-xl border border-gray-200">
-            <div className="p-5 border-b border-gray-200">
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="p-5 border-b border-gray-100">
               <h3 className="text-base font-semibold text-gray-900">
                 Tax by Product
               </h3>
@@ -322,16 +322,16 @@ export default function TaxesPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">
+                    <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                       Product
                     </th>
-                    <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase">
+                    <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                       Qty Sold
                     </th>
-                    <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase">
+                    <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                       Total Sales
                     </th>
-                    <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase">
+                    <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                       Tax Collected
                     </th>
                   </tr>

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Product from "@/models/Product";
+import Stock from "@/models/Stock";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -36,8 +37,35 @@ export async function GET(request: NextRequest) {
       Product.countDocuments(query),
     ]);
 
+    // Attach stock quantities to products
+    const productIds = products.map((p) => p._id);
+    const stockEntries = await Stock.aggregate([
+      {
+        $match: {
+          tenantId: auth.tenantId,
+          productId: { $in: productIds },
+        },
+      },
+      {
+        $group: {
+          _id: "$productId",
+          totalQuantity: { $sum: "$quantity" },
+        },
+      },
+    ]);
+    const stockMap = new Map(
+      stockEntries.map((s: { _id: string; totalQuantity: number }) => [
+        s._id.toString(),
+        s.totalQuantity,
+      ]),
+    );
+    const productsWithStock = products.map((p) => ({
+      ...p,
+      stock: stockMap.get(p._id.toString()) ?? 0,
+    }));
+
     return apiSuccess({
-      products,
+      products: productsWithStock,
       total,
       page,
       totalPages: Math.ceil(total / limit),

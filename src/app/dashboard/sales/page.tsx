@@ -175,7 +175,7 @@ export default function SalesPage() {
   }, [sales, total]);
 
   const statusColor: Record<string, string> = {
-    completed: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
+    completed: "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20",
     pending: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
     refunded: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
     voided: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
@@ -200,8 +200,8 @@ export default function SalesPage() {
       label: "Total Sales",
       value: formatCurrency(stats.totalRevenue, currency),
       icon: TrendingUp,
-      gradient: "from-teal-500 to-emerald-600",
-      shadow: "shadow-teal-500/20",
+      gradient: "from-orange-500 to-amber-600",
+      shadow: "shadow-orange-500/20",
     },
     {
       label: "Orders",
@@ -214,8 +214,8 @@ export default function SalesPage() {
       label: "Completed",
       value: stats.completedCount.toString(),
       icon: ArrowUpRight,
-      gradient: "from-emerald-500 to-green-600",
-      shadow: "shadow-emerald-500/20",
+      gradient: "from-amber-500 to-green-600",
+      shadow: "shadow-amber-500/20",
     },
     {
       label: "Avg. Order",
@@ -231,7 +231,7 @@ export default function SalesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-lg shadow-teal-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
             <TrendingUp className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -289,7 +289,7 @@ export default function SalesPage() {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm transition-colors focus:border-teal-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+          className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
         >
           <option value="">All Status</option>
           <option value="completed">Completed</option>
@@ -368,7 +368,7 @@ export default function SalesPage() {
               <tr>
                 <td colSpan={8} className="px-5 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
-                    <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-teal-500" />
+                    <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
                     <span className="text-sm text-gray-400">
                       Loading sales...
                     </span>
@@ -437,7 +437,7 @@ export default function SalesPage() {
                   <td className="px-5 py-3.5 text-right">
                     <button
                       onClick={() => setViewSale(s)}
-                      className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-teal-50 hover:text-teal-600 group-hover:opacity-100"
+                      className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 group-hover:opacity-100"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
@@ -488,7 +488,7 @@ export default function SalesPage() {
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-md shadow-teal-500/20">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-md shadow-orange-500/20">
                   <Receipt className="h-4 w-4 text-white" />
                 </div>
                 <div>
@@ -608,7 +608,7 @@ export default function SalesPage() {
                 )}
                 <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-bold">
                   <span className="text-gray-900">Total</span>
-                  <span className="bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
                     {formatCurrency(viewSale.total, currency)}
                   </span>
                 </div>
@@ -622,7 +622,7 @@ export default function SalesPage() {
                   <select
                     value={selectedStatus}
                     onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm transition-colors focus:border-teal-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                    className="mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                   >
                     <option value="completed">Completed</option>
                     <option value="pending">Pending</option>
@@ -645,7 +645,7 @@ export default function SalesPage() {
                     disabled={
                       actionLoading || selectedStatus === viewSale.status
                     }
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
                   >
                     <Save className="h-4 w-4" />
                     {actionLoading ? "Saving..." : "Save Changes"}

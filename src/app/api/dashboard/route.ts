@@ -20,27 +20,43 @@ export async function GET(request: NextRequest) {
 
     let startDate: Date;
     const endDate = new Date();
+    let salesGroupFormat = "%Y-%m-%d";
 
     switch (period) {
       case "today":
         startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
+        salesGroupFormat = "%Y-%m-%d %H:00";
         break;
       case "week":
         startDate = new Date();
         startDate.setDate(startDate.getDate() - 7);
+        salesGroupFormat = "%Y-%m-%d";
         break;
       case "month":
         startDate = new Date();
         startDate.setMonth(startDate.getMonth() - 1);
+        salesGroupFormat = "%Y-%m-%d";
+        break;
+      case "quarter":
+        startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 3);
+        salesGroupFormat = "%Y-%U";
+        break;
+      case "half":
+        startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 6);
+        salesGroupFormat = "%Y-%m";
         break;
       case "year":
         startDate = new Date();
         startDate.setFullYear(startDate.getFullYear() - 1);
+        salesGroupFormat = "%Y-%m";
         break;
       default:
         startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
+        salesGroupFormat = "%Y-%m-%d %H:00";
     }
 
     const tenantQuery = { tenantId: auth.tenantId };
@@ -119,7 +135,9 @@ export async function GET(request: NextRequest) {
         },
         {
           $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            _id: {
+              $dateToString: { format: salesGroupFormat, date: "$createdAt" },
+            },
             total: { $sum: "$total" },
             count: { $sum: 1 },
           },

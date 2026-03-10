@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Settings,
   Zap,
+  FileText,
 } from "lucide-react";
 
 interface Integration {
@@ -85,8 +86,8 @@ const defaultIntegrations: Integration[] = [
     description: "Send receipts and invoices via email",
     category: "Communication",
     icon: Mail,
-    color: "text-teal-600",
-    bgColor: "bg-teal-50",
+    color: "text-orange-600",
+    bgColor: "bg-orange-50",
     connected: false,
     status: "inactive",
   },
@@ -138,12 +139,25 @@ const defaultIntegrations: Integration[] = [
   },
   // Accounting
   {
+    id: "efris-ura",
+    name: "EFRIS - URA",
+    description:
+      "E-Invoicing & fiscal receipts via Uganda Revenue Authority EFRIS",
+    category: "Tax & Compliance",
+    icon: FileText,
+    color: "text-blue-700",
+    bgColor: "bg-blue-50",
+    connected: false,
+    status: "coming_soon",
+    popular: true,
+  },
+  {
     id: "quickbooks",
     name: "QuickBooks",
     description: "Sync sales and expenses with QuickBooks",
     category: "Accounting",
     icon: BarChart3,
-    color: "text-emerald-600",
+    color: "text-amber-600",
     bgColor: "bg-emerald-50",
     connected: false,
     status: "coming_soon",
@@ -224,8 +238,8 @@ export default function IntegrationsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
-              <Plug className="w-5 h-5 text-teal-600" />
+            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+              <Plug className="w-5 h-5 text-orange-600" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">
@@ -238,7 +252,7 @@ export default function IntegrationsPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-emerald-600" />
+              <Zap className="w-5 h-5 text-amber-600" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">
@@ -272,7 +286,7 @@ export default function IntegrationsPage() {
             placeholder="Search integrations..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
         </div>
         <div className="flex gap-2">
@@ -282,7 +296,7 @@ export default function IntegrationsPage() {
               onClick={() => setFilterCategory(cat)}
               className={`px-3 py-1.5 text-sm rounded-lg capitalize ${
                 filterCategory === cat
-                  ? "bg-teal-600 text-white"
+                  ? "bg-orange-600 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
@@ -369,7 +383,7 @@ export default function IntegrationsPage() {
               ) : (
                 <button
                   onClick={() => openConfig(integration)}
-                  className="flex-1 px-3 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+                  className="flex-1 px-3 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700"
                 >
                   Connect
                 </button>
@@ -409,7 +423,7 @@ export default function IntegrationsPage() {
                 <input
                   type="text"
                   placeholder="Enter your API key"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
               <div>
@@ -419,7 +433,7 @@ export default function IntegrationsPage() {
                 <input
                   type="password"
                   placeholder="Enter your API secret"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
               <div>
@@ -429,7 +443,7 @@ export default function IntegrationsPage() {
                 <input
                   type="url"
                   placeholder="https://..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
             </div>
@@ -442,7 +456,7 @@ export default function IntegrationsPage() {
               </button>
               <button
                 onClick={() => toggleConnect(selectedIntegration.id)}
-                className="px-4 py-2 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700"
+                className="px-4 py-2 text-sm text-white bg-orange-600 rounded-lg hover:bg-orange-700"
               >
                 {selectedIntegration.connected ? "Save Changes" : "Connect"}
               </button>

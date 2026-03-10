@@ -48,7 +48,7 @@ interface Customer {
 const statusColors: Record<string, string> = {
   draft: "bg-gray-50 text-gray-700 ring-1 ring-gray-600/10",
   sent: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
-  paid: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
+  paid: "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20",
   overdue: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
   cancelled: "bg-red-50 text-red-600 ring-1 ring-red-600/20",
 };
@@ -71,6 +71,7 @@ export default function InvoicesPage() {
     customerId: "",
     dueDate: "",
     notes: "",
+    customTaxRate: "",
     items: [{ description: "", quantity: 1, unitPrice: 0 }] as {
       description: string;
       quantity: number;
@@ -141,7 +142,10 @@ export default function InvoicesPage() {
   };
 
   const createInvoice = async () => {
-    const taxRate = (tenant?.settings?.taxRate || 0) / 100;
+    const taxRate =
+      (newInvoice.customTaxRate !== ""
+        ? parseFloat(newInvoice.customTaxRate)
+        : tenant?.settings?.taxRate || 0) / 100;
     const items = newInvoice.items.map((item) => {
       const lineTotal = item.quantity * item.unitPrice;
       const tax = lineTotal * taxRate;
@@ -181,6 +185,7 @@ export default function InvoicesPage() {
         customerId: "",
         dueDate: "",
         notes: "",
+        customTaxRate: "",
         items: [{ description: "", quantity: 1, unitPrice: 0 }],
       });
       fetchInvoices();
@@ -216,7 +221,7 @@ export default function InvoicesPage() {
   const invoiceSubtotal =
     newInvoice.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0) || 0;
   const inputClass =
-    "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-teal-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20";
+    "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
   const statusTabs = [
     { key: "", label: "All" },
@@ -243,7 +248,7 @@ export default function InvoicesPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg hover:shadow-teal-500/30"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
         >
           <Plus className="h-4 w-4" /> New Invoice
         </button>
@@ -260,7 +265,7 @@ export default function InvoicesPage() {
             }}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition-all ${
               statusFilter === tab.key
-                ? "bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-sm shadow-teal-500/25"
+                ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-sm shadow-orange-500/25"
                 : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
             }`}
           >
@@ -383,7 +388,7 @@ export default function InvoicesPage() {
                             setShowPayment(inv);
                             setPaymentAmount("");
                           }}
-                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-amber-600"
                           title="Record Payment"
                         >
                           <DollarSign className="h-4 w-4" />
@@ -553,7 +558,7 @@ export default function InvoicesPage() {
                     {formatCurrency(viewInvoice.total, currency)}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm text-emerald-600">
+                <div className="flex justify-between text-sm text-amber-600">
                   <span>Paid</span>
                   <span>
                     {formatCurrency(viewInvoice.amountPaid || 0, currency)}
@@ -571,6 +576,63 @@ export default function InvoicesPage() {
                   {viewInvoice.notes}
                 </div>
               )}
+
+              {/* Send Actions */}
+              <div className="mt-4 flex gap-2">
+                {viewInvoice.customerId?.email && (
+                  <button
+                    onClick={() => {
+                      const subject = encodeURIComponent(
+                        `Invoice ${viewInvoice.invoiceNumber}`,
+                      );
+                      const body = encodeURIComponent(
+                        `Dear ${viewInvoice.customerId?.name},\n\nPlease find your invoice ${viewInvoice.invoiceNumber} for ${formatCurrency(viewInvoice.total, currency)}.\n\nDue: ${viewInvoice.dueDate ? formatDate(viewInvoice.dueDate) : "On receipt"}\nBalance: ${formatCurrency(viewInvoice.balance || 0, currency)}\n\nThank you for your business!`,
+                      );
+                      window.open(
+                        `mailto:${viewInvoice.customerId?.email}?subject=${subject}&body=${body}`,
+                        "_blank",
+                      );
+                    }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Email
+                  </button>
+                )}
+                {viewInvoice.customerId?.phone && (
+                  <button
+                    onClick={() => {
+                      const phone = viewInvoice.customerId?.phone?.replace(
+                        /\D/g,
+                        "",
+                      );
+                      const text = encodeURIComponent(
+                        `Invoice: ${viewInvoice.invoiceNumber}\nTotal: ${formatCurrency(viewInvoice.total, currency)}\nBalance: ${formatCurrency(viewInvoice.balance || 0, currency)}\nDue: ${viewInvoice.dueDate ? formatDate(viewInvoice.dueDate) : "On receipt"}\n\nThank you!`,
+                      );
+                      window.open(
+                        `https://wa.me/${phone}?text=${text}`,
+                        "_blank",
+                      );
+                    }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    WhatsApp
+                  </button>
+                )}
+                {viewInvoice.status === "draft" && (
+                  <button
+                    onClick={() => {
+                      updateStatus(viewInvoice._id, "sent");
+                      setViewInvoice(null);
+                    }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-3 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Mark Sent
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -588,7 +650,7 @@ export default function InvoicesPage() {
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-md shadow-emerald-500/20">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-green-600 shadow-md shadow-amber-500/20">
                   <DollarSign className="h-4 w-4 text-white" />
                 </div>
                 <h2 className="font-bold text-gray-900">Record Payment</h2>
@@ -616,7 +678,7 @@ export default function InvoicesPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Paid</span>
-                  <span className="text-emerald-600">
+                  <span className="text-amber-600">
                     {formatCurrency(showPayment.amountPaid || 0, currency)}
                   </span>
                 </div>
@@ -657,7 +719,7 @@ export default function InvoicesPage() {
                 <button
                   onClick={recordPayment}
                   disabled={!paymentAmount || parseFloat(paymentAmount) <= 0}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 px-3 py-2.5 text-sm font-medium text-white shadow-md shadow-emerald-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
+                  className="flex-1 rounded-xl bg-gradient-to-r from-amber-500 to-green-600 px-3 py-2.5 text-sm font-medium text-white shadow-md shadow-amber-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
                 >
                   Record
                 </button>
@@ -737,7 +799,7 @@ export default function InvoicesPage() {
                   </label>
                   <button
                     onClick={addItem}
-                    className="rounded-lg bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 transition-colors hover:bg-teal-100"
+                    className="rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-100"
                   >
                     + Add Item
                   </button>
@@ -808,24 +870,49 @@ export default function InvoicesPage() {
                     {formatCurrency(invoiceSubtotal, currency)}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-500">
-                    Tax ({tenant?.settings?.taxRate || 0}%)
-                  </span>
+                <div className="flex justify-between items-center text-sm mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Tax</span>
+                    <input
+                      type="number"
+                      value={
+                        newInvoice.customTaxRate !== ""
+                          ? newInvoice.customTaxRate
+                          : tenant?.settings?.taxRate || 0
+                      }
+                      onChange={(e) =>
+                        setNewInvoice({
+                          ...newInvoice,
+                          customTaxRate: e.target.value,
+                        })
+                      }
+                      className="w-16 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-right"
+                      min={0}
+                      step={0.5}
+                    />
+                    <span className="text-gray-400 text-xs">%</span>
+                  </div>
                   <span className="text-gray-700">
                     {formatCurrency(
                       invoiceSubtotal *
-                        ((tenant?.settings?.taxRate || 0) / 100),
+                        ((newInvoice.customTaxRate !== ""
+                          ? parseFloat(newInvoice.customTaxRate)
+                          : tenant?.settings?.taxRate || 0) /
+                          100),
                       currency,
                     )}
                   </span>
                 </div>
                 <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2">
                   <span className="text-gray-900">Total</span>
-                  <span className="bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
                     {formatCurrency(
                       invoiceSubtotal *
-                        (1 + (tenant?.settings?.taxRate || 0) / 100),
+                        (1 +
+                          (newInvoice.customTaxRate !== ""
+                            ? parseFloat(newInvoice.customTaxRate)
+                            : tenant?.settings?.taxRate || 0) /
+                            100),
                       currency,
                     )}
                   </span>
@@ -860,7 +947,7 @@ export default function InvoicesPage() {
                   newInvoice.items.length === 0 ||
                   !newInvoice.items[0].description
                 }
-                className="rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
+                className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
               >
                 Create Invoice
               </button>

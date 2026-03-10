@@ -217,18 +217,18 @@ export default function PurchasesPage() {
     draft: "bg-gray-50 text-gray-700 ring-1 ring-gray-600/10",
     ordered: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
     partial: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
-    received: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
+    received: "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20",
     cancelled: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
   };
 
   const paymentColor: Record<string, string> = {
-    paid: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20",
+    paid: "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20",
     partial: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
     unpaid: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
   };
 
   const inputClass =
-    "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-teal-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20";
+    "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
   const summaryCards = [
     {
@@ -249,8 +249,8 @@ export default function PurchasesPage() {
       label: "Received",
       value: stats.received.toString(),
       icon: Package,
-      gradient: "from-emerald-500 to-green-600",
-      shadow: "shadow-emerald-500/20",
+      gradient: "from-amber-500 to-green-600",
+      shadow: "shadow-amber-500/20",
     },
     {
       label: "Pending",
@@ -281,7 +281,7 @@ export default function PurchasesPage() {
             setFormError("");
             setShowNewOrder(true);
           }}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg hover:shadow-teal-500/30"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
         >
           <Plus className="h-4 w-4" /> New Purchase Order
         </button>
@@ -318,7 +318,7 @@ export default function PurchasesPage() {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm transition-colors focus:border-teal-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+          className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
         >
           <option value="">All Status</option>
           <option value="draft">Draft</option>
@@ -551,7 +551,7 @@ export default function PurchasesPage() {
                     </label>
                     <button
                       onClick={addItem}
-                      className="rounded-lg bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 transition-colors hover:bg-teal-100"
+                      className="rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-100"
                     >
                       + Add Item
                     </button>
@@ -643,7 +643,7 @@ export default function PurchasesPage() {
             <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
               <div className="text-lg font-bold text-gray-900">
                 Total:{" "}
-                <span className="bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
                   {formatCurrency(
                     newOrder.items.reduce((sum, i) => sum + i.total, 0),
                     currency,
@@ -664,7 +664,7 @@ export default function PurchasesPage() {
                     !newOrder.vendorId ||
                     newOrder.items.length === 0
                   }
-                  className="rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
+                  className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
                 >
                   {submittingOrder ? "Creating..." : "Create Order"}
                 </button>
@@ -777,7 +777,7 @@ export default function PurchasesPage() {
               <div className="rounded-xl bg-gray-50 p-4">
                 <div className="flex justify-between border-t-0 text-base font-bold">
                   <span className="text-gray-900">Total</span>
-                  <span className="bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
                     {formatCurrency(viewOrder.total, currency)}
                   </span>
                 </div>

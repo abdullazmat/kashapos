@@ -38,7 +38,7 @@ interface BranchItem {
 }
 
 const inputClass =
-  "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-teal-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20";
+  "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
 export default function SettingsPage() {
   const { user, tenant } = useSession();
@@ -272,7 +272,7 @@ export default function SettingsPage() {
     const colors: Record<string, string> = {
       admin: "bg-purple-50 text-purple-600 ring-purple-600/20",
       manager: "bg-blue-50 text-blue-600 ring-blue-600/20",
-      cashier: "bg-emerald-50 text-emerald-600 ring-emerald-600/20",
+      cashier: "bg-emerald-50 text-amber-600 ring-amber-600/20",
     };
     return (
       <span
@@ -413,7 +413,7 @@ export default function SettingsPage() {
 
             {settingsMsg && (
               <div
-                className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium ${settingsMsg.type === "success" ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20" : "bg-red-50 text-red-700 ring-1 ring-red-600/20"}`}
+                className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium ${settingsMsg.type === "success" ? "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20" : "bg-red-50 text-red-700 ring-1 ring-red-600/20"}`}
               >
                 {settingsMsg.type === "success" ? (
                   <Check className="h-4 w-4" />
@@ -427,7 +427,7 @@ export default function SettingsPage() {
             <button
               onClick={handleSaveSettings}
               disabled={savingSettings}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg disabled:opacity-50"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
               {savingSettings ? "Saving…" : "Save Settings"}
@@ -449,7 +449,7 @@ export default function SettingsPage() {
                 setUserError("");
                 setShowUserModal(true);
               }}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
             >
               <Plus className="h-4 w-4" /> Add User
             </button>
@@ -458,7 +458,7 @@ export default function SettingsPage() {
           <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
             {loadingUsers ? (
               <div className="flex items-center justify-center py-16">
-                <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-teal-500" />
+                <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
               </div>
             ) : users.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16">
@@ -562,7 +562,7 @@ export default function SettingsPage() {
               <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
                 <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-lg shadow-teal-500/20">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
                       <User className="h-5 w-5 text-white" />
                     </div>
                     <div>
@@ -668,7 +668,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleAddUser}
                     disabled={savingUser}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg disabled:opacity-50"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
                   >
                     {savingUser ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -693,7 +693,7 @@ export default function SettingsPage() {
             </p>
             <button
               onClick={() => openBranchModal()}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
             >
               <Plus className="h-4 w-4" /> Add Branch
             </button>
@@ -718,7 +718,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   {b.isMain && (
-                    <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-[11px] font-semibold text-teal-600 ring-1 ring-teal-600/20">
+                    <span className="rounded-full bg-orange-50 px-2.5 py-0.5 text-[11px] font-semibold text-orange-600 ring-1 ring-orange-600/20">
                       Main
                     </span>
                   )}

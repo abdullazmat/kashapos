@@ -7,16 +7,19 @@ import { verifyPassword, createToken, setSession } from "@/lib/auth";
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
-    const { email, password } = await request.json();
+    const { email, phone, password } = await request.json();
 
-    if (!email || !password) {
+    if ((!email && !phone) || !password) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: "Email or phone number and password are required" },
         { status: 400 },
       );
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const query = email
+      ? { email: email.toLowerCase() }
+      : { phone: phone.replace(/\s+/g, "") };
+    const user = await User.findOne(query);
     if (!user) {
       return NextResponse.json(
         { error: "Invalid credentials" },

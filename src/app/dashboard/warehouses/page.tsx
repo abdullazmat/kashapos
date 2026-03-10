@@ -198,15 +198,20 @@ export default function WarehousesPage() {
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Warehouses</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Manage your branches and warehouse locations
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
+            <Warehouse className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Warehouses</h1>
+            <p className="text-[13px] text-gray-400">
+              Manage your branches &amp; warehouse locations
+            </p>
+          </div>
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm hover:bg-teal-700"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
         >
           <Plus className="w-4 h-4" />
           Add Warehouse
@@ -216,13 +221,13 @@ export default function WarehousesPage() {
       {/* Search */}
       <div className="mb-6">
         <div className="relative max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search warehouses..."
+            placeholder="Search warehouses…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 transition-colors"
           />
         </div>
       </div>
@@ -235,50 +240,51 @@ export default function WarehousesPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
-              <Warehouse className="w-5 h-5 text-teal-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {branches.length}
-              </p>
-              <p className="text-sm text-gray-500">Total Locations</p>
+        {[
+          {
+            label: "Total Locations",
+            value: branches.length,
+            icon: Warehouse,
+            gradient: "from-orange-500 to-amber-600",
+            shadow: "shadow-orange-500/20",
+          },
+          {
+            label: "Active",
+            value: branches.filter((b) => b.isActive).length,
+            icon: CheckCircle,
+            gradient: "from-emerald-500 to-teal-600",
+            shadow: "shadow-emerald-500/20",
+          },
+          {
+            label: "Total Stock Items",
+            value: stockSummaries.reduce((a, s) => a + s.totalItems, 0),
+            icon: Package,
+            gradient: "from-blue-500 to-indigo-600",
+            shadow: "shadow-blue-500/20",
+          },
+        ].map((card) => (
+          <div
+            key={card.label}
+            className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:shadow-gray-200/50"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${card.gradient} shadow-lg ${card.shadow}`}
+              >
+                <card.icon className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-gray-800">{card.value}</p>
+                <p className="text-[13px] text-gray-400">{card.label}</p>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {branches.filter((b) => b.isActive).length}
-              </p>
-              <p className="text-sm text-gray-500">Active</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Package className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {stockSummaries.reduce((a, s) => a + s.totalItems, 0)}
-              </p>
-              <p className="text-sm text-gray-500">Total Stock Items</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -287,12 +293,12 @@ export default function WarehousesPage() {
             return (
               <div
                 key={branch._id}
-                className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+                className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:shadow-gray-200/50"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
-                      <Warehouse className="w-5 h-5 text-teal-600" />
+                    <div className="w-10 h-10 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl flex items-center justify-center">
+                      <Warehouse className="w-5 h-5 text-orange-600" />
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900">
@@ -305,7 +311,7 @@ export default function WarehousesPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     {branch.isMain && (
-                      <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-medium">
+                      <span className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full font-medium">
                         Main
                       </span>
                     )}
@@ -375,8 +381,14 @@ export default function WarehousesPage() {
             );
           })}
           {filtered.length === 0 && (
-            <div className="col-span-full text-center py-16 text-gray-500">
-              No warehouses found
+            <div className="col-span-full flex flex-col items-center justify-center py-20 rounded-2xl border border-gray-100 bg-white">
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-50">
+                <Warehouse className="h-6 w-6 text-gray-300" />
+              </div>
+              <p className="font-medium text-gray-500">No warehouses found</p>
+              <p className="text-[13px] text-gray-400">
+                Try a different search term
+              </p>
             </div>
           )}
         </div>
@@ -384,8 +396,8 @@ export default function WarehousesPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               {editingBranch ? "Edit Warehouse" : "Add Warehouse"}
             </h2>
@@ -404,7 +416,7 @@ export default function WarehousesPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="e.g. Downtown Store"
                 />
               </div>
@@ -418,7 +430,7 @@ export default function WarehousesPage() {
                   onChange={(e) =>
                     setForm({ ...form, code: e.target.value.toUpperCase() })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="e.g. DT01"
                 />
               </div>
@@ -432,7 +444,7 @@ export default function WarehousesPage() {
                   onChange={(e) =>
                     setForm({ ...form, address: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="Street address"
                 />
               </div>
@@ -447,7 +459,7 @@ export default function WarehousesPage() {
                     onChange={(e) =>
                       setForm({ ...form, phone: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
                 <div>
@@ -460,7 +472,7 @@ export default function WarehousesPage() {
                     onChange={(e) =>
                       setForm({ ...form, email: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
               </div>
@@ -468,14 +480,14 @@ export default function WarehousesPage() {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="rounded-xl px-4 py-2.5 text-sm text-gray-600 border border-gray-200 bg-white transition-all hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="px-4 py-2 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                className="rounded-xl px-4 py-2.5 text-sm text-white bg-gradient-to-r from-orange-500 to-amber-600 shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
               >
                 {submitting ? "Saving..." : editingBranch ? "Update" : "Create"}
               </button>

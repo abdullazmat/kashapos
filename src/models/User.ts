@@ -4,6 +4,7 @@ export interface IUser extends Document {
   tenantId: mongoose.Types.ObjectId;
   name: string;
   email: string;
+  phone?: string;
   password: string;
   role: "admin" | "manager" | "cashier";
   branchId?: mongoose.Types.ObjectId;
@@ -24,6 +25,7 @@ const UserSchema = new Schema<IUser>(
     },
     name: { type: String, required: true },
     email: { type: String, required: true },
+    phone: { type: String },
     password: { type: String, required: true },
     role: {
       type: String,
@@ -39,6 +41,7 @@ const UserSchema = new Schema<IUser>(
 );
 
 UserSchema.index({ tenantId: 1, email: 1 }, { unique: true });
+UserSchema.index({ phone: 1 }, { sparse: true });
 
 const User: Model<IUser> =
   mongoose.models.User || mongoose.model<IUser>("User", UserSchema);

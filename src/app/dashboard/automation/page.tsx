@@ -224,15 +224,20 @@ export default function AutomationPage() {
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Automation</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Set up rules to automate repetitive tasks
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
+            <Zap className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Automation</h1>
+            <p className="text-[13px] text-gray-400">
+              Set up rules to automate repetitive tasks
+            </p>
+          </div>
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm hover:bg-teal-700"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
         >
           <Plus className="w-4 h-4" />
           New Rule
@@ -241,41 +246,46 @@ export default function AutomationPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-teal-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{rules.length}</p>
-              <p className="text-sm text-gray-500">Total Rules</p>
+        {[
+          {
+            label: "Total Rules",
+            value: rules.length,
+            icon: Zap,
+            gradient: "from-orange-500 to-amber-600",
+            shadow: "shadow-orange-500/20",
+          },
+          {
+            label: "Active",
+            value: activeCount,
+            icon: Play,
+            gradient: "from-emerald-500 to-teal-600",
+            shadow: "shadow-emerald-500/20",
+          },
+          {
+            label: "Total Executions",
+            value: rules.reduce((a, r) => a + r.triggerCount, 0),
+            icon: CheckCircle,
+            gradient: "from-blue-500 to-indigo-600",
+            shadow: "shadow-blue-500/20",
+          },
+        ].map((card) => (
+          <div
+            key={card.label}
+            className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-lg hover:shadow-gray-200/50"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${card.gradient} shadow-lg ${card.shadow}`}
+              >
+                <card.icon className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-gray-800">{card.value}</p>
+                <p className="text-[13px] text-gray-400">{card.label}</p>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <Play className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{activeCount}</p>
-              <p className="text-sm text-gray-500">Active</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">
-                {rules.reduce((a, r) => a + r.triggerCount, 0)}
-              </p>
-              <p className="text-sm text-gray-500">Total Executions</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Rules List */}
@@ -286,19 +296,23 @@ export default function AutomationPage() {
           return (
             <div
               key={rule.id}
-              className={`bg-white rounded-xl border p-5 transition-all ${
-                rule.enabled ? "border-gray-200" : "border-gray-100 opacity-60"
+              className={`rounded-2xl border bg-white p-5 shadow-sm transition-all ${
+                rule.enabled
+                  ? "border-gray-100 hover:shadow-lg hover:shadow-gray-200/50"
+                  : "border-gray-100 opacity-60"
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4 flex-1">
                   <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      rule.enabled ? "bg-teal-50" : "bg-gray-100"
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      rule.enabled
+                        ? "bg-gradient-to-br from-orange-50 to-amber-50"
+                        : "bg-gray-100"
                     }`}
                   >
                     <TriggerIcon
-                      className={`w-5 h-5 ${rule.enabled ? "text-teal-600" : "text-gray-400"}`}
+                      className={`w-5 h-5 ${rule.enabled ? "text-orange-600" : "text-gray-400"}`}
                     />
                   </div>
                   <div className="flex-1">
@@ -354,7 +368,7 @@ export default function AutomationPage() {
                     className={`p-2 rounded-lg ${
                       rule.enabled
                         ? "hover:bg-amber-50 text-amber-500"
-                        : "hover:bg-emerald-50 text-emerald-500"
+                        : "hover:bg-emerald-50 text-amber-500"
                     }`}
                     title={rule.enabled ? "Pause" : "Activate"}
                   >
@@ -382,7 +396,7 @@ export default function AutomationPage() {
           );
         })}
         {rules.length === 0 && (
-          <div className="text-center py-16 text-gray-500 bg-white rounded-xl border border-gray-200">
+          <div className="text-center py-16 text-gray-500 bg-white rounded-2xl border border-gray-100 shadow-sm">
             <Zap className="w-10 h-10 mx-auto text-gray-300 mb-3" />
             <p className="font-medium">No automation rules yet</p>
             <p className="text-sm mt-1">
@@ -394,8 +408,8 @@ export default function AutomationPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               {editingRule ? "Edit Rule" : "New Automation Rule"}
             </h2>
@@ -408,7 +422,7 @@ export default function AutomationPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="e.g. Low Stock Alert"
                 />
               </div>
@@ -421,7 +435,7 @@ export default function AutomationPage() {
                   onChange={(e) =>
                     setForm({ ...form, description: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   rows={2}
                   placeholder="What does this rule do?"
                 />
@@ -435,7 +449,7 @@ export default function AutomationPage() {
                   onChange={(e) =>
                     setForm({ ...form, trigger: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
                   {triggerOptions.map((t) => (
                     <option key={t.value} value={t.value}>
@@ -451,7 +465,7 @@ export default function AutomationPage() {
                   </label>
                   <button
                     onClick={addAction}
-                    className="text-xs text-teal-600 hover:underline"
+                    className="text-xs text-orange-600 hover:underline"
                   >
                     + Add Action
                   </button>
@@ -462,7 +476,7 @@ export default function AutomationPage() {
                       <select
                         value={action.type}
                         onChange={(e) => updateAction(i, e.target.value)}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                       >
                         {actionOptions.map((a) => (
                           <option key={a.value} value={a.value}>
@@ -486,14 +500,14 @@ export default function AutomationPage() {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl transition-all hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={!form.name}
-                className="px-4 py-2 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                className="px-4 py-2.5 text-sm text-white bg-gradient-to-r from-orange-500 to-amber-600 rounded-xl shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
               >
                 {editingRule ? "Update Rule" : "Create Rule"}
               </button>

@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Plus,
   Minus,
+  ArrowRightLeft,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useSession } from "../layout";
@@ -31,7 +32,7 @@ interface Branch {
 }
 
 const inputClass =
-  "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20";
+  "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
 export default function StockPage() {
   const { tenant } = useSession();
@@ -49,6 +50,20 @@ export default function StockPage() {
   const [adjustQty, setAdjustQty] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Stock Transfer state
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferFrom, setTransferFrom] = useState("");
+  const [transferTo, setTransferTo] = useState("");
+  const [transferProduct, setTransferProduct] = useState("");
+  const [transferQty, setTransferQty] = useState("");
+  const [transferNotes, setTransferNotes] = useState("");
+  const [savingTransfer, setSavingTransfer] = useState(false);
+
+  // Product list for transfers
+  const [products, setProducts] = useState<
+    { _id: string; name: string; sku: string }[]
+  >([]);
 
   const fetchStock = useCallback(async () => {
     setLoading(true);
@@ -78,10 +93,23 @@ export default function StockPage() {
     }
   }, []);
 
+  const fetchProducts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/products?limit=500");
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data.products || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStock();
     fetchBranches();
-  }, [fetchStock, fetchBranches]);
+    fetchProducts();
+  }, [fetchStock, fetchBranches, fetchProducts]);
 
   const handleAdjust = async () => {
     if (!adjustModal || !adjustQty || !adjustReason) return;
@@ -108,6 +136,53 @@ export default function StockPage() {
       console.error(err);
     }
     setSaving(false);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferFrom || !transferTo || !transferProduct || !transferQty)
+      return;
+    if (transferFrom === transferTo) {
+      alert("Source and destination branches must be different");
+      return;
+    }
+    setSavingTransfer(true);
+    try {
+      const selectedProduct = products.find((p) => p._id === transferProduct);
+      const res = await fetch("/api/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: transferProduct,
+          branchId: transferFrom,
+          type: "subtraction",
+          quantity: parseInt(transferQty),
+          reason: `Stock transfer to ${branches.find((b) => b._id === transferTo)?.name || "branch"}: ${transferNotes || "N/A"}`,
+        }),
+      });
+      if (res.ok) {
+        await fetch("/api/stock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId: transferProduct,
+            branchId: transferTo,
+            type: "addition",
+            quantity: parseInt(transferQty),
+            reason: `Stock transfer from ${branches.find((b) => b._id === transferFrom)?.name || "branch"}: ${transferNotes || "N/A"}`,
+          }),
+        });
+        setShowTransferModal(false);
+        setTransferFrom("");
+        setTransferTo("");
+        setTransferProduct("");
+        setTransferQty("");
+        setTransferNotes("");
+        fetchStock();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setSavingTransfer(false);
   };
 
   const filtered = useMemo(() => {
@@ -144,15 +219,15 @@ export default function StockPage() {
       label: "Total Units",
       value: totalUnits.toLocaleString(),
       icon: Package,
-      gradient: "from-sky-500 to-blue-600",
-      shadow: "shadow-sky-500/20",
+      gradient: "from-orange-500 to-amber-600",
+      shadow: "shadow-orange-500/20",
     },
     {
       label: "Stock Value",
       value: formatCurrency(totalValue, currency),
       icon: TrendingUp,
-      gradient: "from-emerald-500 to-teal-600",
-      shadow: "shadow-emerald-500/20",
+      gradient: "from-blue-500 to-indigo-600",
+      shadow: "shadow-blue-500/20",
     },
     {
       label: "Low Stock",
@@ -171,7 +246,7 @@ export default function StockPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
             <Warehouse className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -183,12 +258,20 @@ export default function StockPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={fetchStock}
-          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
-        >
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowTransferModal(true)}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
+          >
+            <ArrowRightLeft className="h-4 w-4" /> Transfer
+          </button>
+          <button
+            onClick={fetchStock}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
+          >
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -222,7 +305,7 @@ export default function StockPage() {
             placeholder="Search products…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-9 text-sm transition-colors focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-9 text-sm transition-colors focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
           />
           {search && (
             <button
@@ -236,7 +319,7 @@ export default function StockPage() {
         <select
           value={branchFilter}
           onChange={(e) => setBranchFilter(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-600 transition-colors focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+          className="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-600 transition-colors focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
         >
           <option value="">All Branches</option>
           {branches.map((b) => (
@@ -262,7 +345,7 @@ export default function StockPage() {
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-sky-500" />
+            <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -315,8 +398,8 @@ export default function StockPage() {
                   >
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-sky-50 to-blue-50">
-                          <Package className="h-4 w-4 text-sky-600" />
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-orange-50 to-amber-50">
+                          <Package className="h-4 w-4 text-orange-600" />
                         </div>
                         <div>
                           <p className="font-medium text-gray-800">
@@ -364,7 +447,7 @@ export default function StockPage() {
                     <td className="px-5 py-3.5 text-right">
                       <button
                         onClick={() => setAdjustModal(s)}
-                        className="rounded-lg bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-600 opacity-0 ring-1 ring-sky-600/20 transition-all hover:bg-sky-100 group-hover:opacity-100"
+                        className="rounded-lg bg-orange-50 px-3 py-1.5 text-[12px] font-semibold text-orange-600 opacity-0 ring-1 ring-orange-600/20 transition-all hover:bg-orange-100 group-hover:opacity-100"
                       >
                         <ArrowUpDown className="mr-1 inline h-3 w-3" />
                         Adjust
@@ -385,7 +468,7 @@ export default function StockPage() {
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
                   <ArrowUpDown className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -426,7 +509,7 @@ export default function StockPage() {
                   onClick={() => setAdjustType("addition")}
                   className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-semibold transition-all ${
                     adjustType === "addition"
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm"
+                      ? "border-amber-500 bg-emerald-50 text-emerald-700 shadow-sm"
                       : "border-gray-100 text-gray-500 hover:border-gray-200 hover:bg-gray-50"
                   }`}
                 >
@@ -488,7 +571,7 @@ export default function StockPage() {
               <button
                 onClick={handleAdjust}
                 disabled={saving || !adjustQty || !adjustReason}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-sky-500/25 transition-all hover:shadow-lg disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
               >
                 {saving ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -496,6 +579,141 @@ export default function StockPage() {
                   <ArrowUpDown className="h-4 w-4" />
                 )}
                 {saving ? "Applying…" : "Apply Adjustment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
+                  <ArrowRightLeft className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-800">
+                    Stock Transfer
+                  </h3>
+                  <p className="text-[12px] text-gray-400">
+                    Move stock between branches
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTransferModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Product
+                </label>
+                <select
+                  value={transferProduct}
+                  onChange={(e) => setTransferProduct(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Select product</option>
+                  {products.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} ({p.sku})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    From Branch
+                  </label>
+                  <select
+                    value={transferFrom}
+                    onChange={(e) => setTransferFrom(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Select branch</option>
+                    {branches.map((b) => (
+                      <option key={b._id} value={b._id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    To Branch
+                  </label>
+                  <select
+                    value={transferTo}
+                    onChange={(e) => setTransferTo(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Select branch</option>
+                    {branches.map((b) => (
+                      <option key={b._id} value={b._id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Quantity
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Enter quantity"
+                  value={transferQty}
+                  onChange={(e) => setTransferQty(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Notes
+                </label>
+                <input
+                  type="text"
+                  placeholder="Transfer notes (optional)"
+                  value={transferNotes}
+                  onChange={(e) => setTransferNotes(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                onClick={() => setShowTransferModal(false)}
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTransfer}
+                disabled={
+                  savingTransfer ||
+                  !transferFrom ||
+                  !transferTo ||
+                  !transferProduct ||
+                  !transferQty
+                }
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {savingTransfer ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <ArrowRightLeft className="h-4 w-4" />
+                )}
+                {savingTransfer ? "Transferring…" : "Transfer Stock"}
               </button>
             </div>
           </div>

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KashaPOS - Cloud POS Platform",
+  title: "Meka PoS - Cloud POS Platform",
   description:
     "Modern cloud-based Point of Sale system for businesses in Africa",
 };

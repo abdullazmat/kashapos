@@ -13,9 +13,15 @@ import {
   Mail,
   Phone,
   MapPin,
+  Wallet,
+  CreditCard,
+  DollarSign,
+  TrendingUp,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useSession } from "../layout";
+
+type CustomerTab = "all" | "payments" | "balances";
 
 interface Customer {
   _id: string;
@@ -25,6 +31,8 @@ interface Customer {
   address: string;
   totalPurchases: number;
   totalSpent: number;
+  balance?: number;
+  creditLimit?: number;
   isActive: boolean;
   createdAt: string;
 }
@@ -38,12 +46,22 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<CustomerTab>("all");
   const [editing, setEditing] = useState<Customer | null>(null);
+  const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState({
     name: "",
     email: "",
     phone: "",
     address: "",
+    notes: "",
+    creditLimit: "",
+  });
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "",
+    method: "cash",
+    reference: "",
     notes: "",
   });
 
@@ -73,7 +91,14 @@ export default function CustomersPage() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: "", email: "", phone: "", address: "", notes: "" });
+    setForm({
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      notes: "",
+      creditLimit: "",
+    });
     setShowModal(true);
   };
   const openEdit = (c: Customer) => {
@@ -84,8 +109,39 @@ export default function CustomersPage() {
       phone: c.phone,
       address: c.address,
       notes: "",
+      creditLimit: c.creditLimit?.toString() || "",
     });
     setShowModal(true);
+  };
+
+  const openPayment = (c: Customer) => {
+    setPaymentCustomer(c);
+    setPaymentForm({ amount: "", method: "cash", reference: "", notes: "" });
+    setShowPaymentModal(true);
+  };
+
+  const submitPayment = async () => {
+    if (!paymentCustomer || !paymentForm.amount) return;
+    const res = await fetch(`/api/customers/${paymentCustomer._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: paymentCustomer.name,
+        email: paymentCustomer.email,
+        phone: paymentCustomer.phone,
+        address: paymentCustomer.address,
+        payment: {
+          amount: parseFloat(paymentForm.amount),
+          method: paymentForm.method,
+          reference: paymentForm.reference,
+          notes: paymentForm.notes,
+        },
+      }),
+    });
+    if (res.ok) {
+      setShowPaymentModal(false);
+      fetchCustomers();
+    }
   };
 
   const saveCustomer = async () => {
@@ -94,7 +150,12 @@ export default function CustomersPage() {
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        creditLimit: form.creditLimit
+          ? parseFloat(form.creditLimit)
+          : undefined,
+      }),
     });
     if (res.ok) {
       setShowModal(false);
@@ -110,7 +171,7 @@ export default function CustomersPage() {
 
   const totalPages = Math.ceil(total / 20);
   const inputClass =
-    "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-teal-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20";
+    "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
   return (
     <div className="space-y-6">
@@ -127,12 +188,104 @@ export default function CustomersPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg hover:shadow-teal-500/30"
-        >
-          <Plus className="h-4 w-4" /> Add Customer
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setPaymentCustomer(null);
+              setPaymentForm({
+                amount: "",
+                method: "cash",
+                reference: "",
+                notes: "",
+              });
+              setShowPaymentModal(true);
+            }}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
+          >
+            <Wallet className="h-4 w-4" /> Add Payment
+          </button>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
+          >
+            <Plus className="h-4 w-4" /> Add Customer
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        {[
+          {
+            label: "Total Customers",
+            value: total,
+            icon: Users,
+            color: "violet",
+          },
+          {
+            label: "Active",
+            value: customers.filter((c) => c.isActive).length,
+            icon: TrendingUp,
+            color: "emerald",
+          },
+          {
+            label: "Total Revenue",
+            value: formatCurrency(
+              customers.reduce((s, c) => s + c.totalSpent, 0),
+              currency,
+            ),
+            icon: DollarSign,
+            color: "orange",
+          },
+          {
+            label: "With Balance",
+            value: customers.filter((c) => (c.balance ?? 0) > 0).length,
+            icon: CreditCard,
+            color: "amber",
+          },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-9 w-9 items-center justify-center rounded-xl bg-${stat.color}-50`}
+              >
+                <stat.icon className={`h-4 w-4 text-${stat.color}-600`} />
+              </div>
+              <div>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+                  {stat.label}
+                </p>
+                <p className="text-lg font-bold text-gray-900">{stat.value}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 w-fit">
+        {(
+          [
+            { key: "all", label: "All Customers" },
+            { key: "payments", label: "Payments" },
+            { key: "balances", label: "Balances" },
+          ] as { key: CustomerTab; label: string }[]
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              activeTab === tab.key
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Search */}
@@ -146,7 +299,7 @@ export default function CustomersPage() {
             setPage(1);
           }}
           placeholder="Search customers by name, phone, or email..."
-          className="w-full rounded-xl border border-gray-200 bg-white px-10 py-2.5 text-sm shadow-sm transition-all focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+          className="w-full rounded-xl border border-gray-200 bg-white px-10 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
         />
       </div>
 
@@ -167,6 +320,12 @@ export default function CustomersPage() {
               <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
                 Total Spent
               </th>
+              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                Balance
+              </th>
+              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                Credit Limit
+              </th>
               <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
                 Status
               </th>
@@ -176,7 +335,7 @@ export default function CustomersPage() {
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-5 py-16 text-center">
+                <td colSpan={8} className="px-5 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-violet-500" />
                     <span className="text-sm text-gray-400">
@@ -187,7 +346,7 @@ export default function CustomersPage() {
               </tr>
             ) : customers.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-16 text-center">
+                <td colSpan={8} className="px-5 py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                       <Users className="h-6 w-6 text-gray-400" />
@@ -252,11 +411,23 @@ export default function CustomersPage() {
                   <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
                     {formatCurrency(c.totalSpent, currency)}
                   </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <span
+                      className={`font-semibold ${(c.balance ?? 0) > 0 ? "text-red-600" : "text-gray-400"}`}
+                    >
+                      {formatCurrency(c.balance ?? 0, currency)}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-right text-gray-500">
+                    {c.creditLimit
+                      ? formatCurrency(c.creditLimit, currency)
+                      : "—"}
+                  </td>
                   <td className="px-5 py-3.5 text-center">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                         c.isActive
-                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20"
                           : "bg-red-50 text-red-700 ring-1 ring-red-600/20"
                       }`}
                     >
@@ -265,6 +436,13 @@ export default function CustomersPage() {
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        onClick={() => openPayment(c)}
+                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+                        title="Add Payment"
+                      >
+                        <Wallet className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => openEdit(c)}
                         className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-violet-50 hover:text-violet-600"
@@ -388,6 +566,23 @@ export default function CustomersPage() {
                     className={inputClass}
                   />
                 </div>
+                <div>
+                  <label className="text-[13px] font-semibold text-gray-700">
+                    Credit Limit
+                  </label>
+                  <input
+                    type="number"
+                    value={form.creditLimit}
+                    onChange={(e) =>
+                      setForm({ ...form, creditLimit: e.target.value })
+                    }
+                    placeholder="e.g. 500000"
+                    className={inputClass}
+                  />
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Maximum credit allowed for this customer
+                  </p>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-4">
@@ -400,9 +595,157 @@ export default function CustomersPage() {
               <button
                 onClick={saveCustomer}
                 disabled={!form.name}
-                className="rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-teal-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
+                className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
               >
                 {editing ? "Update" : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowPaymentModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-md shadow-emerald-500/20">
+                  <Wallet className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-gray-900">Add Payment</h2>
+                  <p className="text-[12px] text-gray-500">
+                    {paymentCustomer
+                      ? paymentCustomer.name
+                      : "Select a customer below"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {!paymentCustomer && (
+                <div>
+                  <label className="text-[13px] font-semibold text-gray-700">
+                    Customer *
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const c = customers.find((c) => c._id === e.target.value);
+                      if (c) setPaymentCustomer(c);
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="">Select customer…</option>
+                    {customers.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.name}
+                        {(c.balance ?? 0) > 0
+                          ? ` (Balance: ${formatCurrency(c.balance ?? 0, currency)})`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {paymentCustomer && (paymentCustomer.balance ?? 0) > 0 && (
+                <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm">
+                  <span className="text-red-600 font-medium">
+                    Outstanding Balance:{" "}
+                  </span>
+                  <span className="text-red-700 font-bold">
+                    {formatCurrency(paymentCustomer.balance ?? 0, currency)}
+                  </span>
+                </div>
+              )}
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Amount *
+                </label>
+                <input
+                  type="number"
+                  value={paymentForm.amount}
+                  onChange={(e) =>
+                    setPaymentForm({ ...paymentForm, amount: e.target.value })
+                  }
+                  placeholder="Enter payment amount"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentForm.method}
+                  onChange={(e) =>
+                    setPaymentForm({ ...paymentForm, method: e.target.value })
+                  }
+                  className={inputClass}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="bank">Bank Transfer</option>
+                  <option value="mobile_money">Mobile Money</option>
+                  <option value="card">Card</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Reference
+                </label>
+                <input
+                  value={paymentForm.reference}
+                  onChange={(e) =>
+                    setPaymentForm({
+                      ...paymentForm,
+                      reference: e.target.value,
+                    })
+                  }
+                  placeholder="Transaction reference (optional)"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Notes
+                </label>
+                <textarea
+                  value={paymentForm.notes}
+                  onChange={(e) =>
+                    setPaymentForm({ ...paymentForm, notes: e.target.value })
+                  }
+                  rows={2}
+                  placeholder="Payment notes (optional)"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-4">
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitPayment}
+                disabled={!paymentCustomer || !paymentForm.amount}
+                className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-emerald-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
+              >
+                Record Payment
               </button>
             </div>
           </div>
