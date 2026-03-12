@@ -157,11 +157,17 @@ html.dark .content-area .bg-white {
 html.dark .content-area .bg-white\/80 {
   background-color: rgb(17 24 39 / 0.8) !important;
 }
+html.dark .content-area .bg-white\/60 {
+  background-color: rgb(17 24 39 / 0.6) !important;
+}
 html.dark .content-area .bg-white\/40 {
   background-color: rgb(17 24 39 / 0.4) !important;
 }
 html.dark .content-area .bg-gray-50 {
   background-color: #1f2937 !important;
+}
+html.dark .content-area .bg-gray-50\/80 {
+  background-color: rgb(31 41 55 / 0.8) !important;
 }
 html.dark .content-area .bg-gray-50\/60 {
   background-color: rgb(31 41 55 / 0.6) !important;
@@ -275,6 +281,12 @@ html.dark .content-area .from-gray-50 {
 html.dark .content-area .to-gray-50 {
   --tw-gradient-to: #1f2937 !important;
 }
+html.dark .content-area .to-gray-100 {
+  --tw-gradient-to: #374151 !important;
+}
+html.dark .content-area .to-gray-100\/80 {
+  --tw-gradient-to: rgb(55 65 81 / 0.8) !important;
+}
 html.dark .content-area .from-gray-300 {
   --tw-gradient-from: #374151 !important;
 }
@@ -305,7 +317,7 @@ html.dark .content-area .text-gray-400 {
   color: #6b7280 !important;
 }
 html.dark .content-area .text-gray-300 {
-  color: #4b5563 !important;
+  color: #9ca3af !important;
 }
 
 /* --- Borders --- */
@@ -317,6 +329,9 @@ html.dark .content-area .border-gray-100 {
 }
 html.dark .content-area .border-gray-200 {
   border-color: #374151 !important;
+}
+html.dark .content-area .border-gray-200\/70 {
+  border-color: rgb(55 65 81 / 0.7) !important;
 }
 html.dark .content-area .border-gray-200\/60 {
   border-color: rgb(55 65 81 / 0.6) !important;
@@ -364,6 +379,9 @@ html.dark .content-area .divide-gray-100 > :not(:last-child) {
 html.dark .content-area .hover\:bg-gray-50:hover {
   background-color: #374151 !important;
 }
+html.dark .content-area .hover\:bg-gray-200:hover {
+  background-color: #4b5563 !important;
+}
 html.dark .content-area .hover\:bg-gray-100:hover {
   background-color: #374151 !important;
 }
@@ -378,6 +396,9 @@ html.dark .content-area .hover\:bg-amber-50:hover {
 }
 html.dark .content-area .hover\:bg-orange-100:hover {
   background-color: rgb(154 52 18 / 0.25) !important;
+}
+html.dark .content-area .hover\:border-gray-200:hover {
+  border-color: #4b5563 !important;
 }
 
 /* --- Shadows --- */
