@@ -22,6 +22,9 @@ import {
   Warehouse,
   Settings,
   BarChart3,
+  Activity,
+  User,
+  Shield,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
@@ -199,17 +202,31 @@ export default function DashboardPage() {
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<TimePeriod>("7days");
+  const [activityData, setActivityData] = useState<{
+    summary: {
+      totalActivities: number;
+      mostActiveUser: string;
+      topModule: string;
+      topAction: string;
+    };
+    actionBreakdown: { _id: string; count: number }[];
+    moduleBreakdown: { _id: string; count: number }[];
+  } | null>(null);
 
   const fetchDashboard = useCallback(async (p: TimePeriod) => {
     try {
-      const [dashRes, salesRes] = await Promise.all([
+      const [dashRes, salesRes, activityRes] = await Promise.all([
         fetch(`/api/dashboard?period=${periodApiMap[p]}`),
         fetch("/api/sales?limit=5"),
+        fetch("/api/activity-logs?limit=50"),
       ]);
       if (dashRes.ok) setData(await dashRes.json());
       if (salesRes.ok) {
         const salesData = await salesRes.json();
         setRecentSales(salesData.sales || []);
+      }
+      if (activityRes.ok) {
+        setActivityData(await activityRes.json());
       }
     } catch (err) {
       console.error("Dashboard fetch error:", err);
@@ -277,30 +294,32 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            {getGreeting()}, {user?.name?.split(" ")[0]}
-          </h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            Here&apos;s what&apos;s happening at {tenant?.name}.
-          </p>
-        </div>
-        {/* Period Selector */}
-        <div className="flex flex-wrap gap-1.5 bg-white rounded-xl border border-gray-200 p-1">
-          {(Object.keys(periodLabels) as TimePeriod[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                period === p
-                  ? "bg-orange-500 text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {periodLabels[p]}
-            </button>
-          ))}
+      <div className="rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 p-6 shadow-lg shadow-orange-500/20">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              {getGreeting()}, {user?.name?.split(" ")[0]} 👋
+            </h1>
+            <p className="text-orange-100 mt-1 text-sm">
+              Here&apos;s what&apos;s happening at {tenant?.name}.
+            </p>
+          </div>
+          {/* Period Selector */}
+          <div className="flex flex-wrap gap-1.5 bg-white/20 backdrop-blur-sm rounded-xl border border-white/20 p-1">
+            {(Object.keys(periodLabels) as TimePeriod[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  period === p
+                    ? "bg-white text-orange-600 shadow-sm"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                {periodLabels[p]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -668,6 +687,147 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Activity Summary */}
+      {activityData && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-orange-500" /> Activity Summary
+            </h2>
+          </div>
+
+          {/* Overview Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 p-4 border border-orange-100">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-600/70">
+                Total Activities
+              </p>
+              <p className="text-2xl font-bold text-orange-700 mt-1">
+                {activityData.summary.totalActivities}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-4 border border-blue-100">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600/70">
+                Most Active User
+              </p>
+              <p className="text-sm font-bold text-blue-700 mt-1 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5" />
+                {activityData.summary.mostActiveUser || "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 p-4 border border-emerald-100">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600/70">
+                Top Module
+              </p>
+              <p className="text-sm font-bold text-emerald-700 mt-1 capitalize">
+                {activityData.summary.topModule || "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gradient-to-br from-violet-50 to-purple-50 p-4 border border-violet-100">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-600/70">
+                Top Action
+              </p>
+              <p className="text-sm font-bold text-violet-700 mt-1 capitalize">
+                {activityData.summary.topAction || "—"}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Actions Breakdown */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                Actions Breakdown
+              </h3>
+              <div className="space-y-2">
+                {activityData.actionBreakdown.length > 0 ? (
+                  activityData.actionBreakdown.map((a) => {
+                    const maxCount = Math.max(
+                      ...activityData.actionBreakdown.map((x) => x.count),
+                    );
+                    const pct = maxCount > 0 ? (a.count / maxCount) * 100 : 0;
+                    const colors: Record<string, string> = {
+                      login: "from-blue-400 to-blue-500",
+                      create: "from-emerald-400 to-emerald-500",
+                      update: "from-amber-400 to-amber-500",
+                      delete: "from-red-400 to-red-500",
+                      view: "from-gray-400 to-gray-500",
+                    };
+                    return (
+                      <div key={a._id} className="flex items-center gap-3">
+                        <span className="w-16 text-[12px] font-medium text-gray-500 capitalize">
+                          {a._id}
+                        </span>
+                        <div className="flex-1 h-6 bg-gray-100 rounded-lg overflow-hidden">
+                          <div
+                            className={`h-full bg-gradient-to-r ${colors[a._id] || "from-gray-400 to-gray-500"} rounded-lg flex items-center justify-end pr-2 transition-all`}
+                            style={{ width: `${Math.max(pct, 8)}%` }}
+                          >
+                            <span className="text-[10px] font-bold text-white">
+                              {a.count}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-gray-400">No activity data yet</p>
+                )}
+              </div>
+            </div>
+
+            {/* Modules Breakdown */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                Modules Breakdown
+              </h3>
+              <div className="space-y-2">
+                {activityData.moduleBreakdown.length > 0 ? (
+                  activityData.moduleBreakdown.map((m) => {
+                    const maxCount = Math.max(
+                      ...activityData.moduleBreakdown.map((x) => x.count),
+                    );
+                    const pct = maxCount > 0 ? (m.count / maxCount) * 100 : 0;
+                    const colors: Record<string, string> = {
+                      auth: "from-blue-400 to-indigo-500",
+                      items: "from-emerald-400 to-green-500",
+                      sales: "from-orange-400 to-amber-500",
+                      purchases: "from-purple-400 to-violet-500",
+                      customers: "from-pink-400 to-rose-500",
+                      vendors: "from-teal-400 to-cyan-500",
+                      stock: "from-yellow-400 to-amber-500",
+                      expenses: "from-red-400 to-rose-500",
+                      invoices: "from-sky-400 to-blue-500",
+                      settings: "from-gray-400 to-gray-500",
+                    };
+                    return (
+                      <div key={m._id} className="flex items-center gap-3">
+                        <span className="w-20 text-[12px] font-medium text-gray-500 capitalize">
+                          {m._id}
+                        </span>
+                        <div className="flex-1 h-6 bg-gray-100 rounded-lg overflow-hidden">
+                          <div
+                            className={`h-full bg-gradient-to-r ${colors[m._id] || "from-gray-400 to-gray-500"} rounded-lg flex items-center justify-end pr-2 transition-all`}
+                            style={{ width: `${Math.max(pct, 8)}%` }}
+                          >
+                            <span className="text-[10px] font-bold text-white">
+                              {m.count}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-gray-400">No activity data yet</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

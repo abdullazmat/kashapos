@@ -42,6 +42,13 @@ import {
   Moon,
   Sun,
   Building2,
+  Wallet,
+  History,
+  CreditCard,
+  DollarSign,
+  Banknote,
+  PieChart,
+  WifiOff,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
 
@@ -64,6 +71,8 @@ interface TenantData {
     receiptHeader?: string;
     receiptFooter?: string;
     lowStockThreshold?: number;
+    theme?: string;
+    sidebarDefaultCollapsed?: boolean;
   };
   saasProduct: string;
   businessName?: string;
@@ -95,7 +104,23 @@ export function useSession() {
   return useContext(SessionContext);
 }
 
-const navigation = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children?: {
+    name: string;
+    href: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[];
+}
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+const navigation: NavSection[] = [
   {
     label: "MAIN",
     items: [
@@ -109,8 +134,60 @@ const navigation = [
       { name: "Inventory", href: "/dashboard/inventory", icon: Package },
       { name: "Sales", href: "/dashboard/sales", icon: TrendingUp },
       { name: "Purchases", href: "/dashboard/purchases", icon: ShoppingBag },
-      { name: "Customers", href: "/dashboard/customers", icon: Users },
-      { name: "Vendors", href: "/dashboard/vendors", icon: Truck },
+      {
+        name: "Customers",
+        href: "/dashboard/customers",
+        icon: Users,
+        children: [
+          {
+            name: "Customers",
+            href: "/dashboard/customers?tab=all",
+            icon: Users,
+          },
+          {
+            name: "Add Payment",
+            href: "/dashboard/customers?tab=payments&action=add",
+            icon: Wallet,
+          },
+          {
+            name: "Payments",
+            href: "/dashboard/customers?tab=payments",
+            icon: History,
+          },
+          {
+            name: "Customer Balances",
+            href: "/dashboard/customers?tab=balances",
+            icon: CreditCard,
+          },
+        ],
+      },
+      {
+        name: "Suppliers",
+        href: "/dashboard/vendors",
+        icon: Truck,
+        children: [
+          {
+            name: "Suppliers",
+            href: "/dashboard/vendors?tab=suppliers",
+            icon: Users,
+          },
+          {
+            name: "Pay Supplier",
+            href: "/dashboard/vendors?tab=pay",
+            icon: Wallet,
+          },
+          {
+            name: "Payment History",
+            href: "/dashboard/vendors?tab=history",
+            icon: History,
+          },
+          {
+            name: "Supplier Balances",
+            href: "/dashboard/vendors?tab=balances",
+            icon: CreditCard,
+          },
+        ],
+      },
     ],
   },
   {
@@ -118,6 +195,28 @@ const navigation = [
     items: [
       { name: "Expenses", href: "/dashboard/expenses", icon: TrendingDown },
       { name: "Invoices", href: "/dashboard/invoices", icon: FileText },
+      {
+        name: "Cash Flow",
+        href: "/dashboard/cashflow",
+        icon: DollarSign,
+        children: [
+          {
+            name: "Cash Flow Report",
+            href: "/dashboard/cashflow?tab=report",
+            icon: Banknote,
+          },
+          {
+            name: "Cash Flow Summary",
+            href: "/dashboard/cashflow?tab=summary",
+            icon: PieChart,
+          },
+          {
+            name: "Quick Periods",
+            href: "/dashboard/cashflow?tab=periods",
+            icon: BarChart3,
+          },
+        ],
+      },
       { name: "Taxes", href: "/dashboard/taxes", icon: Receipt },
       { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
     ],
@@ -131,6 +230,7 @@ const navigation = [
       { name: "Integrations", href: "/dashboard/integrations", icon: Plug },
       { name: "Automation", href: "/dashboard/automation", icon: Zap },
       { name: "Templates", href: "/dashboard/templates", icon: FileStack },
+      { name: "Offline & Desktop", href: "/dashboard/offline", icon: WifiOff },
       { name: "Settings", href: "/dashboard/settings", icon: Settings },
     ],
   },
@@ -154,8 +254,24 @@ export default function DashboardLayout({
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const applyThemePreference = useCallback((theme: string | undefined) => {
+    const useDark = theme === "dark";
+    setDarkMode(useDark);
+    document.documentElement.classList.toggle("dark", useDark);
+    try {
+      localStorage.setItem("meka-dark-mode", useDark ? "1" : "0");
+    } catch {}
+  }, []);
+
+  const toggleMenu = (name: string) => {
+    setExpandedMenus((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+    );
+  };
 
   const getGreeting = () => {
     const h = new Date().getHours();
@@ -180,12 +296,44 @@ export default function DashboardLayout({
       if (saved === "1") {
         setDarkMode(true);
         document.documentElement.classList.add("dark");
+      } else if (saved === "0") {
+        setDarkMode(false);
+        document.documentElement.classList.remove("dark");
       }
     } catch {}
   }, []);
 
+  useEffect(() => {
+    const handleThemeChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ theme?: string }>).detail;
+      applyThemePreference(detail?.theme);
+    };
+
+    window.addEventListener("meka-theme-change", handleThemeChange);
+    return () =>
+      window.removeEventListener("meka-theme-change", handleThemeChange);
+  }, [applyThemePreference]);
+
+  // Auto-expand menus whose children match the current path
+  useEffect(() => {
+    const expanded: string[] = [];
+    for (const section of navigation) {
+      for (const item of section.items) {
+        if (item.children && pathname.startsWith(item.href.split("?")[0])) {
+          expanded.push(item.name);
+        }
+      }
+    }
+    setExpandedMenus((prev) => {
+      const combined = new Set([...prev, ...expanded]);
+      return Array.from(combined);
+    });
+  }, [pathname]);
+
   // All navigation items flattened for search
-  const allNavItems = navigation.flatMap((s) => s.items);
+  const allNavItems = navigation.flatMap((s) =>
+    s.items.flatMap((item) => [item, ...(item.children || [])]),
+  );
   const searchResults = searchQuery.trim()
     ? allNavItems.filter((item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -313,6 +461,22 @@ export default function DashboardLayout({
       const data = await res.json();
       setUser(data.user);
       setTenant(data.tenant);
+
+      const savedTheme = (() => {
+        try {
+          return localStorage.getItem("meka-dark-mode");
+        } catch {
+          return null;
+        }
+      })();
+
+      if (savedTheme !== "1" && savedTheme !== "0") {
+        applyThemePreference(data.tenant?.settings?.theme);
+      }
+
+      setSidebarCollapsed(
+        Boolean(data.tenant?.settings?.sidebarDefaultCollapsed),
+      );
     } catch {
       router.push("/sign-in");
     } finally {
@@ -339,24 +503,15 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
-  // POS Terminal full-screen mode
-  if (pathname === "/dashboard/pos") {
-    return (
-      <SessionContext.Provider value={{ user, tenant, loading }}>
-        {children}
-      </SessionContext.Provider>
-    );
-  }
-
   return (
     <SessionContext.Provider value={{ user, tenant, loading }}>
-      <div className="min-h-screen flex bg-[hsl(220,20%,97%)]">
+      <div className="min-h-screen flex bg-[hsl(220,20%,97%)] dark:bg-gray-950">
         {/* Sidebar */}
         <aside
           className={`fixed top-0 left-0 h-full bg-gradient-to-b from-[hsl(222,47%,11%)] to-[hsl(224,50%,15%)] text-gray-300 flex flex-col transition-all duration-300 z-40 ${
@@ -394,10 +549,85 @@ export default function DashboardLayout({
                 )}
                 <div className="space-y-0.5">
                   {section.items.map((item) => {
+                    const basePath = item.href.split("?")[0];
                     const isActive =
-                      pathname === item.href ||
-                      (item.href !== "/dashboard" &&
-                        pathname.startsWith(item.href));
+                      pathname === basePath ||
+                      (basePath !== "/dashboard" &&
+                        pathname.startsWith(basePath));
+                    const hasChildren =
+                      item.children && item.children.length > 0;
+                    const isExpanded = expandedMenus.includes(item.name);
+
+                    if (hasChildren) {
+                      return (
+                        <div key={item.name}>
+                          <Link
+                            href={basePath}
+                            onClick={() => {
+                              if (!expandedMenus.includes(item.name))
+                                toggleMenu(item.name);
+                            }}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 ${
+                              isActive
+                                ? "bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-orange-400 shadow-sm shadow-orange-500/5"
+                                : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                            }`}
+                            title={sidebarCollapsed ? item.name : undefined}
+                          >
+                            <item.icon
+                              className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-orange-400" : ""}`}
+                            />
+                            {!sidebarCollapsed && (
+                              <>
+                                <span className="flex-1 text-left">
+                                  {item.name}
+                                </span>
+                                <ChevronDown
+                                  className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    toggleMenu(item.name);
+                                  }}
+                                />
+                              </>
+                            )}
+                          </Link>
+                          {isExpanded && !sidebarCollapsed && (
+                            <div className="ml-5 mt-0.5 space-y-0.5 border-l border-white/10 pl-3">
+                              {item.children!.map((child) => {
+                                const childBasePath = child.href.split("?")[0];
+                                const childQuery = child.href.includes("?")
+                                  ? child.href.split("?")[1]
+                                  : "";
+                                const isChildActive =
+                                  pathname === childBasePath &&
+                                  (!childQuery ||
+                                    (typeof window !== "undefined" &&
+                                      window.location.search.includes(
+                                        childQuery.split("&")[0],
+                                      )));
+                                return (
+                                  <Link
+                                    key={child.name}
+                                    href={child.href}
+                                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all duration-200 ${
+                                      isChildActive
+                                        ? "bg-orange-500/15 text-orange-400"
+                                        : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
+                                    }`}
+                                  >
+                                    <child.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                                    {child.name}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
                     return (
                       <Link
                         key={item.name}
@@ -446,7 +676,7 @@ export default function DashboardLayout({
 
         {/* Main Content */}
         <div
-          className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? "ml-[68px]" : "ml-60"}`}
+          className={`content-area flex-1 transition-all duration-300 ${sidebarCollapsed ? "ml-[68px]" : "ml-60"}`}
         >
           {/* Top bar */}
           <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-gray-200/60 flex items-center justify-between px-6 sticky top-0 z-30 dark:bg-gray-900/80 dark:border-gray-700/60">
@@ -760,7 +990,7 @@ export default function DashboardLayout({
           </header>
 
           {/* Page content */}
-          <main className="p-6">{children}</main>
+          <main className="p-6 dark:text-gray-100">{children}</main>
         </div>
       </div>
     </SessionContext.Provider>

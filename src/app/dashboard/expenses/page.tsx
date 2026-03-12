@@ -326,103 +326,105 @@ export default function ExpensesPage() {
 
       {/* Expenses Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Description
-              </th>
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Category
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Amount
-              </th>
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Date
-              </th>
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Payment
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
-                    <span className="text-sm text-gray-400">
-                      Loading expenses...
-                    </span>
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-blue-100 bg-blue-50/60">
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Description
+                </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Category
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Amount
+                </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Date
+                </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Payment
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
               </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <DollarSign className="h-10 w-10 text-gray-300" />
-                    <p className="font-medium text-gray-500">
-                      No expenses found
-                    </p>
-                    <p className="text-[13px] text-gray-400">
-                      Add your first expense to start tracking
-                    </p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              filtered.map((e) => (
-                <tr
-                  key={e._id}
-                  className="group transition-colors hover:bg-gray-50/80"
-                >
-                  <td className="px-5 py-3.5">
-                    <div>
-                      <div className="font-semibold text-gray-900">
-                        {e.description}
-                      </div>
-                      {e.reference && (
-                        <div className="text-[11px] text-gray-400">
-                          Ref: {e.reference}
-                        </div>
-                      )}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
+                      <span className="text-sm text-gray-400">
+                        Loading expenses...
+                      </span>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${categoryColors[e.category] || "bg-gray-50 text-gray-700"}`}
-                    >
-                      {e.category}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-red-600">
-                    -{formatCurrency(e.amount, currency)}
-                  </td>
-                  <td className="px-5 py-3.5 text-gray-500">
-                    {formatDate(e.date)}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="inline-flex items-center gap-1 text-gray-500 capitalize">
-                      {paymentIcon(e.paymentMethod)}
-                      {e.paymentMethod.replace("_", " ")}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => handleDelete(e._id)}
-                      className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <DollarSign className="h-10 w-10 text-gray-300" />
+                      <p className="font-medium text-gray-500">
+                        No expenses found
+                      </p>
+                      <p className="text-[13px] text-gray-400">
+                        Add your first expense to start tracking
+                      </p>
+                    </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                filtered.map((e) => (
+                  <tr
+                    key={e._id}
+                    className="group transition-colors hover:bg-gray-50/80"
+                  >
+                    <td className="px-5 py-3.5">
+                      <div>
+                        <div className="font-semibold text-gray-900">
+                          {e.description}
+                        </div>
+                        {e.reference && (
+                          <div className="text-[11px] text-gray-400">
+                            Ref: {e.reference}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${categoryColors[e.category] || "bg-gray-50 text-gray-700"}`}
+                      >
+                        {e.category}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-semibold text-red-600">
+                      -{formatCurrency(e.amount, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-500">
+                      {formatDate(e.date)}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="inline-flex items-center gap-1 text-gray-500 capitalize">
+                        {paymentIcon(e.paymentMethod)}
+                        {e.paymentMethod.replace("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => handleDelete(e._id)}
+                        className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Add Expense Modal */}

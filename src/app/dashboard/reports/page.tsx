@@ -398,9 +398,9 @@ export default function ReportsPage() {
   if (view === "overview") {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/20">
               <BarChart3 className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -412,17 +412,17 @@ export default function ReportsPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {periodSelector}
             <button
               onClick={handlePdfExport}
-              className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <FileText className="h-4 w-4" /> PDF
             </button>
             <button
               onClick={handleExport}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-2 text-sm font-bold text-white shadow-md shadow-sky-500/25 transition-all hover:shadow-lg"
             >
               <Download className="h-4 w-4" /> Export All
             </button>
@@ -591,7 +591,7 @@ export default function ReportsPage() {
     title: string;
     description: string;
   }) => (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <button
           onClick={() => setView("overview")}
@@ -604,17 +604,17 @@ export default function ReportsPage() {
           <p className="text-[13px] text-gray-400">{description}</p>
         </div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         {periodSelector}
         <button
           onClick={handlePdfExport}
-          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <FileText className="h-4 w-4" /> PDF
         </button>
         <button
           onClick={handleExport}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-2 text-sm font-bold text-white shadow-md shadow-sky-500/25 transition-all hover:shadow-lg"
         >
           <Download className="h-4 w-4" /> Export
         </button>
@@ -764,7 +764,7 @@ export default function ReportsPage() {
         <TableWrapper title="Top Selling Products">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/60">
+              <tr className="border-b border-blue-100 bg-blue-50/60">
                 <Th>#</Th>
                 <Th>Product</Th>
                 <Th align="right">Qty Sold</Th>
@@ -837,7 +837,7 @@ export default function ReportsPage() {
         <TableWrapper title="Low Stock Items">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/60">
+              <tr className="border-b border-blue-100 bg-blue-50/60">
                 <Th>Product</Th>
                 <Th>SKU</Th>
                 <Th>Branch</Th>
@@ -922,7 +922,7 @@ export default function ReportsPage() {
         <TableWrapper title="Outstanding Invoices">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/60">
+              <tr className="border-b border-blue-100 bg-blue-50/60">
                 <Th>Invoice #</Th>
                 <Th>Customer</Th>
                 <Th>Due Date</Th>
@@ -1070,7 +1070,7 @@ export default function ReportsPage() {
         <TableWrapper title="Recent Purchase Orders">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/60">
+              <tr className="border-b border-blue-100 bg-blue-50/60">
                 <Th>Order #</Th>
                 <Th>Vendor</Th>
                 <Th>Date</Th>

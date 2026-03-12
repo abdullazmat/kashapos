@@ -359,7 +359,7 @@ export default function ReturnsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/20">
             <RotateCcw className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -466,128 +466,130 @@ export default function ReturnsPage() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-50">
-              <Package className="h-6 w-6 text-gray-300" />
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
             </div>
-            <p className="font-medium text-gray-500">No returns found</p>
-            <p className="text-[13px] text-gray-400">
-              Try adjusting your search or filters
-            </p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/60">
-                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Return #
-                </th>
-                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Type
-                </th>
-                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Reference
-                </th>
-                <th className="px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Items
-                </th>
-                <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Total
-                </th>
-                <th className="px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Status
-                </th>
-                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Date
-                </th>
-                <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((ret) => (
-                <tr
-                  key={ret._id}
-                  className="group transition-colors hover:bg-gray-50/60"
-                >
-                  <td className="px-5 py-3.5 font-semibold text-gray-800">
-                    {ret.returnNumber}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${
-                        ret.type === "sales_return"
-                          ? "bg-blue-50 text-blue-600 ring-blue-600/20"
-                          : "bg-purple-50 text-purple-600 ring-purple-600/20"
-                      }`}
-                    >
-                      {ret.type === "sales_return" ? (
-                        <ArrowDownLeft className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpRight className="h-3 w-3" />
-                      )}
-                      {ret.type === "sales_return" ? "Sales" : "Purchase"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-gray-500 font-mono text-[12px]">
-                    {ret.referenceNumber || "—"}
-                  </td>
-                  <td className="px-5 py-3.5 text-center text-gray-600">
-                    {ret.items.length}
-                  </td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-gray-800">
-                    {formatCurrency(ret.total, currency)}
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${statusColor(ret.status)}`}
-                    >
-                      {ret.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-gray-500 text-[13px]">
-                    {new Date(ret.createdAt).toLocaleDateString("en-UG", {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    {ret.status === "pending" && (
-                      <div className="flex justify-end gap-1">
-                        <button
-                          onClick={() =>
-                            handleStatusUpdate(ret._id, "completed")
-                          }
-                          disabled={updatingReturnId === ret._id}
-                          className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600 ring-1 ring-emerald-600/20 transition-all hover:bg-emerald-100"
-                          title="Complete"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleStatusUpdate(ret._id, "rejected")
-                          }
-                          disabled={updatingReturnId === ret._id}
-                          className="rounded-lg bg-red-50 p-1.5 text-red-600 ring-1 ring-red-600/20 transition-all hover:bg-red-100"
-                          title="Reject"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-50">
+                <Package className="h-6 w-6 text-gray-300" />
+              </div>
+              <p className="font-medium text-gray-500">No returns found</p>
+              <p className="text-[13px] text-gray-400">
+                Try adjusting your search or filters
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-blue-100 bg-blue-50/60">
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Return #
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Type
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Reference
+                  </th>
+                  <th className="px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Items
+                  </th>
+                  <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Total
+                  </th>
+                  <th className="px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Status
+                  </th>
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Date
+                  </th>
+                  <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((ret) => (
+                  <tr
+                    key={ret._id}
+                    className="group transition-colors hover:bg-gray-50/60"
+                  >
+                    <td className="px-5 py-3.5 font-semibold text-gray-800">
+                      {ret.returnNumber}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${
+                          ret.type === "sales_return"
+                            ? "bg-blue-50 text-blue-600 ring-blue-600/20"
+                            : "bg-purple-50 text-purple-600 ring-purple-600/20"
+                        }`}
+                      >
+                        {ret.type === "sales_return" ? (
+                          <ArrowDownLeft className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpRight className="h-3 w-3" />
+                        )}
+                        {ret.type === "sales_return" ? "Sales" : "Purchase"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-500 font-mono text-[12px]">
+                      {ret.referenceNumber || "—"}
+                    </td>
+                    <td className="px-5 py-3.5 text-center text-gray-600">
+                      {ret.items.length}
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-semibold text-gray-800">
+                      {formatCurrency(ret.total, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${statusColor(ret.status)}`}
+                      >
+                        {ret.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-500 text-[13px]">
+                      {new Date(ret.createdAt).toLocaleDateString("en-UG", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      {ret.status === "pending" && (
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() =>
+                              handleStatusUpdate(ret._id, "completed")
+                            }
+                            disabled={updatingReturnId === ret._id}
+                            className="rounded-lg bg-emerald-50 p-1.5 text-emerald-600 ring-1 ring-emerald-600/20 transition-all hover:bg-emerald-100"
+                            title="Complete"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleStatusUpdate(ret._id, "rejected")
+                            }
+                            disabled={updatingReturnId === ret._id}
+                            className="rounded-lg bg-red-50 p-1.5 text-red-600 ring-1 ring-red-600/20 transition-all hover:bg-red-100"
+                            title="Reject"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* New Return Modal */}

@@ -492,7 +492,7 @@ export default function BatchesPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
+                <tr className="border-b border-blue-100 bg-blue-50/60">
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     Product
                   </th>
@@ -728,7 +728,7 @@ export default function BatchesPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60">
+                <tr className="border-b border-blue-100 bg-blue-50/60">
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     Batch #
                   </th>

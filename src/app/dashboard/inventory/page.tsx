@@ -323,157 +323,159 @@ export default function InventoryPage() {
 
       {/* Products Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Product
-              </th>
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                SKU
-              </th>
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Category
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Cost
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Price
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Quantity
-              </th>
-              <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
-                Status
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              <tr>
-                <td colSpan={8} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-blue-500" />
-                    <span className="text-sm text-gray-400">
-                      Loading products...
-                    </span>
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-blue-100 bg-blue-50/60">
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Product
+                </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  SKU
+                </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Category
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Cost
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Price
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Quantity
+                </th>
+                <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
+                  Status
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
               </tr>
-            ) : products.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                      <Package className="h-6 w-6 text-gray-400" />
-                    </div>
-                    <p className="font-medium text-gray-500">
-                      No products found
-                    </p>
-                    <p className="text-[13px] text-gray-400">
-                      Add your first product to get started
-                    </p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              products.map((p) => (
-                <tr
-                  key={p._id}
-                  className="group transition-colors hover:bg-gray-50/80"
-                >
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      {p.image ? (
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden border border-gray-100">
-                          <img
-                            src={p.image}
-                            alt={p.name}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gray-100 to-gray-200">
-                          <Package className="h-4 w-4 text-gray-500" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {p.name}
-                        </div>
-                        <div className="text-[11px] text-gray-400">
-                          {p.barcode}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-600">
-                      {p.sku}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    {p.categoryId?.name ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-600/10">
-                        <Layers className="h-3 w-3" /> {p.categoryId.name}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-blue-500" />
+                      <span className="text-sm text-gray-400">
+                        Loading products...
                       </span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5 text-right text-gray-500">
-                    {formatCurrency(p.costPrice, currency)}
-                  </td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
-                    {formatCurrency(p.price, currency)}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                        (p.stock ?? 0) === 0
-                          ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
-                          : (p.stock ?? 0) <= 10
-                            ? "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
-                            : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
-                      }`}
-                    >
-                      {p.stock ?? 0}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                        p.isActive
-                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
-                          : "bg-red-50 text-red-700 ring-1 ring-red-600/20"
-                      }`}
-                    >
-                      {p.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteProduct(p._id)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                        <Package className="h-6 w-6 text-gray-400" />
+                      </div>
+                      <p className="font-medium text-gray-500">
+                        No products found
+                      </p>
+                      <p className="text-[13px] text-gray-400">
+                        Add your first product to get started
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                products.map((p) => (
+                  <tr
+                    key={p._id}
+                    className="group transition-colors hover:bg-gray-50/80"
+                  >
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        {p.image ? (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden border border-gray-100">
+                            <img
+                              src={p.image}
+                              alt={p.name}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gray-100 to-gray-200">
+                            <Package className="h-4 w-4 text-gray-500" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-semibold text-gray-900">
+                            {p.name}
+                          </div>
+                          <div className="text-[11px] text-gray-400">
+                            {p.barcode}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-600">
+                        {p.sku}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {p.categoryId?.name ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-600/10">
+                          <Layers className="h-3 w-3" /> {p.categoryId.name}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-right text-gray-500">
+                      {formatCurrency(p.costPrice, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
+                      {formatCurrency(p.price, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          (p.stock ?? 0) === 0
+                            ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+                            : (p.stock ?? 0) <= 10
+                              ? "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
+                              : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                        }`}
+                      >
+                        {p.stock ?? 0}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          p.isActive
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                            : "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+                        }`}
+                      >
+                        {p.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteProduct(p._id)}
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3.5">
             <span className="text-[13px] text-gray-500">

@@ -17,9 +17,13 @@ import {
   CreditCard,
   DollarSign,
   TrendingUp,
+  Banknote,
+  Smartphone,
+  CheckCircle2,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useSession } from "../layout";
+import { useSearchParams } from "next/navigation";
 
 type CustomerTab = "all" | "payments" | "balances";
 
@@ -47,7 +51,22 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<CustomerTab>("all");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<CustomerTab>(
+    (searchParams.get("tab") as CustomerTab) || "all",
+  );
+
+  // Sync tab when URL search params change (e.g. sidebar sub-link clicks)
+  useEffect(() => {
+    const tab = searchParams.get("tab") as CustomerTab;
+    if (tab && ["all", "payments", "balances"].includes(tab)) {
+      setActiveTab(tab);
+    }
+    if (searchParams.get("action") === "add" && tab === "payments") {
+      setShowPaymentModal(true);
+    }
+  }, [searchParams]);
+
   const [editing, setEditing] = useState<Customer | null>(null);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState({
@@ -305,163 +324,165 @@ export default function CustomersPage() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Customer
-              </th>
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Contact
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Purchases
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Total Spent
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Balance
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Credit Limit
-              </th>
-              <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
-                Status
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              <tr>
-                <td colSpan={8} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-violet-500" />
-                    <span className="text-sm text-gray-400">
-                      Loading customers...
-                    </span>
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-blue-100 bg-blue-50/60">
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Customer
+                </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Contact
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Purchases
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Total Spent
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Balance
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Credit Limit
+                </th>
+                <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
+                  Status
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
               </tr>
-            ) : customers.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                      <Users className="h-6 w-6 text-gray-400" />
-                    </div>
-                    <p className="font-medium text-gray-500">
-                      No customers found
-                    </p>
-                    <p className="text-[13px] text-gray-400">
-                      Add your first customer
-                    </p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              customers.map((c) => (
-                <tr
-                  key={c._id}
-                  className="group transition-colors hover:bg-gray-50/80"
-                >
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-purple-200 text-xs font-bold text-violet-700">
-                        {c.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {c.name}
-                        </div>
-                        {c.address && (
-                          <div className="flex items-center gap-1 text-[11px] text-gray-400">
-                            <MapPin className="h-3 w-3" />
-                            {c.address}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="space-y-1">
-                      {c.phone && (
-                        <div className="flex items-center gap-1.5 text-[13px] text-gray-600">
-                          <Phone className="h-3 w-3 text-gray-400" />
-                          {c.phone}
-                        </div>
-                      )}
-                      {c.email && (
-                        <div className="flex items-center gap-1.5 text-[13px] text-gray-500">
-                          <Mail className="h-3 w-3 text-gray-400" />
-                          {c.email}
-                        </div>
-                      )}
-                      {!c.phone && !c.email && (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-600/10">
-                      {c.totalPurchases} orders
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
-                    {formatCurrency(c.totalSpent, currency)}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <span
-                      className={`font-semibold ${(c.balance ?? 0) > 0 ? "text-red-600" : "text-gray-400"}`}
-                    >
-                      {formatCurrency(c.balance ?? 0, currency)}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-right text-gray-500">
-                    {c.creditLimit
-                      ? formatCurrency(c.creditLimit, currency)
-                      : "—"}
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                        c.isActive
-                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20"
-                          : "bg-red-50 text-red-700 ring-1 ring-red-600/20"
-                      }`}
-                    >
-                      {c.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        onClick={() => openPayment(c)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
-                        title="Add Payment"
-                      >
-                        <Wallet className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => openEdit(c)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-violet-50 hover:text-violet-600"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteCustomer(c._id)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-violet-500" />
+                      <span className="text-sm text-gray-400">
+                        Loading customers...
+                      </span>
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : customers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                        <Users className="h-6 w-6 text-gray-400" />
+                      </div>
+                      <p className="font-medium text-gray-500">
+                        No customers found
+                      </p>
+                      <p className="text-[13px] text-gray-400">
+                        Add your first customer
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                customers.map((c) => (
+                  <tr
+                    key={c._id}
+                    className="group transition-colors hover:bg-gray-50/80"
+                  >
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-purple-200 text-xs font-bold text-violet-700">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-900">
+                            {c.name}
+                          </div>
+                          {c.address && (
+                            <div className="flex items-center gap-1 text-[11px] text-gray-400">
+                              <MapPin className="h-3 w-3" />
+                              {c.address}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="space-y-1">
+                        {c.phone && (
+                          <div className="flex items-center gap-1.5 text-[13px] text-gray-600">
+                            <Phone className="h-3 w-3 text-gray-400" />
+                            {c.phone}
+                          </div>
+                        )}
+                        {c.email && (
+                          <div className="flex items-center gap-1.5 text-[13px] text-gray-500">
+                            <Mail className="h-3 w-3 text-gray-400" />
+                            {c.email}
+                          </div>
+                        )}
+                        {!c.phone && !c.email && (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-600/10">
+                        {c.totalPurchases} orders
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
+                      {formatCurrency(c.totalSpent, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <span
+                        className={`font-semibold ${(c.balance ?? 0) > 0 ? "text-red-600" : "text-gray-400"}`}
+                      >
+                        {formatCurrency(c.balance ?? 0, currency)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right text-gray-500">
+                      {c.creditLimit
+                        ? formatCurrency(c.creditLimit, currency)
+                        : "—"}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          c.isActive
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20"
+                            : "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+                        }`}
+                      >
+                        {c.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          onClick={() => openPayment(c)}
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+                          title="Add Payment"
+                        >
+                          <Wallet className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => openEdit(c)}
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-violet-50 hover:text-violet-600"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteCustomer(c._id)}
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3.5">
             <span className="text-[13px] text-gray-500">
@@ -607,11 +628,11 @@ export default function CustomersPage() {
       {/* Payment Modal */}
       {showPaymentModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8"
           onClick={() => setShowPaymentModal(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+            className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
@@ -620,11 +641,11 @@ export default function CustomersPage() {
                   <Wallet className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-gray-900">Add Payment</h2>
+                  <h2 className="font-bold text-gray-900">
+                    Receive Customer Payment
+                  </h2>
                   <p className="text-[12px] text-gray-500">
-                    {paymentCustomer
-                      ? paymentCustomer.name
-                      : "Select a customer below"}
+                    Process payment from a customer for outstanding credit sales
                   </p>
                 </div>
               </div>
@@ -635,102 +656,261 @@ export default function CustomersPage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="px-6 py-5 space-y-4">
-              {!paymentCustomer && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
+              {/* Left: Form */}
+              <div className="lg:col-span-2 px-6 py-5 space-y-5 border-r border-gray-100">
+                {/* Customer */}
                 <div>
-                  <label className="text-[13px] font-semibold text-gray-700">
+                  <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
+                    <Users className="h-4 w-4 text-gray-400" />
                     Customer *
                   </label>
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      const c = customers.find((c) => c._id === e.target.value);
-                      if (c) setPaymentCustomer(c);
-                    }}
-                    className={inputClass}
-                  >
-                    <option value="">Select customer…</option>
-                    {customers.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.name}
-                        {(c.balance ?? 0) > 0
-                          ? ` (Balance: ${formatCurrency(c.balance ?? 0, currency)})`
-                          : ""}
-                      </option>
+                  {paymentCustomer ? (
+                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-purple-200 text-xs font-bold text-violet-700">
+                          {paymentCustomer.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {paymentCustomer.name}
+                          </p>
+                          {paymentCustomer.phone && (
+                            <p className="text-[11px] text-gray-400">
+                              {paymentCustomer.phone}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setPaymentCustomer(null)}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Type or select a customer"
+                      className={inputClass}
+                      onFocus={(e) => {
+                        const target = e.target;
+                        const select =
+                          target.nextElementSibling as HTMLSelectElement;
+                        if (select) select.style.display = "block";
+                      }}
+                    />
+                  )}
+                  {!paymentCustomer && (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const c = customers.find(
+                          (c) => c._id === e.target.value,
+                        );
+                        if (c) setPaymentCustomer(c);
+                      }}
+                      className={inputClass + " mt-1"}
+                    >
+                      <option value="">Select customer…</option>
+                      {customers.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name}
+                          {(c.balance ?? 0) > 0
+                            ? ` (Balance: ${formatCurrency(c.balance ?? 0, currency)})`
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
+                    <DollarSign className="h-4 w-4 text-gray-400" />
+                    Payment Amount *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-400">
+                      {currency}
+                    </span>
+                    <input
+                      type="number"
+                      value={paymentForm.amount}
+                      onChange={(e) =>
+                        setPaymentForm({
+                          ...paymentForm,
+                          amount: e.target.value,
+                        })
+                      }
+                      placeholder="0.00"
+                      className={inputClass + " pl-14"}
+                    />
+                  </div>
+                </div>
+
+                {/* Payment Method Cards */}
+                <div>
+                  <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-2">
+                    <Wallet className="h-4 w-4 text-gray-400" />
+                    Payment Method *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: "cash", label: "Cash", icon: Banknote },
+                      { key: "card", label: "Card", icon: CreditCard },
+                      { key: "credit", label: "Credit", icon: Wallet },
+                      { key: "bank", label: "Bank Transfer", icon: DollarSign },
+                      {
+                        key: "mobile_money",
+                        label: "Mobile Money",
+                        icon: Smartphone,
+                      },
+                    ].map((m) => (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() =>
+                          setPaymentForm({ ...paymentForm, method: m.key })
+                        }
+                        className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 text-sm font-medium transition-all ${
+                          paymentForm.method === m.key
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <m.icon className="h-4 w-4" />
+                        {m.label}
+                        {paymentForm.method === m.key && (
+                          <CheckCircle2 className="h-4 w-4 ml-auto text-emerald-500" />
+                        )}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
-              )}
-              {paymentCustomer && (paymentCustomer.balance ?? 0) > 0 && (
-                <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm">
-                  <span className="text-red-600 font-medium">
-                    Outstanding Balance:{" "}
-                  </span>
-                  <span className="text-red-700 font-bold">
-                    {formatCurrency(paymentCustomer.balance ?? 0, currency)}
-                  </span>
+
+                {/* Reference */}
+                <div>
+                  <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
+                    # Reference Number (Optional)
+                  </label>
+                  <input
+                    value={paymentForm.reference}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        reference: e.target.value,
+                      })
+                    }
+                    placeholder="Transaction reference"
+                    className={inputClass}
+                  />
                 </div>
-              )}
-              <div>
-                <label className="text-[13px] font-semibold text-gray-700">
-                  Amount *
-                </label>
-                <input
-                  type="number"
-                  value={paymentForm.amount}
-                  onChange={(e) =>
-                    setPaymentForm({ ...paymentForm, amount: e.target.value })
-                  }
-                  placeholder="Enter payment amount"
-                  className={inputClass}
-                />
+
+                {/* Notes */}
+                <div>
+                  <label className="text-[13px] font-semibold text-gray-700">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={paymentForm.notes}
+                    onChange={(e) =>
+                      setPaymentForm({ ...paymentForm, notes: e.target.value })
+                    }
+                    rows={2}
+                    placeholder="Payment notes"
+                    className={inputClass}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[13px] font-semibold text-gray-700">
-                  Payment Method
-                </label>
-                <select
-                  value={paymentForm.method}
-                  onChange={(e) =>
-                    setPaymentForm({ ...paymentForm, method: e.target.value })
-                  }
-                  className={inputClass}
-                >
-                  <option value="cash">Cash</option>
-                  <option value="bank">Bank Transfer</option>
-                  <option value="mobile_money">Mobile Money</option>
-                  <option value="card">Card</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[13px] font-semibold text-gray-700">
-                  Reference
-                </label>
-                <input
-                  value={paymentForm.reference}
-                  onChange={(e) =>
-                    setPaymentForm({
-                      ...paymentForm,
-                      reference: e.target.value,
-                    })
-                  }
-                  placeholder="Transaction reference (optional)"
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="text-[13px] font-semibold text-gray-700">
-                  Notes
-                </label>
-                <textarea
-                  value={paymentForm.notes}
-                  onChange={(e) =>
-                    setPaymentForm({ ...paymentForm, notes: e.target.value })
-                  }
-                  rows={2}
-                  placeholder="Payment notes (optional)"
-                  className={inputClass}
-                />
+
+              {/* Right: Summary & Allocation Logic */}
+              <div className="px-5 py-5 space-y-5">
+                {/* Customer Balance Summary */}
+                <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <DollarSign className="h-5 w-5 text-emerald-500" />
+                    <h3 className="text-sm font-bold text-gray-800">
+                      Customer Balance Summary
+                    </h3>
+                  </div>
+                  {paymentCustomer ? (
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Outstanding</span>
+                        <span className="font-semibold text-red-600">
+                          {formatCurrency(
+                            paymentCustomer.balance ?? 0,
+                            currency,
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Total Spent</span>
+                        <span className="font-semibold text-gray-700">
+                          {formatCurrency(paymentCustomer.totalSpent, currency)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Credit Limit</span>
+                        <span className="font-semibold text-gray-700">
+                          {paymentCustomer.creditLimit
+                            ? formatCurrency(
+                                paymentCustomer.creditLimit,
+                                currency,
+                              )
+                            : "—"}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 text-center py-2">
+                      Select a customer
+                    </p>
+                  )}
+                </div>
+
+                {/* Payment Allocation Logic */}
+                <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+                  <h3 className="text-sm font-bold text-gray-800 mb-3">
+                    Payment Allocation Logic
+                  </h3>
+                  <div className="space-y-3">
+                    {[
+                      {
+                        num: 1,
+                        title: "Oldest First",
+                        desc: "Payments are applied to the oldest unpaid sale first",
+                      },
+                      {
+                        num: 2,
+                        title: "Full Allocation",
+                        desc: "Each sale is fully paid before moving to the next",
+                      },
+                      {
+                        num: 3,
+                        title: "Credit Balance",
+                        desc: "Any remaining amount becomes customer credit",
+                      },
+                    ].map((step) => (
+                      <div key={step.num} className="flex gap-3">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600 flex-shrink-0 mt-0.5">
+                          {step.num}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700">
+                            {step.title}
+                          </p>
+                          <p className="text-[11px] text-gray-500">
+                            {step.desc}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-4">

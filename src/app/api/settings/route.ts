@@ -3,6 +3,79 @@ import dbConnect from "@/lib/db";
 import Tenant from "@/models/Tenant";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
+const booleanFields = [
+  "enableSaleLevelDiscount",
+  "enableItemLevelDiscount",
+  "requireDiscountApproval",
+  "blockSalesOnCreditLimit",
+  "enableAutoPriceMemory",
+  "hideFinancials",
+  "enableBarcodeScanning",
+  "allowNegativeStock",
+  "autoReorderOnNegative",
+  "notifyOnNegativeStock",
+  "emailNotifications",
+  "stockLevelAlerts",
+  "reorderAlerts",
+  "pushNotifications",
+  "systemUpdates",
+  "weeklyReports",
+  "twoFactorAuth",
+  "auditLog",
+  "showPreviewImages",
+  "sidebarDefaultCollapsed",
+  "enableAnimations",
+  "autoGenerateReports",
+  "allowEmailVerify",
+  "allowSelfRegistration",
+  "enableTaxes",
+  "allowItemLevelTax",
+  "archiveEnabled",
+  "legacyMode",
+] as const;
+
+const stringFields = [
+  "dateFormat",
+  "timeFormat",
+  "language",
+  "discountType",
+  "passwordRequirement",
+  "theme",
+  "defaultReportPeriod",
+  "defaultUserRole",
+  "taxName",
+  "taxNumber",
+  "fiscalYearStart",
+  "fiscalYearEnd",
+  "currentFiscalYear",
+] as const;
+
+const numberFields = [
+  "maxNegativeStockQty",
+  "sessionTimeout",
+  "itemsPerPage",
+  "autoArchiveAfterDays",
+] as const;
+
+export async function GET(request: NextRequest) {
+  try {
+    await dbConnect();
+    const auth = getAuthContext(request);
+    const tenant = await Tenant.findById(auth.tenantId).lean();
+    if (!tenant) return apiError("Tenant not found", 404);
+    return apiSuccess({
+      id: tenant._id,
+      name: tenant.name,
+      settings: tenant.settings,
+      createdAt: tenant.createdAt,
+      updatedAt: tenant.updatedAt,
+    });
+  } catch (error) {
+    console.error("Settings GET error:", error);
+    return apiError("Internal server error", 500);
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     await dbConnect();
@@ -35,6 +108,22 @@ export async function PATCH(request: NextRequest) {
         0,
         body.lowStockThreshold,
       );
+    }
+
+    for (const field of booleanFields) {
+      if (typeof body[field] === "boolean") {
+        allowedFields[`settings.${field}`] = body[field];
+      }
+    }
+    for (const field of stringFields) {
+      if (typeof body[field] === "string") {
+        allowedFields[`settings.${field}`] = body[field].trim();
+      }
+    }
+    for (const field of numberFields) {
+      if (typeof body[field] === "number") {
+        allowedFields[`settings.${field}`] = Math.max(0, body[field]);
+      }
     }
 
     if (Object.keys(allowedFields).length === 0) {

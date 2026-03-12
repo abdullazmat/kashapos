@@ -25,7 +25,6 @@ import {
   Clock,
   ImageIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { printHtml, formatCurrency } from "@/lib/utils";
 import { useSession } from "../layout";
 
@@ -325,7 +324,7 @@ export default function POSTerminalPage() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="flex min-h-[calc(100vh-7rem)] items-center justify-center rounded-[28px] border border-gray-200/70 bg-gradient-to-br from-gray-50 to-gray-100 shadow-sm">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
           <p className="text-sm font-medium text-gray-500">
@@ -337,18 +336,11 @@ export default function POSTerminalPage() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-gradient-to-br from-gray-50 to-gray-100/80">
+    <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-[28px] border border-gray-200/70 bg-gradient-to-br from-gray-50 to-gray-100/80 shadow-sm">
       {/* ── Left: Products ── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Bar */}
         <div className="flex items-center gap-3 border-b border-gray-200/80 bg-white/80 px-5 py-3 backdrop-blur-sm">
-          <Link
-            href="/dashboard"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-
           <div className="flex h-10 flex-1 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/80 px-3 transition-colors focus-within:border-orange-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/20">
             <Search className="h-4 w-4 text-gray-400" />
             <input

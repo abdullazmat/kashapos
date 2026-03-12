@@ -21,10 +21,26 @@ export default function SignInPage() {
   >("email");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("+256");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const countryCodes = [
+    { code: "+256", country: "UG", flag: "🇺🇬" },
+    { code: "+254", country: "KE", flag: "🇰🇪" },
+    { code: "+255", country: "TZ", flag: "🇹🇿" },
+    { code: "+250", country: "RW", flag: "🇷🇼" },
+    { code: "+257", country: "BI", flag: "🇧🇮" },
+    { code: "+243", country: "CD", flag: "🇨🇩" },
+    { code: "+211", country: "SS", flag: "🇸🇸" },
+    { code: "+234", country: "NG", flag: "🇳🇬" },
+    { code: "+233", country: "GH", flag: "🇬🇭" },
+    { code: "+27", country: "ZA", flag: "🇿🇦" },
+    { code: "+1", country: "US", flag: "🇺🇸" },
+    { code: "+44", country: "UK", flag: "🇬🇧" },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +52,9 @@ export default function SignInPage() {
       if (loginMethod === "email") {
         payload.email = email;
       } else {
-        payload.phone = phone;
+        // Combine country code with phone number
+        const fullPhone = countryCode + phone.replace(/^0+/, "");
+        payload.phone = fullPhone;
       }
 
       const res = await fetch("/api/auth/sign-in", {
@@ -180,14 +198,27 @@ export default function SignInPage() {
                         : "Phone Number"}
                     </span>
                   </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className={`w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
-                    placeholder="+256 7XX XXX XXX"
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className={`w-28 px-2 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
+                    >
+                      {countryCodes.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className={`flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
+                      placeholder="7XX XXX XXX"
+                      required
+                    />
+                  </div>
                   {loginMethod === "whatsapp" && (
                     <p className="mt-1 text-xs text-gray-400">
                       Login alert will be sent to this WhatsApp number

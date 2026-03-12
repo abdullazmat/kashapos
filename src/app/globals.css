@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -140,4 +142,283 @@ button:focus-visible {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* ================================================================
+   DARK MODE – Content Area Overrides
+   Scoped to .content-area to avoid affecting the already-dark sidebar.
+   Maps light-mode Tailwind utilities to dark equivalents automatically.
+   ================================================================ */
+
+/* --- Backgrounds --- */
+html.dark .content-area .bg-white {
+  background-color: #111827 !important;
+}
+html.dark .content-area .bg-white\/80 {
+  background-color: rgb(17 24 39 / 0.8) !important;
+}
+html.dark .content-area .bg-white\/40 {
+  background-color: rgb(17 24 39 / 0.4) !important;
+}
+html.dark .content-area .bg-gray-50 {
+  background-color: #1f2937 !important;
+}
+html.dark .content-area .bg-gray-50\/60 {
+  background-color: rgb(31 41 55 / 0.6) !important;
+}
+html.dark .content-area .bg-gray-50\/50 {
+  background-color: rgb(31 41 55 / 0.5) !important;
+}
+html.dark .content-area .bg-gray-100 {
+  background-color: #374151 !important;
+}
+html.dark .content-area .bg-gray-200 {
+  background-color: #4b5563 !important;
+}
+
+/* Accent tint backgrounds — darken for dark mode */
+html.dark .content-area .bg-blue-50 {
+  background-color: rgb(30 58 138 / 0.2) !important;
+}
+html.dark .content-area .bg-blue-50\/60 {
+  background-color: rgb(30 58 138 / 0.15) !important;
+}
+html.dark .content-area .bg-blue-100 {
+  background-color: rgb(30 58 138 / 0.25) !important;
+}
+html.dark .content-area .bg-sky-50 {
+  background-color: rgb(7 89 133 / 0.2) !important;
+}
+html.dark .content-area .bg-sky-100 {
+  background-color: rgb(7 89 133 / 0.25) !important;
+}
+html.dark .content-area .bg-orange-50 {
+  background-color: rgb(154 52 18 / 0.2) !important;
+}
+html.dark .content-area .bg-orange-50\/30 {
+  background-color: rgb(154 52 18 / 0.1) !important;
+}
+html.dark .content-area .bg-orange-100 {
+  background-color: rgb(154 52 18 / 0.25) !important;
+}
+html.dark .content-area .bg-amber-50 {
+  background-color: rgb(146 64 14 / 0.2) !important;
+}
+html.dark .content-area .bg-emerald-50 {
+  background-color: rgb(6 78 59 / 0.2) !important;
+}
+html.dark .content-area .bg-green-50 {
+  background-color: rgb(6 78 59 / 0.2) !important;
+}
+html.dark .content-area .bg-red-50 {
+  background-color: rgb(127 29 29 / 0.2) !important;
+}
+html.dark .content-area .bg-purple-50 {
+  background-color: rgb(88 28 135 / 0.2) !important;
+}
+html.dark .content-area .bg-indigo-50 {
+  background-color: rgb(49 46 129 / 0.2) !important;
+}
+html.dark .content-area .bg-cyan-50 {
+  background-color: rgb(22 78 99 / 0.2) !important;
+}
+html.dark .content-area .bg-teal-50 {
+  background-color: rgb(19 78 74 / 0.2) !important;
+}
+html.dark .content-area .bg-yellow-50 {
+  background-color: rgb(113 63 18 / 0.2) !important;
+}
+html.dark .content-area .bg-pink-50 {
+  background-color: rgb(131 24 67 / 0.2) !important;
+}
+html.dark .content-area .bg-violet-50 {
+  background-color: rgb(76 29 149 / 0.2) !important;
+}
+
+/* Gradient from/to stops — override CSS variables for light-50 gradients */
+html.dark .content-area .from-orange-50 {
+  --tw-gradient-from: rgb(154 52 18 / 0.2) !important;
+}
+html.dark .content-area .to-amber-50 {
+  --tw-gradient-to: rgb(146 64 14 / 0.2) !important;
+}
+html.dark .content-area .from-blue-50 {
+  --tw-gradient-from: rgb(30 58 138 / 0.2) !important;
+}
+html.dark .content-area .to-indigo-50 {
+  --tw-gradient-to: rgb(49 46 129 / 0.2) !important;
+}
+html.dark .content-area .to-blue-50 {
+  --tw-gradient-to: rgb(30 58 138 / 0.2) !important;
+}
+html.dark .content-area .from-emerald-50 {
+  --tw-gradient-from: rgb(6 78 59 / 0.2) !important;
+}
+html.dark .content-area .to-green-50 {
+  --tw-gradient-to: rgb(6 78 59 / 0.2) !important;
+}
+html.dark .content-area .from-violet-50 {
+  --tw-gradient-from: rgb(76 29 149 / 0.2) !important;
+}
+html.dark .content-area .to-purple-50 {
+  --tw-gradient-to: rgb(88 28 135 / 0.2) !important;
+}
+html.dark .content-area .from-sky-50 {
+  --tw-gradient-from: rgb(7 89 133 / 0.2) !important;
+}
+html.dark .content-area .to-sky-50 {
+  --tw-gradient-to: rgb(7 89 133 / 0.2) !important;
+}
+html.dark .content-area .from-gray-50 {
+  --tw-gradient-from: #1f2937 !important;
+}
+html.dark .content-area .to-gray-50 {
+  --tw-gradient-to: #1f2937 !important;
+}
+html.dark .content-area .from-gray-300 {
+  --tw-gradient-from: #374151 !important;
+}
+html.dark .content-area .from-gray-100 {
+  --tw-gradient-from: #1f2937 !important;
+}
+html.dark .content-area .to-gray-200 {
+  --tw-gradient-to: #374151 !important;
+}
+
+/* --- Text --- */
+html.dark .content-area .text-gray-900 {
+  color: #f3f4f6 !important;
+}
+html.dark .content-area .text-gray-800 {
+  color: #e5e7eb !important;
+}
+html.dark .content-area .text-gray-700 {
+  color: #d1d5db !important;
+}
+html.dark .content-area .text-gray-600 {
+  color: #9ca3af !important;
+}
+html.dark .content-area .text-gray-500 {
+  color: #9ca3af !important;
+}
+html.dark .content-area .text-gray-400 {
+  color: #6b7280 !important;
+}
+html.dark .content-area .text-gray-300 {
+  color: #4b5563 !important;
+}
+
+/* --- Borders --- */
+html.dark .content-area .border-gray-50 {
+  border-color: #1f2937 !important;
+}
+html.dark .content-area .border-gray-100 {
+  border-color: #374151 !important;
+}
+html.dark .content-area .border-gray-200 {
+  border-color: #374151 !important;
+}
+html.dark .content-area .border-gray-200\/60 {
+  border-color: rgb(55 65 81 / 0.6) !important;
+}
+html.dark .content-area .border-gray-200\/80 {
+  border-color: rgb(55 65 81 / 0.8) !important;
+}
+html.dark .content-area .border-blue-100 {
+  border-color: rgb(30 58 138 / 0.3) !important;
+}
+html.dark .content-area .border-blue-200 {
+  border-color: rgb(30 58 138 / 0.4) !important;
+}
+html.dark .content-area .border-amber-200 {
+  border-color: rgb(146 64 14 / 0.3) !important;
+}
+html.dark .content-area .border-orange-100 {
+  border-color: rgb(154 52 18 / 0.3) !important;
+}
+html.dark .content-area .border-orange-200 {
+  border-color: rgb(154 52 18 / 0.4) !important;
+}
+html.dark .content-area .border-emerald-100 {
+  border-color: rgb(6 78 59 / 0.3) !important;
+}
+html.dark .content-area .border-violet-100 {
+  border-color: rgb(76 29 149 / 0.3) !important;
+}
+html.dark .content-area .border-sky-100 {
+  border-color: rgb(7 89 133 / 0.3) !important;
+}
+html.dark .content-area .border-sky-200 {
+  border-color: rgb(7 89 133 / 0.4) !important;
+}
+
+/* --- Dividers --- */
+html.dark .content-area .divide-gray-50 > :not(:last-child) {
+  border-color: #374151 !important;
+}
+html.dark .content-area .divide-gray-100 > :not(:last-child) {
+  border-color: #374151 !important;
+}
+
+/* --- Hover states --- */
+html.dark .content-area .hover\:bg-gray-50:hover {
+  background-color: #374151 !important;
+}
+html.dark .content-area .hover\:bg-gray-100:hover {
+  background-color: #374151 !important;
+}
+html.dark .content-area .hover\:bg-gray-50\/60:hover {
+  background-color: rgb(55 65 81 / 0.6) !important;
+}
+html.dark .content-area .hover\:bg-red-50:hover {
+  background-color: rgb(127 29 29 / 0.25) !important;
+}
+html.dark .content-area .hover\:bg-amber-50:hover {
+  background-color: rgb(146 64 14 / 0.25) !important;
+}
+html.dark .content-area .hover\:bg-orange-100:hover {
+  background-color: rgb(154 52 18 / 0.25) !important;
+}
+
+/* --- Shadows --- */
+html.dark .content-area .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.4) !important;
+}
+html.dark .content-area .shadow-md {
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.4),
+    0 2px 4px -2px rgb(0 0 0 / 0.3) !important;
+}
+html.dark .content-area .shadow-lg {
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.4),
+    0 4px 6px -4px rgb(0 0 0 / 0.3) !important;
+}
+html.dark .content-area .shadow-xl {
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 0.5),
+    0 8px 10px -6px rgb(0 0 0 / 0.4) !important;
+}
+html.dark .content-area .shadow-2xl {
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.6) !important;
+}
+
+/* --- Form elements --- */
+html.dark .content-area select,
+html.dark
+  .content-area
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+    [type="color"]
+  ),
+html.dark .content-area textarea {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+  color: #e5e7eb !important;
+}
+html.dark .content-area select option {
+  background-color: #1f2937;
+  color: #e5e7eb;
+}
+html.dark .content-area ::placeholder {
+  color: #6b7280 !important;
 }

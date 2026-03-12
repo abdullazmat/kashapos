@@ -276,140 +276,143 @@ export default function InvoicesPage() {
 
       {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Invoice #
-              </th>
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Date
-              </th>
-              <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
-                Customer
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Total
-              </th>
-              <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                Paid
-              </th>
-              <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
-                Status
-              </th>
-              <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-blue-500" />
-                    <span className="text-sm text-gray-400">
-                      Loading invoices...
-                    </span>
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-blue-100 bg-blue-50/60">
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Invoice #
+                </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Date
+                </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Customer
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Total
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Paid
+                </th>
+                <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
+                  Status
+                </th>
+                <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600"></th>
               </tr>
-            ) : invoices.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-5 py-16 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                      <FileText className="h-6 w-6 text-gray-400" />
-                    </div>
-                    <p className="font-medium text-gray-500">
-                      No invoices found
-                    </p>
-                    <p className="text-[13px] text-gray-400">
-                      Create your first invoice to get started
-                    </p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              invoices.map((inv) => (
-                <tr
-                  key={inv._id}
-                  className="group transition-colors hover:bg-gray-50/80"
-                >
-                  <td className="px-5 py-3.5">
-                    <span className="rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-700">
-                      {inv.invoiceNumber}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="text-gray-700">
-                      {formatDate(inv.createdAt)}
-                    </div>
-                    {inv.dueDate && (
-                      <div className="flex items-center gap-1 text-[11px] text-gray-400">
-                        <Calendar className="h-3 w-3" /> Due:{" "}
-                        {formatDate(inv.dueDate)}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-cyan-200 text-[10px] font-bold text-blue-700">
-                        {(inv.customerId?.name || "W")[0]}
-                      </div>
-                      <span className="text-gray-700">
-                        {inv.customerId?.name || "Walk-in"}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-blue-500" />
+                      <span className="text-sm text-gray-400">
+                        Loading invoices...
                       </span>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
-                    {formatCurrency(inv.total, currency)}
-                  </td>
-                  <td className="px-5 py-3.5 text-right text-gray-500">
-                    {formatCurrency(inv.amountPaid || 0, currency)}
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${statusColors[inv.status] || "bg-gray-50 text-gray-700"}`}
-                    >
-                      {inv.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <div className="flex items-center justify-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        onClick={() => setViewInvoice(inv)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                        title="View"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      {inv.status !== "paid" && inv.status !== "cancelled" && (
-                        <button
-                          onClick={() => {
-                            setShowPayment(inv);
-                            setPaymentAmount("");
-                          }}
-                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-amber-600"
-                          title="Record Payment"
-                        >
-                          <DollarSign className="h-4 w-4" />
-                        </button>
-                      )}
-                      {inv.status === "draft" && (
-                        <button
-                          onClick={() => updateStatus(inv._id, "sent")}
-                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                          title="Mark as Sent"
-                        >
-                          <Send className="h-4 w-4" />
-                        </button>
-                      )}
+                </tr>
+              ) : invoices.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                        <FileText className="h-6 w-6 text-gray-400" />
+                      </div>
+                      <p className="font-medium text-gray-500">
+                        No invoices found
+                      </p>
+                      <p className="text-[13px] text-gray-400">
+                        Create your first invoice to get started
+                      </p>
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                invoices.map((inv) => (
+                  <tr
+                    key={inv._id}
+                    className="group transition-colors hover:bg-gray-50/80"
+                  >
+                    <td className="px-5 py-3.5">
+                      <span className="rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-700">
+                        {inv.invoiceNumber}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="text-gray-700">
+                        {formatDate(inv.createdAt)}
+                      </div>
+                      {inv.dueDate && (
+                        <div className="flex items-center gap-1 text-[11px] text-gray-400">
+                          <Calendar className="h-3 w-3" /> Due:{" "}
+                          {formatDate(inv.dueDate)}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-cyan-200 text-[10px] font-bold text-blue-700">
+                          {(inv.customerId?.name || "W")[0]}
+                        </div>
+                        <span className="text-gray-700">
+                          {inv.customerId?.name || "Walk-in"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
+                      {formatCurrency(inv.total, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right text-gray-500">
+                      {formatCurrency(inv.amountPaid || 0, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${statusColors[inv.status] || "bg-gray-50 text-gray-700"}`}
+                      >
+                        {inv.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <div className="flex items-center justify-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          onClick={() => setViewInvoice(inv)}
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                          title="View"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        {inv.status !== "paid" &&
+                          inv.status !== "cancelled" && (
+                            <button
+                              onClick={() => {
+                                setShowPayment(inv);
+                                setPaymentAmount("");
+                              }}
+                              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-amber-600"
+                              title="Record Payment"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                            </button>
+                          )}
+                        {inv.status === "draft" && (
+                          <button
+                            onClick={() => updateStatus(inv._id, "sent")}
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                            title="Mark as Sent"
+                          >
+                            <Send className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3.5">
             <span className="text-[13px] text-gray-500">
