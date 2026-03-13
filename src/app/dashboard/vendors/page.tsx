@@ -542,6 +542,19 @@ export default function VendorsPage() {
                           </span>
                         </span>
                       )}
+                      <span className="text-gray-400">
+                        Balance:{" "}
+                        <span
+                          className={`font-semibold ${(vendorsWithBalance.get(v._id) || 0) > 0 ? "text-red-600" : "text-gray-700"}`}
+                        >
+                          {(vendorsWithBalance.get(v._id) || 0) > 0
+                            ? formatCurrency(
+                                vendorsWithBalance.get(v._id) || 0,
+                                currency,
+                              )
+                            : "—"}
+                        </span>
+                      </span>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 transition-all group-hover:opacity-100">
                       <button

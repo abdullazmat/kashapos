@@ -17,6 +17,8 @@ export interface ISale extends Document {
   branchId: mongoose.Types.ObjectId;
   orderNumber: string;
   customerId?: mongoose.Types.ObjectId;
+  walkInName?: string;
+  walkInPhone?: string;
   items: ISaleItem[];
   subtotal: number;
   totalDiscount: number;
@@ -78,6 +80,8 @@ const SaleSchema = new Schema<ISale>(
     branchId: { type: Schema.Types.ObjectId, ref: "Branch", required: true },
     orderNumber: { type: String, required: true },
     customerId: { type: Schema.Types.ObjectId, ref: "Customer" },
+    walkInName: { type: String, default: "" },
+    walkInPhone: { type: String, default: "" },
     items: [SaleItemSchema],
     subtotal: { type: Number, required: true },
     totalDiscount: { type: Number, default: 0 },

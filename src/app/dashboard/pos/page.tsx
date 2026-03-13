@@ -79,6 +79,8 @@ export default function POSTerminalPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  const [walkInName, setWalkInName] = useState("");
+  const [walkInPhone, setWalkInPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState("");
   const [creditDueDate, setCreditDueDate] = useState("");
@@ -214,6 +216,8 @@ export default function POSTerminalPage() {
             total: i.price * i.quantity,
           })),
           customerId: selectedCustomer || undefined,
+          walkInName: selectedCustomer ? undefined : walkInName.trim(),
+          walkInPhone: selectedCustomer ? undefined : walkInPhone.trim(),
           paymentMethod,
           subtotal: cartTotal,
           totalTax: 0,
@@ -240,7 +244,7 @@ export default function POSTerminalPage() {
             total: item.price * item.quantity,
           })),
           paymentMethod,
-          customerName: selectedCustomerRecord?.name,
+          customerName: selectedCustomerRecord?.name || walkInName.trim(),
           amountPaid:
             paymentMethod === "credit"
               ? Math.max(0, parseFloat(amountPaid) || 0)
@@ -252,6 +256,8 @@ export default function POSTerminalPage() {
         setShowComplete(true);
         setCart([]);
         setSelectedCustomer("");
+        setWalkInName("");
+        setWalkInPhone("");
         setPaymentMethod("cash");
         setAmountPaid("");
         setSaleError("");
@@ -332,6 +338,8 @@ export default function POSTerminalPage() {
   const selectedCustomerRecord = customers.find(
     (customer) => customer._id === selectedCustomer,
   );
+  const selectedCustomerOutstanding =
+    selectedCustomerRecord?.outstandingBalance || 0;
   const paymentOptions: {
     key: PaymentMethod;
     label: string;
@@ -560,16 +568,49 @@ export default function POSTerminalPage() {
           </label>
           <select
             value={selectedCustomer}
-            onChange={(e) => setSelectedCustomer(e.target.value)}
+            onChange={(e) => {
+              setSelectedCustomer(e.target.value);
+              if (e.target.value) {
+                setWalkInName("");
+                setWalkInPhone("");
+              }
+            }}
             className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
           >
             <option value="">Walk-in Customer</option>
             {customers.map((c) => (
               <option key={c._id} value={c._id}>
                 {c.name}
+                {c.phone ? ` (${c.phone})` : ""}
+                {(c.outstandingBalance || 0) > 0
+                  ? ` • Bal ${formatCurrency(c.outstandingBalance || 0, currency)}`
+                  : ""}
               </option>
             ))}
           </select>
+          {!selectedCustomer && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <input
+                value={walkInName}
+                onChange={(e) => setWalkInName(e.target.value)}
+                placeholder="Walk-in name"
+                className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+              <input
+                value={walkInPhone}
+                onChange={(e) => setWalkInPhone(e.target.value)}
+                placeholder="Phone (optional)"
+                className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+            </div>
+          )}
+          {selectedCustomer && selectedCustomerRecord && (
+            <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] text-blue-700">
+              {selectedCustomerOutstanding > 0
+                ? `Existing credit due: ${formatCurrency(selectedCustomerOutstanding, currency)}`
+                : "No existing credit due"}
+            </div>
+          )}
         </div>
 
         {/* Cart Items */}

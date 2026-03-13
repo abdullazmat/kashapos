@@ -408,6 +408,9 @@ export default function PurchasesPage() {
                 <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
                   Total
                 </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Balance
+                </th>
                 <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
                   Status
                 </th>
@@ -420,7 +423,7 @@ export default function PurchasesPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
+                  <td colSpan={8} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
                       <span className="text-sm text-gray-400">
@@ -431,7 +434,7 @@ export default function PurchasesPage() {
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
+                  <td colSpan={8} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                         <ShoppingBag className="h-6 w-6 text-gray-400" />
@@ -471,6 +474,15 @@ export default function PurchasesPage() {
                     </td>
                     <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
                       {formatCurrency(o.total, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <span
+                        className={`font-semibold ${o.total - o.amountPaid > 0 ? "text-red-600" : "text-gray-400"}`}
+                      >
+                        {o.total - o.amountPaid > 0
+                          ? formatCurrency(o.total - o.amountPaid, currency)
+                          : "—"}
+                      </span>
                     </td>
                     <td className="px-5 py-3.5 text-center">
                       <span

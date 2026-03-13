@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const auth = getAuthContext(request);
     const { searchParams } = new URL(request.url);
     const selectedFiscalYearId = searchParams.get("fiscalYearId");
+    const branchId = searchParams.get("branchId") || "";
 
     const fiscalYears = await FiscalYear.find({ tenantId: auth.tenantId })
       .sort({ startDate: -1 })
@@ -41,6 +42,21 @@ export async function GET(request: NextRequest) {
       new Date(selectedFiscalYear.endDate),
     );
 
+    const salesMatch: Record<string, unknown> = {
+      tenantId: auth.tenantId,
+      status: { $in: ["completed", "pending"] },
+      createdAt: range,
+    };
+    const expenseMatch: Record<string, unknown> = {
+      tenantId: auth.tenantId,
+      date: range,
+    };
+
+    if (branchId) {
+      salesMatch.branchId = branchId;
+      expenseMatch.branchId = branchId;
+    }
+
     const [
       salesAgg,
       expensesAgg,
@@ -52,11 +68,7 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       Sale.aggregate([
         {
-          $match: {
-            tenantId: auth.tenantId,
-            status: { $in: ["completed", "pending"] },
-            createdAt: range,
-          },
+          $match: salesMatch,
         },
         {
           $group: {
@@ -68,10 +80,7 @@ export async function GET(request: NextRequest) {
       ]),
       Expense.aggregate([
         {
-          $match: {
-            tenantId: auth.tenantId,
-            date: range,
-          },
+          $match: expenseMatch,
         },
         {
           $group: {
@@ -82,11 +91,7 @@ export async function GET(request: NextRequest) {
       ]),
       Sale.aggregate([
         {
-          $match: {
-            tenantId: auth.tenantId,
-            status: { $in: ["completed", "pending"] },
-            createdAt: range,
-          },
+          $match: salesMatch,
         },
         {
           $group: {
@@ -98,10 +103,7 @@ export async function GET(request: NextRequest) {
       ]),
       Expense.aggregate([
         {
-          $match: {
-            tenantId: auth.tenantId,
-            date: range,
-          },
+          $match: expenseMatch,
         },
         {
           $group: {
@@ -130,21 +132,13 @@ export async function GET(request: NextRequest) {
       ]),
       Sale.aggregate([
         {
-          $match: {
-            tenantId: auth.tenantId,
-            status: { $in: ["completed", "pending"] },
-            createdAt: range,
-          },
+          $match: salesMatch,
         },
         { $group: { _id: null, totalVat: { $sum: "$totalTax" } } },
       ]),
       Sale.aggregate([
         {
-          $match: {
-            tenantId: auth.tenantId,
-            status: { $in: ["completed", "pending"] },
-            createdAt: range,
-          },
+          $match: salesMatch,
         },
         { $unwind: "$items" },
         {

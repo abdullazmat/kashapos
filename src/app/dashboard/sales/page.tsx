@@ -49,12 +49,15 @@ interface Sale {
   _id: string;
   orderNumber: string;
   customerId?: { _id: string; name: string; phone: string };
+  walkInName?: string;
+  walkInPhone?: string;
   cashierId?: { name: string };
   items: SaleItem[];
   subtotal: number;
   totalDiscount: number;
   totalTax: number;
   total: number;
+  remainingBalance: number;
   paymentMethod: string;
   status: string;
   notes: string;
@@ -72,6 +75,9 @@ interface CustomerOption {
   _id: string;
   name: string;
   phone: string;
+  outstandingBalance?: number;
+  creditLimit?: number;
+  paymentStatus?: "cleared" | "partial" | "overdue";
 }
 
 interface BranchOption {
@@ -125,6 +131,7 @@ export default function SalesPage() {
   const [orderStatus, setOrderStatus] = useState<"completed" | "pending">(
     "completed",
   );
+  const [orderWalkInName, setOrderWalkInName] = useState("");
   const [orderWalkInPhone, setOrderWalkInPhone] = useState("");
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState("");
@@ -203,6 +210,7 @@ export default function SalesPage() {
     setOrderDueDate("");
     setOrderNotes("");
     setOrderStatus("completed");
+    setOrderWalkInName("");
     setOrderWalkInPhone("");
     setOrderError("");
     setProductSearch("");
@@ -276,6 +284,37 @@ export default function SalesPage() {
       setOrderError("Select a store/branch");
       return;
     }
+    if (!orderCustomer && !orderWalkInName.trim()) {
+      setOrderError("Enter walk-in name or select an existing customer");
+      return;
+    }
+
+    if (orderPaymentMethod === "credit" && !orderCustomer) {
+      setOrderError("Credit sales require a saved customer profile");
+      return;
+    }
+
+    if (orderPaymentMethod === "credit" && !orderDueDate) {
+      setOrderError("Select a due date for credit sales");
+      return;
+    }
+
+    const parsedInputAmount = Number.parseFloat(orderAmountPaid);
+    const parsedAmountPaid = Number.isFinite(parsedInputAmount)
+      ? Math.max(0, parsedInputAmount)
+      : orderPaymentMethod === "credit"
+        ? 0
+        : orderTotal;
+
+    const remainingBalance = Math.max(0, orderTotal - parsedAmountPaid);
+
+    if (remainingBalance > 0 && !orderCustomer) {
+      setOrderError(
+        "Balance sales require a saved customer. Create/select one for credit tracking.",
+      );
+      return;
+    }
+
     setSavingOrder(true);
     setOrderError("");
     try {
@@ -296,15 +335,18 @@ export default function SalesPage() {
             total: i.total,
           })),
           paymentMethod: orderPaymentMethod,
-          amountPaid: orderAmountPaid
-            ? parseFloat(orderAmountPaid)
-            : orderTotal,
-          status: orderStatus,
+          amountPaid: parsedAmountPaid,
+          status:
+            orderPaymentMethod === "credit" || remainingBalance > 0
+              ? "pending"
+              : orderStatus,
+          ...(orderDueDate && { dueDate: orderDueDate }),
           notes: orderNotes,
           ...(orderCustomer
             ? {}
             : {
-                notes: `${orderNotes || ""}${orderWalkInPhone ? `${orderNotes ? "\n" : ""}Walk-in Phone: ${orderWalkInPhone}` : ""}`,
+                walkInName: orderWalkInName.trim(),
+                walkInPhone: orderWalkInPhone.trim(),
               }),
         }),
       });
@@ -408,12 +450,15 @@ export default function SalesPage() {
     card: <CreditCard className="h-3.5 w-3.5" />,
     mobile_money: <Smartphone className="h-3.5 w-3.5" />,
     split: <Receipt className="h-3.5 w-3.5" />,
+    credit: <CreditCard className="h-3.5 w-3.5" />,
   };
   const paymentLabel: Record<string, string> = {
     cash: "Cash",
     card: "Card",
     mobile_money: "Mobile Money",
     split: "Split",
+    credit: "Credit",
+    bank_transfer: "Bank Transfer",
   };
 
   const handleQuickFilter = (f: "all" | "today" | "custom") => {
@@ -434,6 +479,19 @@ export default function SalesPage() {
       p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
       p.sku.toLowerCase().includes(productSearch.toLowerCase()),
   );
+
+  const selectedOrderCustomer = customers.find((c) => c._id === orderCustomer);
+
+  const getSaleCustomerName = (sale: Sale) => {
+    if (sale.customerId?.name) return sale.customerId.name;
+    if (sale.walkInName) return sale.walkInName;
+    return "Walk-in Customer";
+  };
+
+  const getSaleCustomerPhone = (sale: Sale) => {
+    if (sale.customerId?.phone) return sale.customerId.phone;
+    return sale.walkInPhone || "";
+  };
 
   return (
     <div className="space-y-6">
@@ -457,7 +515,7 @@ export default function SalesPage() {
                 .concat(
                   sales.map(
                     (s) =>
-                      `${s.orderNumber},"${s.customerId?.name || "Walk-in"}",${s.items.length},${s.total},${s.paymentMethod},${s.status},${s.createdAt}`,
+                      `${s.orderNumber},"${getSaleCustomerName(s)}",${s.items.length},${s.total},${s.paymentMethod},${s.status},${s.createdAt}`,
                   ),
                 )
                 .join("\n");
@@ -480,7 +538,7 @@ export default function SalesPage() {
                   (s) => `
                     <tr>
                       <td>${s.orderNumber}</td>
-                      <td>${s.customerId?.name || "Walk-in"}</td>
+                        <td>${getSaleCustomerName(s)}</td>
                       <td>${s.items.length}</td>
                       <td>${formatCurrency(s.total, currency)}</td>
                       <td>${s.paymentMethod}</td>
@@ -660,6 +718,9 @@ export default function SalesPage() {
                 <th className="px-4 py-3.5 text-right text-[12px] font-semibold uppercase tracking-wider text-gray-500">
                   Financial
                 </th>
+                <th className="px-4 py-3.5 text-right text-[12px] font-semibold uppercase tracking-wider text-gray-500">
+                  Balance
+                </th>
                 <th className="px-4 py-3.5 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">
                   Payment
                 </th>
@@ -674,7 +735,7 @@ export default function SalesPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
+                  <td colSpan={8} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
                       <span className="text-sm text-gray-400">
@@ -685,7 +746,7 @@ export default function SalesPage() {
                 </tr>
               ) : filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
+                  <td colSpan={8} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                         <TrendingUp className="h-6 w-6 text-gray-400" />
@@ -718,15 +779,15 @@ export default function SalesPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-gray-100 to-gray-200 text-[10px] font-bold text-gray-500">
-                          {(s.customerId?.name || "W")[0]}
+                          {getSaleCustomerName(s)[0]}
                         </div>
                         <div>
                           <span className="text-gray-700 text-[13px] font-medium">
-                            {s.customerId?.name || "Walk-in"}
+                            {getSaleCustomerName(s)}
                           </span>
-                          {s.customerId?.phone && (
+                          {getSaleCustomerPhone(s) && (
                             <p className="text-[11px] text-gray-400">
-                              {s.customerId.phone}
+                              {getSaleCustomerPhone(s)}
                             </p>
                           )}
                         </div>
@@ -764,6 +825,15 @@ export default function SalesPage() {
                           -{formatCurrency(s.totalDiscount, currency)} disc
                         </p>
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span
+                        className={`text-[13px] font-semibold ${s.remainingBalance > 0 ? "text-red-600" : "text-gray-400"}`}
+                      >
+                        {s.remainingBalance > 0
+                          ? formatCurrency(s.remainingBalance, currency)
+                          : "—"}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 text-gray-600">
@@ -865,7 +935,7 @@ export default function SalesPage() {
                     Customer
                   </p>
                   <p className="mt-0.5 text-sm font-semibold text-gray-700">
-                    {viewSale.customerId?.name || "Walk-in"}
+                    {getSaleCustomerName(viewSale)}
                   </p>
                 </div>
                 <div className="rounded-xl bg-gray-50 p-3">
@@ -1048,25 +1118,50 @@ export default function SalesPage() {
                       value={orderCustomer}
                       onChange={(e) => {
                         setOrderCustomer(e.target.value);
-                        if (e.target.value) setOrderWalkInPhone("");
+                        if (e.target.value) {
+                          setOrderWalkInName("");
+                          setOrderWalkInPhone("");
+                        }
                       }}
                       className={inputClass}
                     >
                       <option value="">Walk-in Customer</option>
                       {customers.map((c) => (
                         <option key={c._id} value={c._id}>
-                          {c.name} {c.phone ? `(${c.phone})` : ""}
+                          {c.name}
+                          {c.phone ? ` (${c.phone})` : ""}
+                          {(c.outstandingBalance || 0) > 0
+                            ? ` • Bal ${formatCurrency(c.outstandingBalance || 0, currency)}`
+                            : ""}
                         </option>
                       ))}
                     </select>
                     {!orderCustomer && (
-                      <input
-                        value={orderWalkInPhone}
-                        onChange={(e) => setOrderWalkInPhone(e.target.value)}
-                        placeholder="Walk-in phone (optional)"
-                        className={inputClass}
-                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          value={orderWalkInName}
+                          onChange={(e) => setOrderWalkInName(e.target.value)}
+                          placeholder="Walk-in name"
+                          className={inputClass}
+                        />
+                        <input
+                          value={orderWalkInPhone}
+                          onChange={(e) => setOrderWalkInPhone(e.target.value)}
+                          placeholder="Walk-in phone (optional)"
+                          className={inputClass}
+                        />
+                      </div>
                     )}
+                    {selectedOrderCustomer &&
+                      (selectedOrderCustomer.outstandingBalance || 0) > 0 && (
+                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+                          Existing credit due:{" "}
+                          {formatCurrency(
+                            selectedOrderCustomer.outstandingBalance || 0,
+                            currency,
+                          )}
+                        </div>
+                      )}
                   </div>
                   <div>
                     <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
@@ -1215,7 +1310,13 @@ export default function SalesPage() {
                       </label>
                       <select
                         value={orderPaymentMethod}
-                        onChange={(e) => setOrderPaymentMethod(e.target.value)}
+                        onChange={(e) => {
+                          const nextMethod = e.target.value;
+                          setOrderPaymentMethod(nextMethod);
+                          if (nextMethod === "credit") {
+                            setOrderStatus("pending");
+                          }
+                        }}
                         className="mt-1 w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30"
                       >
                         <option value="cash" className="text-gray-900">
@@ -1227,16 +1328,20 @@ export default function SalesPage() {
                         <option value="mobile_money" className="text-gray-900">
                           Mobile Money
                         </option>
+                        <option value="credit" className="text-gray-900">
+                          Credit
+                        </option>
                       </select>
                     </div>
                     <div>
                       <label className="text-[11px] font-semibold text-gray-400">
-                        Due Date (optional)
+                        Due Date
                       </label>
                       <input
                         type="date"
                         value={orderDueDate}
                         onChange={(e) => setOrderDueDate(e.target.value)}
+                        min={new Date().toISOString().split("T")[0]}
                         className="mt-1 w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30"
                       />
                     </div>
@@ -1332,21 +1437,35 @@ export default function SalesPage() {
                       Customer
                     </h4>
                     <p className="text-sm text-gray-600">
-                      {customers.find((c) => c._id === orderCustomer)?.name ||
-                        "—"}
+                      {selectedOrderCustomer?.name || "—"}
                     </p>
                     <p className="text-[12px] text-gray-400">
-                      {customers.find((c) => c._id === orderCustomer)?.phone ||
-                        ""}
+                      {selectedOrderCustomer?.phone || ""}
                     </p>
+                    {(selectedOrderCustomer?.outstandingBalance || 0) > 0 && (
+                      <p className="mt-2 text-[12px] font-semibold text-amber-700">
+                        Outstanding:{" "}
+                        {formatCurrency(
+                          selectedOrderCustomer?.outstandingBalance || 0,
+                          currency,
+                        )}
+                      </p>
+                    )}
                   </div>
                 )}
-                {!orderCustomer && orderWalkInPhone && (
+                {!orderCustomer && (orderWalkInName || orderWalkInPhone) && (
                   <div className="rounded-xl border border-gray-200 bg-white p-5">
                     <h4 className="text-sm font-bold text-gray-800 mb-2">
                       Walk-in Contact
                     </h4>
-                    <p className="text-sm text-gray-600">{orderWalkInPhone}</p>
+                    <p className="text-sm text-gray-600">
+                      {orderWalkInName || "Unnamed Walk-in"}
+                    </p>
+                    {orderWalkInPhone && (
+                      <p className="text-[12px] text-gray-400">
+                        {orderWalkInPhone}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

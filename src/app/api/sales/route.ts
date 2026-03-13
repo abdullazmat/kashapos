@@ -35,6 +35,8 @@ type RawSaleItem = {
 type NormalizedSalePayload = {
   branchId: string;
   customerId?: string;
+  walkInName?: string;
+  walkInPhone?: string;
   items: {
     productId: string;
     productName: string;
@@ -364,6 +366,10 @@ async function normalizeSalePayload(
       : body.customer
         ? String(body.customer)
         : undefined,
+    walkInName:
+      typeof body.walkInName === "string" ? body.walkInName.trim() : "",
+    walkInPhone:
+      typeof body.walkInPhone === "string" ? body.walkInPhone.trim() : "",
     items,
     subtotal,
     totalDiscount,
