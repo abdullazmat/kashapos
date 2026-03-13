@@ -25,8 +25,15 @@ import {
   ArrowUpDown,
   Clock,
   ImageIcon,
+  UserRound,
 } from "lucide-react";
-import { printHtml, formatCurrency } from "@/lib/utils";
+import {
+  printHtml,
+  formatCurrency,
+  escapeHtml,
+  getPrintBrandingMarkup,
+  getPrintFooterMarkup,
+} from "@/lib/utils";
 import { useSession } from "../layout";
 
 type SortOption =
@@ -102,6 +109,9 @@ export default function POSTerminalPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [saleError, setSaleError] = useState("");
+
+  const isCreditWithoutCustomer =
+    paymentMethod === "credit" && !selectedCustomer && !walkInName.trim();
 
   useEffect(() => {
     fetchData();
@@ -295,12 +305,10 @@ export default function POSTerminalPage() {
       `Receipt ${lastSale.saleNumber}`,
       `
         <div class="receipt">
-          <div class="center">
-            <h2 style="margin:0;">Meka PoS</h2>
-            <p class="muted" style="margin:8px 0 0;">Sale Receipt</p>
-            <p class="muted" style="margin:4px 0 0;">${lastSale.saleNumber}</p>
-            <p class="muted" style="margin:4px 0 0;">${new Date().toLocaleString("en-UG")}</p>
-          </div>
+          ${getPrintBrandingMarkup({
+            title: "Sale Receipt",
+            subtitle: `${lastSale.saleNumber} • ${new Date().toLocaleString("en-UG")}`,
+          })}
           <table>
             <thead>
               <tr>
@@ -314,21 +322,22 @@ export default function POSTerminalPage() {
                 .map(
                   (item) => `
                     <tr>
-                      <td>${item.name}</td>
+                      <td>${escapeHtml(item.name)}</td>
                       <td>${item.quantity}</td>
-                      <td>UGX ${item.total.toLocaleString()}</td>
+                      <td>${formatCurrency(item.total, currency)}</td>
                     </tr>`,
                 )
                 .join("")}
             </tbody>
           </table>
           <div class="summary">
-            <div class="summary-row"><span>Customer</span><span>${lastSale.customerName || "Walk-in"}</span></div>
+            <div class="summary-row"><span>Customer</span><span>${escapeHtml(lastSale.customerName || "Walk-in")}</span></div>
             <div class="summary-row"><span>Payment</span><span>${paymentLabel}</span></div>
-            <div class="summary-row"><span>Amount Paid</span><span>UGX ${lastSale.amountPaid.toLocaleString()}</span></div>
-            <div class="summary-row"><span>Change</span><span>UGX ${lastSale.change.toLocaleString()}</span></div>
-            <div class="summary-row total"><span>Total</span><span>UGX ${lastSale.total.toLocaleString()}</span></div>
+            <div class="summary-row"><span>Amount Paid</span><span>${formatCurrency(lastSale.amountPaid, currency)}</span></div>
+            <div class="summary-row"><span>Change</span><span>${formatCurrency(lastSale.change, currency)}</span></div>
+            <div class="summary-row total"><span>Total</span><span>${formatCurrency(lastSale.total, currency)}</span></div>
           </div>
+          ${getPrintFooterMarkup()}
         </div>
       `,
     );
@@ -668,7 +677,7 @@ export default function POSTerminalPage() {
                   {/* Total + Delete */}
                   <div className="flex flex-col items-end gap-1">
                     <span className="text-[13px] font-bold text-gray-800">
-                      {(item.price * item.quantity).toLocaleString()}
+                      {formatCurrency(item.price * item.quantity, currency)}
                     </span>
                     <button
                       onClick={() => removeItem(item._id)}
@@ -786,34 +795,43 @@ export default function POSTerminalPage() {
               {/* Credit: must select customer & due date */}
               {paymentMethod === "credit" && (
                 <div className="space-y-3">
-                  {!selectedCustomer && (
+                  {isCreditWithoutCustomer && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                      Please select a customer for credit sales
+                      Add a customer or enter a walk-in name to continue with a
+                      credit sale.
                     </div>
                   )}
-                  {selectedCustomerRecord && (
+                  {(selectedCustomerRecord || walkInName.trim()) && (
                     <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
                       <p className="text-sm font-semibold text-blue-700">
                         Customer Credit Profile
                       </p>
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-blue-800">
-                        <div>
-                          Outstanding:{" "}
-                          {formatCurrency(
-                            selectedCustomerRecord.outstandingBalance || 0,
-                            currency,
-                          )}
+                      {selectedCustomerRecord ? (
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-blue-800">
+                          <div>
+                            Outstanding:{" "}
+                            {formatCurrency(
+                              selectedCustomerRecord.outstandingBalance || 0,
+                              currency,
+                            )}
+                          </div>
+                          <div>
+                            Credit Limit:{" "}
+                            {selectedCustomerRecord.creditLimit
+                              ? formatCurrency(
+                                  selectedCustomerRecord.creditLimit,
+                                  currency,
+                                )
+                              : "Not set"}
+                          </div>
                         </div>
-                        <div>
-                          Credit Limit:{" "}
-                          {selectedCustomerRecord.creditLimit
-                            ? formatCurrency(
-                                selectedCustomerRecord.creditLimit,
-                                currency,
-                              )
-                            : "Not set"}
+                      ) : (
+                        <div className="mt-2 flex items-center gap-2 text-xs text-blue-800">
+                          <UserRound className="h-3.5 w-3.5" />
+                          Walk-in credit sale for {walkInName.trim()}
+                          {walkInPhone.trim() ? ` (${walkInPhone.trim()})` : ""}
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                   <div>
@@ -908,7 +926,7 @@ export default function POSTerminalPage() {
                   processing ||
                   (paymentMethod === "cash" && change < 0) ||
                   (paymentMethod === "credit" &&
-                    (!selectedCustomer || !creditDueDate))
+                    (isCreditWithoutCustomer || !creditDueDate))
                 }
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
               >

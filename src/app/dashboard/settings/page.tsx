@@ -39,6 +39,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useSession } from "@/app/dashboard/layout";
+import { formatCurrency } from "@/lib/utils";
 import {
   CORE_ROLES,
   MODULE_PERMISSIONS,
@@ -319,6 +320,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const section = searchParams.get("section") as SettingsSection | null;
+    const tab = searchParams.get("tab");
     if (!section) return;
     const allowed: SettingsSection[] = [
       "general",
@@ -341,6 +343,16 @@ export default function SettingsPage() {
     ];
     if (allowed.includes(section)) {
       setActiveSection(section);
+    }
+
+    if (section === "fiscal" && tab) {
+      if (tab === "config" || tab === "configuration") {
+        setFiscalTab("config");
+      } else if (tab === "summary" || tab === "financial-summary") {
+        setFiscalTab("summary");
+      } else if (tab === "archive" || tab === "archive-management") {
+        setFiscalTab("archive");
+      }
     }
   }, [searchParams]);
 
@@ -2195,9 +2207,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 w-fit">
                   {(
                     [
-                      { key: "config", label: "Tab 1: Configuration" },
-                      { key: "summary", label: "Tab 2: Financial Summary" },
-                      { key: "archive", label: "Tab 3: Archive" },
+                      { key: "config", label: "Configuration" },
+                      { key: "summary", label: "Financial Summary" },
+                      { key: "archive", label: "Archive Management" },
                     ] as {
                       key: "config" | "summary" | "archive";
                       label: string;
@@ -2363,7 +2375,7 @@ export default function SettingsPage() {
                             {card.label}
                           </p>
                           <p className="mt-2 text-lg font-bold">
-                            {Number(card.value).toLocaleString()}
+                            {formatCurrency(card.value, s.currency)}
                           </p>
                         </div>
                       ))}
@@ -2411,9 +2423,10 @@ export default function SettingsPage() {
                           VAT/Tax Collected
                         </p>
                         <p className="text-xl font-bold text-blue-700">
-                          {Number(
+                          {formatCurrency(
                             fiscalSummary?.vatCollected || 0,
-                          ).toLocaleString()}
+                            s.currency,
+                          )}
                         </p>
                       </div>
                       <div className="rounded-xl border border-gray-100 p-4">
@@ -2424,9 +2437,10 @@ export default function SettingsPage() {
                           Count: {fiscalSummary?.outstandingInvoices.count || 0}
                         </p>
                         <p className="text-lg font-bold text-amber-700">
-                          {Number(
+                          {formatCurrency(
                             fiscalSummary?.outstandingInvoices.total || 0,
-                          ).toLocaleString()}
+                            s.currency,
+                          )}
                         </p>
                       </div>
                     </div>

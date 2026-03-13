@@ -26,6 +26,7 @@ export async function GET() {
             id: tenant._id,
             name: tenant.name,
             slug: tenant.slug,
+            logo: tenant.logo,
             plan: tenant.plan,
             settings: tenant.settings,
             saasProduct: tenant.saasProduct,

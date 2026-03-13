@@ -64,7 +64,11 @@ import {
   WifiOff,
   Calendar,
 } from "lucide-react";
-import { getInitials } from "@/lib/utils";
+import {
+  getInitials,
+  setCurrencyDisplayConfig,
+  setPrintBrandingConfig,
+} from "@/lib/utils";
 import { getDefaultPermissionsForRole } from "@/lib/roles";
 
 interface UserData {
@@ -79,17 +83,23 @@ interface TenantData {
   id: string;
   name: string;
   slug: string;
+  logo?: string;
   plan: string;
   settings: {
     currency: string;
     taxRate: number;
     receiptHeader?: string;
     receiptFooter?: string;
+    physicalAddress?: string;
+    phoneNumber?: string;
+    emailAddress?: string;
     lowStockThreshold?: number;
     theme?: string;
     sidebarDefaultCollapsed?: boolean;
     rolePermissions?: Record<string, string[]>;
     aiAssistantEnabled?: boolean;
+    currencyRates?: { code: string; rate: number; lastUpdatedAt?: string }[];
+    currencyLedger?: string;
   };
   saasProduct: string;
   businessName?: string;
@@ -224,30 +234,25 @@ const navigation: NavSection[] = [
       },
       {
         name: "Fiscal Year Management",
-        href: "/dashboard/settings?section=fiscal-year",
+        href: "/dashboard/settings?section=fiscal&tab=config",
         icon: Calendar,
         children: [
           {
             name: "Configuration",
-            href: "/dashboard/settings?section=fiscal-year&tab=configuration",
+            href: "/dashboard/settings?section=fiscal&tab=config",
             icon: Settings,
           },
           {
-            name: "Financial Summary",
-            href: "/dashboard/settings?section=fiscal-year&tab=financial-summary",
+            name: "Branch Financials",
+            href: "/dashboard/fiscal-years",
             icon: BarChart3,
           },
           {
-            name: "Archive",
-            href: "/dashboard/settings?section=fiscal-year&tab=archive",
+            name: "Archive Management",
+            href: "/dashboard/archive-management",
             icon: History,
           },
         ],
-      },
-      {
-        name: "Fiscal Years",
-        href: "/dashboard/fiscal-years",
-        icon: Calendar,
       },
       { name: "Taxes", href: "/dashboard/taxes", icon: Receipt },
       { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
@@ -395,11 +400,6 @@ const navigation: NavSection[] = [
       { name: "Barcode Generator", href: "/dashboard/barcodes", icon: Search },
       { name: "Batches", href: "/dashboard/batches", icon: Layers },
       { name: "Returns", href: "/dashboard/returns", icon: RotateCcw },
-      {
-        name: "Archive Management",
-        href: "/dashboard/archive-management",
-        icon: History,
-      },
       { name: "Integrations", href: "/dashboard/integrations", icon: Plug },
       { name: "Automation", href: "/dashboard/automation", icon: Zap },
       { name: "Templates", href: "/dashboard/templates", icon: FileStack },
@@ -529,6 +529,26 @@ export default function DashboardLayout({
     return () =>
       window.removeEventListener("meka-theme-change", handleThemeChange);
   }, [applyThemePreference]);
+
+  useEffect(() => {
+    if (!tenant) return;
+
+    setCurrencyDisplayConfig({
+      ledgerCurrency: tenant.settings.currencyLedger || "UGX",
+      referenceCurrency: tenant.settings.currency || "UGX",
+      rates: tenant.settings.currencyRates || [],
+    });
+
+    setPrintBrandingConfig({
+      businessName: tenant.name,
+      logo: tenant.logo,
+      receiptHeader: tenant.settings.receiptHeader,
+      receiptFooter: tenant.settings.receiptFooter,
+      physicalAddress: tenant.settings.physicalAddress,
+      phoneNumber: tenant.settings.phoneNumber,
+      emailAddress: tenant.settings.emailAddress,
+    });
+  }, [tenant]);
 
   const matchesHref = useCallback(
     (href: string) => {

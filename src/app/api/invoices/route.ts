@@ -15,9 +15,14 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
     const status = searchParams.get("status") || "";
+    const includeCancelled = searchParams.get("includeCancelled") === "true";
 
     const query: Record<string, unknown> = { tenantId: auth.tenantId };
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    } else if (!includeCancelled) {
+      query.status = { $ne: "cancelled" };
+    }
 
     const [invoices, total] = await Promise.all([
       Invoice.find(query)

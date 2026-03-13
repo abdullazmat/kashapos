@@ -1,16 +1,193 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+type CurrencyRate = {
+  code: string;
+  rate: number;
+  lastUpdatedAt?: string | Date;
+};
+
+type CurrencyDisplayConfig = {
+  ledgerCurrency?: string;
+  referenceCurrency?: string;
+  rates?: CurrencyRate[];
+};
+
+type PrintBrandingConfig = {
+  businessName?: string;
+  logo?: string;
+  receiptHeader?: string;
+  receiptFooter?: string;
+  physicalAddress?: string;
+  phoneNumber?: string;
+  emailAddress?: string;
+};
+
+declare global {
+  interface Window {
+    __MEKA_CURRENCY_CONFIG__?: CurrencyDisplayConfig;
+    __MEKA_PRINT_BRANDING__?: PrintBrandingConfig;
+  }
+}
+
+const DEFAULT_LEDGER_CURRENCY = "UGX";
+
+function normalizeCurrencyCode(currency?: string) {
+  return (currency || DEFAULT_LEDGER_CURRENCY).trim().toUpperCase();
+}
+
+function getCurrencyDisplayConfig(): CurrencyDisplayConfig {
+  if (typeof window === "undefined") {
+    return {
+      ledgerCurrency: DEFAULT_LEDGER_CURRENCY,
+      referenceCurrency: DEFAULT_LEDGER_CURRENCY,
+      rates: [],
+    };
+  }
+
+  return {
+    ledgerCurrency:
+      window.__MEKA_CURRENCY_CONFIG__?.ledgerCurrency ||
+      DEFAULT_LEDGER_CURRENCY,
+    referenceCurrency:
+      window.__MEKA_CURRENCY_CONFIG__?.referenceCurrency ||
+      DEFAULT_LEDGER_CURRENCY,
+    rates: window.__MEKA_CURRENCY_CONFIG__?.rates || [],
+  };
+}
+
+function resolveCurrencyRate(
+  currency: string,
+  config: CurrencyDisplayConfig,
+): number {
+  const normalizedCurrency = normalizeCurrencyCode(currency);
+  const referenceCurrency = normalizeCurrencyCode(config.referenceCurrency);
+
+  if (normalizedCurrency === referenceCurrency) {
+    return 1;
+  }
+
+  return (
+    config.rates?.find(
+      (rate) => normalizeCurrencyCode(rate.code) === normalizedCurrency,
+    )?.rate || 0
+  );
+}
+
+export function setCurrencyDisplayConfig(config: CurrencyDisplayConfig) {
+  if (typeof window === "undefined") return;
+
+  window.__MEKA_CURRENCY_CONFIG__ = {
+    ledgerCurrency: normalizeCurrencyCode(
+      config.ledgerCurrency || DEFAULT_LEDGER_CURRENCY,
+    ),
+    referenceCurrency: normalizeCurrencyCode(
+      config.referenceCurrency || DEFAULT_LEDGER_CURRENCY,
+    ),
+    rates: (config.rates || []).map((rate) => ({
+      ...rate,
+      code: normalizeCurrencyCode(rate.code),
+    })),
+  };
+}
+
+export function convertCurrencyAmount(
+  amount: number,
+  targetCurrency: string,
+  config: CurrencyDisplayConfig = getCurrencyDisplayConfig(),
+): number {
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount)) return 0;
+
+  const ledgerCurrency = normalizeCurrencyCode(config.ledgerCurrency);
+  const referenceCurrency = normalizeCurrencyCode(config.referenceCurrency);
+  const normalizedTarget = normalizeCurrencyCode(targetCurrency);
+
+  if (ledgerCurrency === normalizedTarget) {
+    return numericAmount;
+  }
+
+  const sourceRate = resolveCurrencyRate(ledgerCurrency, config);
+  const targetRate = resolveCurrencyRate(normalizedTarget, config);
+
+  const amountInReference =
+    ledgerCurrency === referenceCurrency
+      ? numericAmount
+      : sourceRate > 0
+        ? numericAmount / sourceRate
+        : numericAmount;
+
+  if (normalizedTarget === referenceCurrency) {
+    return amountInReference;
+  }
+
+  return targetRate > 0 ? amountInReference * targetRate : numericAmount;
+}
+
+export function setPrintBrandingConfig(config: PrintBrandingConfig) {
+  if (typeof window === "undefined") return;
+  window.__MEKA_PRINT_BRANDING__ = config;
+}
+
+export function getPrintBrandingConfig(): PrintBrandingConfig {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  return window.__MEKA_PRINT_BRANDING__ || {};
+}
+
+export function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function getPrintBrandingMarkup(options?: {
+  title?: string;
+  subtitle?: string;
+}) {
+  const branding = getPrintBrandingConfig();
+  const lines = [
+    branding.receiptHeader,
+    branding.physicalAddress,
+    [branding.phoneNumber, branding.emailAddress].filter(Boolean).join(" • "),
+  ].filter(Boolean) as string[];
+
+  return `
+    <div class="brand-header">
+      <div class="brand-header-main">
+        ${branding.logo ? `<img class="brand-logo" src="${branding.logo}" alt="${escapeHtml(branding.businessName || "Business logo")}" />` : ""}
+        <div class="brand-copy">
+          <h1>${escapeHtml(branding.businessName || "Meka PoS")}</h1>
+          ${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+        </div>
+      </div>
+      ${options?.title ? `<div class="document-header"><h2>${escapeHtml(options.title)}</h2>${options.subtitle ? `<p>${escapeHtml(options.subtitle)}</p>` : ""}</div>` : ""}
+    </div>
+  `;
+}
+
+export function getPrintFooterMarkup() {
+  const footer = getPrintBrandingConfig().receiptFooter?.trim();
+  if (!footer) return "";
+  return `<div class="brand-footer">${escapeHtml(footer)}</div>`;
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export function formatCurrency(amount: number, currency = "UGX"): string {
+  const convertedAmount = convertCurrencyAmount(amount, currency);
   return new Intl.NumberFormat("en-UG", {
     style: "currency",
     currency,
     minimumFractionDigits: 0,
-  }).format(amount);
+  }).format(convertedAmount);
 }
 
 export function formatDate(date: Date | string): string {
@@ -157,6 +334,14 @@ export function printHtml(title: string, body: string) {
         <style>
           body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
           .receipt { max-width: 420px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; }
+          .brand-header { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; }
+          .brand-header-main { display: flex; align-items: center; gap: 16px; }
+          .brand-logo { width: 56px; height: 56px; object-fit: contain; border-radius: 12px; border: 1px solid #f3f4f6; }
+          .brand-copy h1 { margin: 0; font-size: 22px; }
+          .brand-copy p { margin: 4px 0 0; color: #6b7280; font-size: 12px; }
+          .document-header { margin-top: 16px; }
+          .document-header h2 { margin: 0; font-size: 18px; }
+          .document-header p { margin: 6px 0 0; color: #6b7280; font-size: 12px; }
           .center { text-align: center; }
           .muted { color: #6b7280; font-size: 12px; }
           .total { font-size: 24px; font-weight: 700; color: #0f766e; }
@@ -166,6 +351,7 @@ export function printHtml(title: string, body: string) {
           td:last-child, th:last-child { text-align: right; }
           .summary { margin-top: 16px; }
           .summary-row { display: flex; justify-content: space-between; padding: 4px 0; }
+          .brand-footer { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; text-align: center; }
         </style>
       </head>
       <body>${body}</body>

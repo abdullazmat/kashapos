@@ -11,8 +11,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  Printer,
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDate,
+  printHtml,
+  escapeHtml,
+  getPrintBrandingMarkup,
+  getPrintFooterMarkup,
+} from "@/lib/utils";
 import { useSession } from "../layout";
 
 interface InvoiceItem {
@@ -229,7 +237,57 @@ export default function InvoicesPage() {
     { key: "sent", label: "Sent" },
     { key: "paid", label: "Paid" },
     { key: "overdue", label: "Overdue" },
+    { key: "cancelled", label: "Cancelled" },
   ];
+
+  const printInvoice = (invoice: Invoice) => {
+    const balance =
+      invoice.balance || Math.max(0, invoice.total - invoice.amountPaid);
+    printHtml(
+      `Invoice ${invoice.invoiceNumber}`,
+      `
+        <div class="receipt" style="max-width:720px;">
+          ${getPrintBrandingMarkup({
+            title: `Invoice ${invoice.invoiceNumber}`,
+            subtitle: `Issued ${formatDate(invoice.createdAt)}${invoice.dueDate ? ` • Due ${formatDate(invoice.dueDate)}` : ""}`,
+          })}
+          <div class="summary-row"><span>Bill To</span><span>${escapeHtml(invoice.customerId?.name || "Walk-in Customer")}</span></div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoice.items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.description)}</td>
+                      <td>${item.quantity}</td>
+                      <td>${formatCurrency(item.unitPrice, currency)}</td>
+                      <td>${formatCurrency(item.total, currency)}</td>
+                    </tr>`,
+                )
+                .join("")}
+            </tbody>
+          </table>
+          <div class="summary">
+            <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(invoice.subtotal, currency)}</span></div>
+            <div class="summary-row"><span>Tax</span><span>${formatCurrency(invoice.totalTax || invoice.tax || 0, currency)}</span></div>
+            <div class="summary-row total"><span>Total</span><span>${formatCurrency(invoice.total, currency)}</span></div>
+            <div class="summary-row"><span>Paid</span><span>${formatCurrency(invoice.amountPaid || 0, currency)}</span></div>
+            <div class="summary-row"><span>Balance</span><span>${formatCurrency(balance, currency)}</span></div>
+          </div>
+          ${invoice.notes ? `<div style="margin-top:16px;border:1px solid #e5e7eb;border-radius:12px;padding:12px;color:#4b5563;">${escapeHtml(invoice.notes)}</div>` : ""}
+          ${getPrintFooterMarkup()}
+        </div>
+      `,
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -403,6 +461,15 @@ export default function InvoicesPage() {
                             title="Mark as Sent"
                           >
                             <Send className="h-4 w-4" />
+                          </button>
+                        )}
+                        {inv.status !== "cancelled" && (
+                          <button
+                            onClick={() => updateStatus(inv._id, "cancelled")}
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            title="Hide invoice"
+                          >
+                            <X className="h-4 w-4" />
                           </button>
                         )}
                       </div>
@@ -582,6 +649,13 @@ export default function InvoicesPage() {
 
               {/* Send Actions */}
               <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => printInvoice(viewInvoice)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print
+                </button>
                 {viewInvoice.customerId?.email && (
                   <button
                     onClick={() => {
@@ -633,6 +707,18 @@ export default function InvoicesPage() {
                   >
                     <Send className="h-3.5 w-3.5" />
                     Mark Sent
+                  </button>
+                )}
+                {viewInvoice.status !== "cancelled" && (
+                  <button
+                    onClick={() => {
+                      updateStatus(viewInvoice._id, "cancelled");
+                      setViewInvoice(null);
+                    }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Hide Invoice
                   </button>
                 )}
               </div>
