@@ -221,6 +221,8 @@ export default function InventoryPage() {
   const inputClass =
     "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
+  const zeroStockCount = products.filter((p) => (p.stock ?? 0) === 0).length;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -321,6 +323,14 @@ export default function InventoryPage() {
         )}
       </div>
 
+      {zeroStockCount > 0 && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle className="h-4 w-4" />
+          {zeroStockCount} product{zeroStockCount > 1 ? "s" : ""} currently out
+          of stock.
+        </div>
+      )}
+
       {/* Products Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
         <div className="overflow-x-auto">
@@ -343,6 +353,9 @@ export default function InventoryPage() {
                   Price
                 </th>
                 <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                  Margin %
+                </th>
+                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
                   Quantity
                 </th>
                 <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
@@ -354,7 +367,7 @@ export default function InventoryPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center">
+                  <td colSpan={9} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-blue-500" />
                       <span className="text-sm text-gray-400">
@@ -365,7 +378,7 @@ export default function InventoryPage() {
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center">
+                  <td colSpan={9} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                         <Package className="h-6 w-6 text-gray-400" />
@@ -429,6 +442,20 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
                       {formatCurrency(p.price, currency)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      {p.price > 0 ? (
+                        <span
+                          className={`text-xs font-semibold ${(p.price - p.costPrice) / p.price >= 0.2 ? "text-emerald-600" : "text-amber-600"}`}
+                        >
+                          {(((p.price - p.costPrice) / p.price) * 100).toFixed(
+                            1,
+                          )}
+                          %
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <span

@@ -22,7 +22,18 @@ export interface ISale extends Document {
   totalDiscount: number;
   totalTax: number;
   total: number;
-  paymentMethod: "cash" | "card" | "mobile_money" | "split";
+  amountPaid: number;
+  remainingBalance: number;
+  dueDate?: Date;
+  creditNote?: string;
+  paymentStatus: "cleared" | "partial" | "overdue";
+  paymentMethod:
+    | "cash"
+    | "card"
+    | "mobile_money"
+    | "split"
+    | "credit"
+    | "bank_transfer";
   paymentDetails: {
     cashAmount?: number;
     cardAmount?: number;
@@ -72,9 +83,25 @@ const SaleSchema = new Schema<ISale>(
     totalDiscount: { type: Number, default: 0 },
     totalTax: { type: Number, default: 0 },
     total: { type: Number, required: true },
+    amountPaid: { type: Number, default: 0 },
+    remainingBalance: { type: Number, default: 0 },
+    dueDate: { type: Date },
+    creditNote: { type: String, default: "" },
+    paymentStatus: {
+      type: String,
+      enum: ["cleared", "partial", "overdue"],
+      default: "cleared",
+    },
     paymentMethod: {
       type: String,
-      enum: ["cash", "card", "mobile_money", "split"],
+      enum: [
+        "cash",
+        "card",
+        "mobile_money",
+        "split",
+        "credit",
+        "bank_transfer",
+      ],
       default: "cash",
     },
     paymentDetails: {

@@ -34,6 +34,7 @@ import {
   X,
   AlertTriangle,
   CheckCircle2,
+  Clock,
   Info,
   User,
   RotateCcw,
@@ -48,9 +49,23 @@ import {
   DollarSign,
   Banknote,
   PieChart,
+  Sparkles,
+  Brain,
+  PanelRight,
+  Maximize2,
+  Minimize2,
+  Send,
+  Loader2,
+  SlidersHorizontal,
+  Plus,
+  Shield,
+  Globe,
+  Mail,
   WifiOff,
+  Calendar,
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
+import { getDefaultPermissionsForRole } from "@/lib/roles";
 
 interface UserData {
   id: string;
@@ -73,6 +88,8 @@ interface TenantData {
     lowStockThreshold?: number;
     theme?: string;
     sidebarDefaultCollapsed?: boolean;
+    rolePermissions?: Record<string, string[]>;
+    aiAssistantEnabled?: boolean;
   };
   saasProduct: string;
   businessName?: string;
@@ -92,6 +109,20 @@ interface HeaderNotification {
   createdAt: string;
   href: string;
   read: boolean;
+}
+
+interface AIAssistantAction {
+  id: string;
+  label: string;
+  description: string;
+  href: string;
+}
+
+interface AIAssistantMessage {
+  id: string;
+  role: "assistant" | "user";
+  content: string;
+  action?: AIAssistantAction;
 }
 
 const SessionContext = createContext<SessionContextType>({
@@ -134,33 +165,7 @@ const navigation: NavSection[] = [
       { name: "Inventory", href: "/dashboard/inventory", icon: Package },
       { name: "Sales", href: "/dashboard/sales", icon: TrendingUp },
       { name: "Purchases", href: "/dashboard/purchases", icon: ShoppingBag },
-      {
-        name: "Customers",
-        href: "/dashboard/customers",
-        icon: Users,
-        children: [
-          {
-            name: "Customers",
-            href: "/dashboard/customers?tab=all",
-            icon: Users,
-          },
-          {
-            name: "Add Payment",
-            href: "/dashboard/customers?tab=payments&action=add",
-            icon: Wallet,
-          },
-          {
-            name: "Payments",
-            href: "/dashboard/customers?tab=payments",
-            icon: History,
-          },
-          {
-            name: "Customer Balances",
-            href: "/dashboard/customers?tab=balances",
-            icon: CreditCard,
-          },
-        ],
-      },
+      { name: "Customers", href: "/dashboard/customers", icon: Users },
       {
         name: "Suppliers",
         href: "/dashboard/vendors",
@@ -217,13 +222,170 @@ const navigation: NavSection[] = [
           },
         ],
       },
+      {
+        name: "Fiscal Year Management",
+        href: "/dashboard/settings?section=fiscal-year",
+        icon: Calendar,
+        children: [
+          {
+            name: "Configuration",
+            href: "/dashboard/settings?section=fiscal-year&tab=configuration",
+            icon: Settings,
+          },
+          {
+            name: "Financial Summary",
+            href: "/dashboard/settings?section=fiscal-year&tab=financial-summary",
+            icon: BarChart3,
+          },
+          {
+            name: "Archive",
+            href: "/dashboard/settings?section=fiscal-year&tab=archive",
+            icon: History,
+          },
+        ],
+      },
       { name: "Taxes", href: "/dashboard/taxes", icon: Receipt },
       { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
     ],
   },
   {
+    label: "AI",
+    items: [
+      {
+        name: "AI Assistant",
+        href: "/dashboard/ai?tab=assistant",
+        icon: Sparkles,
+      },
+      {
+        name: "Smart Insights",
+        href: "/dashboard/ai?tab=sales-intelligence",
+        icon: Brain,
+        children: [
+          {
+            name: "Sales Intelligence",
+            href: "/dashboard/ai?tab=sales-intelligence",
+            icon: TrendingUp,
+          },
+          {
+            name: "Inventory Forecasting",
+            href: "/dashboard/ai?tab=inventory-forecasting",
+            icon: Package,
+          },
+          {
+            name: "Customer Behaviour",
+            href: "/dashboard/ai?tab=customer-behaviour",
+            icon: Users,
+          },
+        ],
+      },
+      {
+        name: "Automated Reports",
+        href: "/dashboard/ai?tab=daily-summary",
+        icon: FileText,
+        children: [
+          {
+            name: "Daily Summary",
+            href: "/dashboard/ai?tab=daily-summary",
+            icon: Clock,
+          },
+          {
+            name: "Weekly Business Review",
+            href: "/dashboard/ai?tab=weekly-review",
+            icon: BarChart3,
+          },
+          {
+            name: "Custom AI Report",
+            href: "/dashboard/ai?tab=custom-report",
+            icon: FileStack,
+          },
+        ],
+      },
+      {
+        name: "AI Settings",
+        href: "/dashboard/ai?tab=ai-settings",
+        icon: Settings,
+        children: [
+          {
+            name: "Language & Tone",
+            href: "/dashboard/ai?tab=ai-settings&section=language-tone",
+            icon: Globe,
+          },
+          {
+            name: "Notification Preferences",
+            href: "/dashboard/ai?tab=ai-settings&section=notifications",
+            icon: Bell,
+          },
+          {
+            name: "Model & Data Preferences",
+            href: "/dashboard/ai?tab=ai-settings&section=model-data",
+            icon: SlidersHorizontal,
+          },
+        ],
+      },
+    ],
+  },
+  {
     label: "SYSTEM",
     items: [
+      {
+        name: "Store Management",
+        href: "/dashboard/store-management",
+        icon: Building2,
+        children: [
+          {
+            name: "Store Profile",
+            href: "/dashboard/store-management?tab=store-profile",
+            icon: Building2,
+          },
+          {
+            name: "Branches",
+            href: "/dashboard/store-management?tab=branches-all",
+            icon: Warehouse,
+          },
+          {
+            name: "Staff Management",
+            href: "/dashboard/store-management?tab=staff-all",
+            icon: Users,
+          },
+          {
+            name: "Till & Cash Register",
+            href: "/dashboard/store-management?tab=till-summary",
+            icon: FileText,
+          },
+          {
+            name: "Store Settings",
+            href: "/dashboard/store-management?tab=settings-hours",
+            icon: Clock,
+          },
+        ],
+      },
+      {
+        name: "Warehouse & Storage",
+        href: "/dashboard/warehouses",
+        icon: Warehouse,
+        children: [
+          {
+            name: "All Locations",
+            href: "/dashboard/warehouses?tab=all",
+            icon: Warehouse,
+          },
+          {
+            name: "Add Location",
+            href: "/dashboard/warehouses?tab=add",
+            icon: Plus,
+          },
+          {
+            name: "Location Inventory",
+            href: "/dashboard/warehouses?tab=inventory",
+            icon: Package,
+          },
+          {
+            name: "Stock Adjustments",
+            href: "/dashboard/warehouses?tab=adjustments",
+            icon: RotateCcw,
+          },
+        ],
+      },
       { name: "Stock", href: "/dashboard/stock", icon: Warehouse },
       { name: "Batches", href: "/dashboard/batches", icon: Layers },
       { name: "Returns", href: "/dashboard/returns", icon: RotateCcw },
@@ -231,7 +393,28 @@ const navigation: NavSection[] = [
       { name: "Automation", href: "/dashboard/automation", icon: Zap },
       { name: "Templates", href: "/dashboard/templates", icon: FileStack },
       { name: "Offline & Desktop", href: "/dashboard/offline", icon: WifiOff },
-      { name: "Settings", href: "/dashboard/settings", icon: Settings },
+      {
+        name: "Settings",
+        href: "/dashboard/settings",
+        icon: Settings,
+        children: [
+          {
+            name: "General",
+            href: "/dashboard/settings?section=general",
+            icon: Settings,
+          },
+          {
+            name: "Currency & Localization",
+            href: "/dashboard/settings?section=currency",
+            icon: Globe,
+          },
+          {
+            name: "Email & Notifications",
+            href: "/dashboard/settings?section=email",
+            icon: Mail,
+          },
+        ],
+      },
     ],
   },
 ];
@@ -249,6 +432,26 @@ export default function DashboardLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showAiAssistant, setShowAiAssistant] = useState(false);
+  const [aiExpanded, setAiExpanded] = useState(false);
+  const [aiMessageInput, setAiMessageInput] = useState("");
+  const [aiSending, setAiSending] = useState(false);
+  const [aiActionPendingId, setAiActionPendingId] = useState<string | null>(
+    null,
+  );
+  const [aiQuickPrompts, setAiQuickPrompts] = useState<string[]>([
+    "How are sales performing today?",
+    "What should I restock this week?",
+    "Which invoices are at risk?",
+  ]);
+  const [aiMessages, setAiMessages] = useState<AIAssistantMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content:
+        "I can help with sales trends, inventory forecasting, and customer payment risks.",
+    },
+  ]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
@@ -257,6 +460,8 @@ export default function DashboardLayout({
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const aiPanelRef = useRef<HTMLDivElement>(null);
+  const aiMessagesRef = useRef<HTMLDivElement>(null);
 
   const applyThemePreference = useCallback((theme: string | undefined) => {
     const useDark = theme === "dark";
@@ -314,12 +519,37 @@ export default function DashboardLayout({
       window.removeEventListener("meka-theme-change", handleThemeChange);
   }, [applyThemePreference]);
 
+  const matchesHref = useCallback(
+    (href: string) => {
+      const [hrefPath, hrefQueryString] = href.split("?");
+      if (pathname !== hrefPath) return false;
+      if (!hrefQueryString) return true;
+
+      const hrefParams = new URLSearchParams(hrefQueryString);
+      const activeParams =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search)
+          : new URLSearchParams();
+      for (const [key, value] of hrefParams.entries()) {
+        if (activeParams.get(key) !== value) {
+          return false;
+        }
+      }
+      return true;
+    },
+    [pathname],
+  );
+
   // Auto-expand menus whose children match the current path
   useEffect(() => {
     const expanded: string[] = [];
     for (const section of navigation) {
       for (const item of section.items) {
-        if (item.children && pathname.startsWith(item.href.split("?")[0])) {
+        if (
+          item.children &&
+          (matchesHref(item.href) ||
+            item.children.some((child) => matchesHref(child.href)))
+        ) {
           expanded.push(item.name);
         }
       }
@@ -328,10 +558,52 @@ export default function DashboardLayout({
       const combined = new Set([...prev, ...expanded]);
       return Array.from(combined);
     });
-  }, [pathname]);
+  }, [matchesHref]);
 
   // All navigation items flattened for search
-  const allNavItems = navigation.flatMap((s) =>
+  const pathPermissionMap: Record<string, string> = {
+    "/dashboard": "dashboard",
+    "/dashboard/pos": "pos",
+    "/dashboard/inventory": "inventory",
+    "/dashboard/sales": "sales",
+    "/dashboard/purchases": "purchases",
+    "/dashboard/customers": "customers",
+    "/dashboard/vendors": "suppliers",
+    "/dashboard/expenses": "expenses",
+    "/dashboard/invoices": "invoices",
+    "/dashboard/cashflow": "cashflow",
+    "/dashboard/taxes": "taxes",
+    "/dashboard/reports": "reports",
+    "/dashboard/ai": "ai",
+    "/dashboard/warehouses": "warehouses",
+    "/dashboard/settings": "settings",
+  };
+
+  const rolePermissions =
+    tenant?.settings?.rolePermissions?.[user?.role || ""] ||
+    getDefaultPermissionsForRole(user?.role || "cashier");
+
+  const canAccessPath = (href: string) => {
+    if (user?.role === "admin") return true;
+    const basePath = href.split("?")[0];
+    const permission = pathPermissionMap[basePath];
+    if (!permission) return true;
+    return rolePermissions.includes(permission);
+  };
+
+  const visibleNavigation = navigation
+    .map((section) => ({
+      ...section,
+      items: section.items
+        .filter((item) => canAccessPath(item.href))
+        .map((item) => ({
+          ...item,
+          children: item.children?.filter((child) => canAccessPath(child.href)),
+        })),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  const allNavItems = visibleNavigation.flatMap((s) =>
     s.items.flatMap((item) => [item, ...(item.children || [])]),
   );
   const searchResults = searchQuery.trim()
@@ -437,6 +709,114 @@ export default function DashboardLayout({
     [markNotificationRead, router],
   );
 
+  const sendAiMessage = useCallback(
+    async (preset?: string) => {
+      const message = (preset ?? aiMessageInput).trim();
+      if (!message || aiSending) return;
+
+      const userMessage: AIAssistantMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: message,
+      };
+
+      setAiMessages((prev) => [...prev, userMessage]);
+      setAiMessageInput("");
+      setAiSending(true);
+
+      try {
+        const res = await fetch("/api/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            contextPath: pathname,
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to get AI response");
+        }
+
+        const data = (await res.json()) as {
+          reply?: string;
+          suggestedAction?: AIAssistantAction;
+        };
+
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            content:
+              data.reply ||
+              "I could not generate a response right now. Please try again.",
+            action: data.suggestedAction,
+          },
+        ]);
+      } catch {
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-error-${Date.now()}`,
+            role: "assistant",
+            content:
+              "I could not reach the assistant service. Please try again shortly.",
+          },
+        ]);
+      } finally {
+        setAiSending(false);
+      }
+    },
+    [aiMessageInput, aiSending, pathname],
+  );
+
+  const confirmAiAction = useCallback(
+    async (messageId: string) => {
+      const target = aiMessages.find((m) => m.id === messageId);
+      if (!target?.action || aiActionPendingId === messageId) return;
+
+      setAiActionPendingId(messageId);
+      setAiSending(true);
+      try {
+        const res = await fetch("/api/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: `Confirm action ${target.action.id}`,
+            confirmAction: true,
+            actionId: target.action.id,
+          }),
+        });
+
+        const data = (await res.json()) as { reply?: string };
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-confirm-${Date.now()}`,
+            role: "assistant",
+            content: data.reply || "Action confirmed.",
+          },
+        ]);
+        router.push(target.action.href);
+        setShowAiAssistant(false);
+      } catch {
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-confirm-error-${Date.now()}`,
+            role: "assistant",
+            content: "I could not complete that action. Please retry.",
+          },
+        ]);
+      } finally {
+        setAiSending(false);
+        setAiActionPendingId(null);
+      }
+    },
+    [aiActionPendingId, aiMessages, router],
+  );
+
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -496,6 +876,46 @@ export default function DashboardLayout({
     return () => window.clearInterval(intervalId);
   }, [fetchNotifications, user]);
 
+  useEffect(() => {
+    const savedHistory = localStorage.getItem("meka-ai-chat-history");
+    if (savedHistory) {
+      try {
+        const parsed = JSON.parse(savedHistory) as AIAssistantMessage[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAiMessages(parsed);
+        }
+      } catch {
+        // ignore invalid stored history
+      }
+    }
+
+    const loadQuickPrompts = async () => {
+      try {
+        const res = await fetch("/api/ai/chat", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { quickPrompts?: string[] };
+        if (Array.isArray(data.quickPrompts) && data.quickPrompts.length > 0) {
+          setAiQuickPrompts(data.quickPrompts.slice(0, 4));
+        }
+      } catch {
+        // keep defaults when prompt endpoint fails
+      }
+    };
+
+    void loadQuickPrompts();
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "meka-ai-chat-history",
+      JSON.stringify(aiMessages.slice(-20)),
+    );
+
+    if (aiMessagesRef.current) {
+      aiMessagesRef.current.scrollTop = aiMessagesRef.current.scrollHeight;
+    }
+  }, [aiMessages]);
+
   const handleSignOut = async () => {
     await fetch("/api/auth/sign-out", { method: "POST" });
     router.push("/sign-in");
@@ -540,7 +960,7 @@ export default function DashboardLayout({
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto py-5 px-2 space-y-6">
-            {navigation.map((section) => (
+            {visibleNavigation.map((section) => (
               <div key={section.label}>
                 {!sidebarCollapsed && (
                   <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500/80">
@@ -550,19 +970,19 @@ export default function DashboardLayout({
                 <div className="space-y-0.5">
                   {section.items.map((item) => {
                     const basePath = item.href.split("?")[0];
-                    const isActive =
-                      pathname === basePath ||
-                      (basePath !== "/dashboard" &&
-                        pathname.startsWith(basePath));
                     const hasChildren =
                       item.children && item.children.length > 0;
+                    const isActive = hasChildren
+                      ? matchesHref(item.href) ||
+                        item.children!.some((child) => matchesHref(child.href))
+                      : matchesHref(item.href);
                     const isExpanded = expandedMenus.includes(item.name);
 
                     if (hasChildren) {
                       return (
                         <div key={item.name}>
                           <Link
-                            href={basePath}
+                            href={item.href}
                             onClick={() => {
                               if (!expandedMenus.includes(item.name))
                                 toggleMenu(item.name);
@@ -596,17 +1016,7 @@ export default function DashboardLayout({
                           {isExpanded && !sidebarCollapsed && (
                             <div className="ml-5 mt-0.5 space-y-0.5 border-l border-white/10 pl-3">
                               {item.children!.map((child) => {
-                                const childBasePath = child.href.split("?")[0];
-                                const childQuery = child.href.includes("?")
-                                  ? child.href.split("?")[1]
-                                  : "";
-                                const isChildActive =
-                                  pathname === childBasePath &&
-                                  (!childQuery ||
-                                    (typeof window !== "undefined" &&
-                                      window.location.search.includes(
-                                        childQuery.split("&")[0],
-                                      )));
+                                const isChildActive = matchesHref(child.href);
                                 return (
                                   <Link
                                     key={child.name}
@@ -808,6 +1218,27 @@ export default function DashboardLayout({
                 </Link>
               )}
 
+              {tenant?.settings?.aiAssistantEnabled !== false && (
+                <button
+                  onClick={() => {
+                    setShowAiAssistant((prev) => !prev);
+                    setShowNotifications(false);
+                    setShowUserMenu(false);
+                  }}
+                  className={`relative h-9 px-3 rounded-xl flex items-center gap-2 transition-colors ${
+                    showAiAssistant
+                      ? "bg-orange-100 text-orange-700"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  }`}
+                  title="AI Assistant"
+                >
+                  <Sparkles className="w-[16px] h-[16px]" />
+                  <span className="hidden lg:inline text-xs font-semibold tracking-wide">
+                    AI
+                  </span>
+                </button>
+              )}
+
               {/* Notifications */}
               <div className="relative" ref={notifRef}>
                 <button
@@ -988,6 +1419,159 @@ export default function DashboardLayout({
               </div>
             </div>
           </header>
+
+          {showAiAssistant && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+                onClick={() => setShowAiAssistant(false)}
+              />
+              <aside
+                ref={aiPanelRef}
+                className={`fixed right-0 z-50 border-l border-gray-200 bg-white shadow-2xl transition-all duration-300 dark:bg-gray-900 dark:border-gray-700 ${
+                  aiExpanded
+                    ? "top-0 h-screen w-full md:w-[88vw]"
+                    : "top-16 h-[calc(100vh-4rem)] w-full sm:w-105"
+                }`}
+              >
+                <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-500/20">
+                      <Brain className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                        AI Assistant
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        Context: {pathname}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setAiExpanded((prev) => !prev)}
+                      className="h-8 w-8 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      title={aiExpanded ? "Collapse" : "Expand"}
+                    >
+                      {aiExpanded ? (
+                        <Minimize2 className="mx-auto h-4 w-4" />
+                      ) : (
+                        <Maximize2 className="mx-auto h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setShowAiAssistant(false)}
+                      className="h-8 w-8 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      title="Close"
+                    >
+                      <X className="mx-auto h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+                  <p className="mb-2 text-[11px] uppercase tracking-wider text-gray-400">
+                    Quick Prompts
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {aiQuickPrompts.map((prompt) => (
+                      <button
+                        key={prompt}
+                        onClick={() => void sendAiMessage(prompt)}
+                        className="rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:border-orange-200 hover:text-orange-700"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  ref={aiMessagesRef}
+                  className="h-[calc(100%-12rem)] overflow-y-auto px-4 py-4 pb-24 space-y-3"
+                >
+                  {aiMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`rounded-xl px-3 py-2 text-sm ${
+                        msg.role === "assistant"
+                          ? "bg-orange-50 text-orange-900 dark:bg-orange-500/10 dark:text-orange-100"
+                          : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap wrap-break-word leading-6">
+                        {msg.content}
+                      </p>
+                      {msg.action && (
+                        <div className="mt-2 rounded-lg border border-orange-200 bg-white px-2 py-2 text-xs text-gray-700">
+                          <p className="font-medium text-gray-900">
+                            {msg.action.label}
+                          </p>
+                          <p className="mt-0.5 text-gray-500">
+                            {msg.action.description}
+                          </p>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              onClick={() => void confirmAiAction(msg.id)}
+                              className="rounded-md bg-orange-500 px-2.5 py-1 text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70"
+                              disabled={
+                                aiSending && aiActionPendingId === msg.id
+                              }
+                            >
+                              {aiSending && aiActionPendingId === msg.id
+                                ? "Confirming..."
+                                : "Confirm"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                router.push(msg.action!.href);
+                                setShowAiAssistant(false);
+                              }}
+                              className="rounded-md border border-gray-200 px-2.5 py-1 text-gray-600 hover:border-orange-200 hover:text-orange-700"
+                            >
+                              Open
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {aiSending && (
+                    <div className="inline-flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-700">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      AI is thinking...
+                    </div>
+                  )}
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={aiMessageInput}
+                      onChange={(e) => setAiMessageInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void sendAiMessage();
+                        }
+                      }}
+                      placeholder="Ask AI assistant"
+                      className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-orange-300 focus:outline-none dark:bg-gray-800 dark:border-gray-700"
+                    />
+                    <button
+                      onClick={() => void sendAiMessage()}
+                      className="h-10 w-10 rounded-xl bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-70"
+                      disabled={aiSending}
+                      title="Send"
+                    >
+                      <Send className="mx-auto h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </aside>
+            </>
+          )}
 
           {/* Page content */}
           <main className="p-6 dark:text-gray-100">{children}</main>

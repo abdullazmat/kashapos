@@ -12,9 +12,13 @@ export interface IStockTransfer extends Document {
     receivedQuantity: number;
   }[];
   status: "pending" | "in_transit" | "received" | "cancelled";
+  transferDate: Date;
+  transportedBy: string;
+  receivedByName?: string;
   notes: string;
   createdBy: mongoose.Types.ObjectId;
   receivedBy?: mongoose.Types.ObjectId;
+  receivedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,11 +53,15 @@ const StockTransferSchema = new Schema<IStockTransfer>(
     status: {
       type: String,
       enum: ["pending", "in_transit", "received", "cancelled"],
-      default: "pending",
+      default: "in_transit",
     },
+    transferDate: { type: Date, default: Date.now },
+    transportedBy: { type: String, default: "" },
+    receivedByName: { type: String, default: "" },
     notes: { type: String, default: "" },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     receivedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    receivedAt: { type: Date },
   },
   { timestamps: true },
 );

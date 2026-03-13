@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
     await dbConnect();
     const auth = getAuthContext(request);
     const branches = await Branch.find({ tenantId: auth.tenantId })
+      .populate("assignedBranchId", "name code")
+      .populate("managerUserId", "name role")
       .sort({ name: 1 })
       .lean();
     return apiSuccess(branches);
@@ -23,7 +25,16 @@ export async function POST(request: NextRequest) {
     const auth = getAuthContext(request);
     if (auth.role !== "admin") return apiError("Insufficient permissions", 403);
     const body = await request.json();
-    const branch = await Branch.create({ ...body, tenantId: auth.tenantId });
+    let code = typeof body.code === "string" ? body.code.trim() : "";
+    if (!code) {
+      const count = await Branch.countDocuments({ tenantId: auth.tenantId });
+      code = `LOC-${String(count + 1).padStart(3, "0")}`;
+    }
+    const branch = await Branch.create({
+      ...body,
+      code,
+      tenantId: auth.tenantId,
+    });
     return apiSuccess(branch, 201);
   } catch (error: unknown) {
     console.error("Branches POST error:", error);
@@ -42,6 +53,9 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { _id, ...updateData } = body;
     if (!_id) return apiError("Branch ID is required", 400);
+    if (typeof updateData.code === "string") {
+      updateData.code = updateData.code.trim().toUpperCase();
+    }
     const branch = await Branch.findOneAndUpdate(
       { _id, tenantId: auth.tenantId },
       updateData,

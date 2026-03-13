@@ -4,7 +4,7 @@ import dbConnect from "./db";
 export interface AuthContext {
   userId: string;
   tenantId: string;
-  role: "admin" | "manager" | "cashier";
+  role: string;
   email: string;
   name: string;
   branchId?: string;
@@ -22,7 +22,7 @@ export function getAuthContext(request: NextRequest): AuthContext {
   };
 }
 
-export function requireRole(...roles: AuthContext["role"][]) {
+export function requireRole(...roles: string[]) {
   return (auth: AuthContext) => {
     if (!roles.includes(auth.role)) {
       return NextResponse.json(

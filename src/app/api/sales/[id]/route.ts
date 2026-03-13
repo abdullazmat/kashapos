@@ -5,8 +5,15 @@ import Stock from "@/models/Stock";
 import Customer from "@/models/Customer";
 import Product from "@/models/Product";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+import { normalizeMoney, resolvePaymentStatus } from "@/lib/customer-balance";
 
-type PaymentMethod = "cash" | "card" | "mobile_money" | "split";
+type PaymentMethod =
+  | "cash"
+  | "card"
+  | "mobile_money"
+  | "split"
+  | "credit"
+  | "bank_transfer";
 
 type RawSaleItem = {
   productId?: string;
@@ -39,6 +46,11 @@ type NormalizedSalePayload = {
   totalDiscount: number;
   totalTax: number;
   total: number;
+  amountPaid: number;
+  remainingBalance: number;
+  dueDate?: Date;
+  creditNote: string;
+  paymentStatus: "cleared" | "partial" | "overdue";
   paymentMethod: PaymentMethod;
   paymentDetails: {
     cashAmount?: number;
@@ -57,12 +69,20 @@ function asNumber(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function getCompletedQuantities(
+function contributesToCustomer(status: string) {
+  return status !== "refunded" && status !== "voided";
+}
+
+function commitsStock(status: string) {
+  return status === "completed" || status === "pending";
+}
+
+function getCommittedQuantities(
   status: string,
   items: Array<{ productId: string; quantity: number }>,
 ) {
   const quantities = new Map<string, number>();
-  if (status !== "completed") return quantities;
+  if (!commitsStock(status)) return quantities;
 
   for (const item of items) {
     quantities.set(
@@ -136,18 +156,65 @@ async function applyStockDeltas(
 }
 
 async function adjustCustomerStats(
-  customerId: string | undefined,
-  total: number,
-  direction: 1 | -1,
+  tenantId: string,
+  options: {
+    customerId?: string;
+    purchasesDelta?: number;
+    spentDelta?: number;
+    outstandingDelta?: number;
+    dueDate?: Date;
+    amountPaidDelta?: number;
+  },
 ) {
+  const {
+    customerId,
+    purchasesDelta = 0,
+    spentDelta = 0,
+    outstandingDelta = 0,
+    dueDate,
+    amountPaidDelta = 0,
+  } = options;
   if (!customerId) return;
 
-  await Customer.findByIdAndUpdate(customerId, {
-    $inc: {
-      totalPurchases: direction,
-      totalSpent: total * direction,
-    },
-  });
+  const customer = await Customer.findOne({ _id: customerId, tenantId });
+  if (!customer) {
+    throw new Error("Customer not found");
+  }
+
+  const nextOutstanding = Math.max(
+    0,
+    normalizeMoney(customer.outstandingBalance) + outstandingDelta,
+  );
+
+  if (
+    outstandingDelta > 0 &&
+    normalizeMoney(customer.creditLimit) > 0 &&
+    nextOutstanding > normalizeMoney(customer.creditLimit)
+  ) {
+    throw new Error("Customer credit limit exceeded");
+  }
+
+  customer.totalPurchases = Math.max(
+    0,
+    normalizeMoney(customer.totalPurchases) + purchasesDelta,
+  );
+  customer.totalSpent = Math.max(
+    0,
+    normalizeMoney(customer.totalSpent) + spentDelta,
+  );
+  customer.outstandingBalance = nextOutstanding;
+  customer.paymentStatus =
+    nextOutstanding <= 0
+      ? "cleared"
+      : customer.paymentStatus === "overdue"
+        ? "overdue"
+        : resolvePaymentStatus(nextOutstanding, dueDate);
+
+  if (amountPaidDelta > 0) {
+    customer.lastPaymentDate = new Date();
+  }
+
+  await customer.save();
 }
 
 async function normalizeSalePayload(
@@ -234,14 +301,36 @@ async function normalizeSalePayload(
   });
 
   const paymentMethod =
-    body.paymentMethod === "card" ||
-    body.paymentMethod === "mobile_money" ||
-    body.paymentMethod === "split"
-      ? body.paymentMethod
-      : "cash";
+    body.paymentMethod === "card"
+      ? "card"
+      : body.paymentMethod === "mobile_money"
+        ? "mobile_money"
+        : body.paymentMethod === "split"
+          ? "split"
+          : body.paymentMethod === "credit"
+            ? "credit"
+            : body.paymentMethod === "bank" ||
+                body.paymentMethod === "bank_transfer"
+              ? "bank_transfer"
+              : "cash";
 
   const computedTotal = Math.max(0, subtotal - totalDiscount + totalTax);
-  const amountPaid = asNumber(body.amountPaid, computedTotal);
+  const amountPaid = Math.max(
+    0,
+    asNumber(body.amountPaid, paymentMethod === "credit" ? 0 : computedTotal),
+  );
+  const remainingBalance = Math.max(0, computedTotal - amountPaid);
+  const dueDateValue = body.dueDate
+    ? new Date(String(body.dueDate))
+    : undefined;
+  const dueDate =
+    dueDateValue && !Number.isNaN(dueDateValue.getTime())
+      ? dueDateValue
+      : undefined;
+  if (remainingBalance > 0 && !body.customerId && !body.customer) {
+    throw new Error("Customer is required for credit balance sales");
+  }
+  const paymentStatus = resolvePaymentStatus(remainingBalance, dueDate);
   const mobileMoneyProvider: "mtn" | "airtel" =
     body.mobileMoneyProvider === "airtel" ? "airtel" : "mtn";
   const paymentDetails: NormalizedSalePayload["paymentDetails"] =
@@ -261,10 +350,18 @@ async function normalizeSalePayload(
                   ? body.mobileMoneyRef
                   : undefined,
             }
-          : {
-              cashAmount: computedTotal / 2,
-              cardAmount: computedTotal / 2,
-            };
+          : paymentMethod === "bank_transfer"
+            ? {
+                cardAmount: amountPaid || computedTotal,
+              }
+            : paymentMethod === "credit"
+              ? {
+                  cashAmount: amountPaid > 0 ? amountPaid : undefined,
+                }
+              : {
+                  cashAmount: computedTotal / 2,
+                  cardAmount: computedTotal / 2,
+                };
 
   return {
     branchId: resolvedBranchId,
@@ -278,6 +375,11 @@ async function normalizeSalePayload(
     totalDiscount,
     totalTax,
     total: computedTotal,
+    amountPaid,
+    remainingBalance,
+    dueDate,
+    creditNote: typeof body.creditNote === "string" ? body.creditNote : "",
+    paymentStatus,
     paymentMethod,
     paymentDetails,
     status:
@@ -345,16 +447,18 @@ export async function PATCH(
         })),
       paymentMethod: body.paymentMethod || sale.paymentMethod,
       amountPaid:
-        body.amountPaid ||
-        sale.paymentDetails.cashAmount ||
+        (body.amountPaid ?? sale.paymentDetails.cashAmount) ||
         sale.paymentDetails.cardAmount ||
         sale.paymentDetails.mobileMoneyAmount ||
-        sale.total,
+        sale.amountPaid,
       status: body.status || sale.status,
       notes: body.notes !== undefined ? body.notes : sale.notes,
       mobileMoneyProvider:
         body.mobileMoneyProvider || sale.paymentDetails.mobileMoneyProvider,
       mobileMoneyRef: body.mobileMoneyRef || sale.paymentDetails.mobileMoneyRef,
+      dueDate: body.dueDate !== undefined ? body.dueDate : sale.dueDate,
+      creditNote:
+        body.creditNote !== undefined ? body.creditNote : sale.creditNote,
     };
 
     const normalized = await normalizeSalePayload(
@@ -363,22 +467,22 @@ export async function PATCH(
       mergedBody,
     );
 
-    const oldCompletedItems = getCompletedQuantities(
+    const oldCommittedItems = getCommittedQuantities(
       sale.status,
       sale.items.map((item) => ({
         productId: String(item.productId),
         quantity: item.quantity,
       })),
     );
-    const newCompletedItems = getCompletedQuantities(
+    const newCommittedItems = getCommittedQuantities(
       normalized.status,
       normalized.items,
     );
 
     if (String(sale.branchId) === normalized.branchId) {
       const stockDeltas = mergeQuantityMaps(
-        oldCompletedItems,
-        newCompletedItems,
+        oldCommittedItems,
+        newCommittedItems,
       );
       await ensureStockAvailability(
         auth.tenantId,
@@ -388,7 +492,7 @@ export async function PATCH(
       await applyStockDeltas(auth.tenantId, normalized.branchId, stockDeltas);
     } else {
       const newBranchDeltas = new Map<string, number>();
-      for (const [productId, quantity] of newCompletedItems.entries()) {
+      for (const [productId, quantity] of newCommittedItems.entries()) {
         newBranchDeltas.set(productId, -quantity);
       }
       await ensureStockAvailability(
@@ -400,7 +504,7 @@ export async function PATCH(
       await applyStockDeltas(
         auth.tenantId,
         String(sale.branchId),
-        oldCompletedItems,
+        oldCommittedItems,
       );
       await applyStockDeltas(
         auth.tenantId,
@@ -409,15 +513,47 @@ export async function PATCH(
       );
     }
 
-    if (sale.status === "completed") {
-      await adjustCustomerStats(
-        sale.customerId ? String(sale.customerId) : undefined,
-        sale.total,
-        -1,
-      );
-    }
-    if (normalized.status === "completed") {
-      await adjustCustomerStats(normalized.customerId, normalized.total, 1);
+    const oldCustomerId = sale.customerId ? String(sale.customerId) : undefined;
+    const newCustomerId = normalized.customerId;
+    const oldContributes = contributesToCustomer(sale.status);
+    const newContributes = contributesToCustomer(normalized.status);
+
+    if (
+      oldCustomerId &&
+      oldContributes &&
+      oldCustomerId === newCustomerId &&
+      newContributes
+    ) {
+      await adjustCustomerStats(auth.tenantId, {
+        customerId: newCustomerId,
+        spentDelta: normalized.total - sale.total,
+        outstandingDelta:
+          normalized.remainingBalance - normalizeMoney(sale.remainingBalance),
+        dueDate: normalized.dueDate,
+        amountPaidDelta: Math.max(
+          0,
+          normalized.amountPaid - normalizeMoney(sale.amountPaid),
+        ),
+      });
+    } else {
+      if (oldCustomerId && oldContributes) {
+        await adjustCustomerStats(auth.tenantId, {
+          customerId: oldCustomerId,
+          purchasesDelta: -1,
+          spentDelta: -sale.total,
+          outstandingDelta: -normalizeMoney(sale.remainingBalance),
+        });
+      }
+      if (newCustomerId && newContributes) {
+        await adjustCustomerStats(auth.tenantId, {
+          customerId: newCustomerId,
+          purchasesDelta: 1,
+          spentDelta: normalized.total,
+          outstandingDelta: normalized.remainingBalance,
+          dueDate: normalized.dueDate,
+          amountPaidDelta: normalized.amountPaid,
+        });
+      }
     }
 
     sale.branchId = normalized.branchId as never;
@@ -427,6 +563,11 @@ export async function PATCH(
     sale.totalDiscount = normalized.totalDiscount;
     sale.totalTax = normalized.totalTax;
     sale.total = normalized.total;
+    sale.amountPaid = normalized.amountPaid;
+    sale.remainingBalance = normalized.remainingBalance;
+    sale.dueDate = normalized.dueDate;
+    sale.creditNote = normalized.creditNote;
+    sale.paymentStatus = normalized.paymentStatus;
     sale.paymentMethod = normalized.paymentMethod;
     sale.paymentDetails = normalized.paymentDetails;
     sale.status = normalized.status;
@@ -454,7 +595,7 @@ export async function DELETE(
     const sale = await Sale.findOne({ _id: id, tenantId: auth.tenantId });
     if (!sale) return apiError("Sale not found", 404);
 
-    const completedItems = getCompletedQuantities(
+    const committedItems = getCommittedQuantities(
       sale.status,
       sale.items.map((item) => ({
         productId: String(item.productId),
@@ -465,15 +606,16 @@ export async function DELETE(
     await applyStockDeltas(
       auth.tenantId,
       String(sale.branchId),
-      completedItems,
+      committedItems,
     );
 
-    if (sale.status === "completed") {
-      await adjustCustomerStats(
-        sale.customerId ? String(sale.customerId) : undefined,
-        sale.total,
-        -1,
-      );
+    if (sale.customerId && contributesToCustomer(sale.status)) {
+      await adjustCustomerStats(auth.tenantId, {
+        customerId: String(sale.customerId),
+        purchasesDelta: -1,
+        spentDelta: -sale.total,
+        outstandingDelta: -normalizeMoney(sale.remainingBalance),
+      });
     }
 
     await sale.deleteOne();

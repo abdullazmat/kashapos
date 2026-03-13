@@ -46,10 +46,26 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect();
     const auth = getAuthContext(request);
-    const body = await request.json();
-    const customer = await Customer.create({
-      ...body,
+    const body = (await request.json()) as Record<string, unknown>;
+
+    const customerPayload = {
       tenantId: auth.tenantId,
+      name: String(body.name || "").trim(),
+      email: String(body.email || "").trim(),
+      phone: String(body.phone || "").trim(),
+      address: String(body.address || "").trim(),
+      taxId: body.taxId ? String(body.taxId).trim() : undefined,
+      notes: String(body.notes || "").trim(),
+      creditLimit: Math.max(0, Number(body.creditLimit) || 0),
+      isActive: body.isActive !== false,
+    };
+
+    if (!customerPayload.name) {
+      return apiError("Customer name is required", 400);
+    }
+
+    const customer = await Customer.create({
+      ...customerPayload,
     });
     return apiSuccess(customer, 201);
   } catch (error) {

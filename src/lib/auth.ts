@@ -10,7 +10,7 @@ export interface JWTPayload {
   userId: string;
   tenantId: string;
   email: string;
-  role: "admin" | "manager" | "cashier";
+  role: string;
   branchId?: string;
   name: string;
 }

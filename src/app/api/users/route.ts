@@ -28,7 +28,19 @@ export async function POST(request: NextRequest) {
     const auth = getAuthContext(request);
     if (auth.role !== "admin") return apiError("Insufficient permissions", 403);
 
-    const { name, email, password, role, branchId } = await request.json();
+    const {
+      name,
+      email,
+      password,
+      role,
+      branchId,
+      phone,
+      nationalId,
+      employmentType,
+      startDate,
+      loginPin,
+      isActive,
+    } = await request.json();
 
     if (!name || !email || !password) {
       return apiError("Name, email, and password are required", 400);
@@ -50,6 +62,12 @@ export async function POST(request: NextRequest) {
       password: hashedPassword,
       role: role || "cashier",
       branchId: branchId || undefined,
+      phone: phone || undefined,
+      nationalId: nationalId || undefined,
+      employmentType: employmentType || undefined,
+      startDate: startDate ? new Date(startDate) : undefined,
+      loginPin: loginPin || undefined,
+      isActive: typeof isActive === "boolean" ? isActive : true,
     });
 
     const userObj = user.toObject();

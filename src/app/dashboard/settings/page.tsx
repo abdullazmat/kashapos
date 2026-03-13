@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Settings,
   Users,
@@ -16,6 +17,7 @@ import {
   Phone,
   User,
   Bell,
+  Mail,
   Lock,
   Monitor,
   BarChart3,
@@ -33,8 +35,30 @@ import {
   Clock,
   Globe,
   Percent,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { useSession } from "@/app/dashboard/layout";
+import {
+  CORE_ROLES,
+  MODULE_PERMISSIONS,
+  ROLE_LABELS,
+  getDefaultPermissionsForRole,
+  getRoleLabel,
+} from "@/lib/roles";
+
+interface CurrencyRate {
+  code: string;
+  rate: number;
+  lastUpdatedAt?: string;
+}
+
+interface CustomRole {
+  key: string;
+  name: string;
+  permissions: string[];
+  isActive: boolean;
+}
 
 interface UserItem {
   _id: string;
@@ -55,8 +79,34 @@ interface BranchItem {
   isMain: boolean;
 }
 
+interface FiscalYearItem {
+  _id: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+  cycle: "ura_jul_jun" | "calendar_jan_dec" | "custom";
+  status: "active" | "closed" | "archived";
+  createdAt: string;
+}
+
+interface FiscalSummary {
+  totalRevenue: number;
+  totalExpenses: number;
+  grossProfit: number;
+  netProfit: number;
+  vatCollected: number;
+  outstandingInvoices: { count: number; total: number };
+  monthlyRevenueVsExpenses: {
+    month: string;
+    revenue: number;
+    expenses: number;
+  }[];
+  topProductCategories: { category: string; revenue: number }[];
+}
+
 type SettingsSection =
   | "general"
+  | "email"
   | "discount"
   | "financial"
   | "currency"
@@ -82,6 +132,7 @@ interface SectionDef {
 
 const sections: SectionDef[] = [
   { key: "general", label: "General", icon: Settings, group: "APPLICATION" },
+  { key: "email", label: "Email", icon: Mail, group: "APPLICATION" },
   { key: "display", label: "Display", icon: Monitor, group: "APPLICATION" },
   {
     key: "notifications",
@@ -148,6 +199,7 @@ function Toggle({
 }
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
   const { user, tenant } = useSession();
   const [activeSection, setActiveSection] =
     useState<SettingsSection>("general");
@@ -182,6 +234,19 @@ export default function SettingsPage() {
     autoReorderOnNegative: false,
     notifyOnNegativeStock: true,
     emailNotifications: true,
+    emailProvider: "smtp",
+    emailApiKey: "",
+    emailSmtpHost: "",
+    emailSmtpPort: 587,
+    emailSmtpUser: "",
+    emailSmtpPassword: "",
+    emailFromName: "",
+    emailFromAddress: "",
+    emailReplyToAddress: "",
+    emailReceiptAutoSend: false,
+    emailInvoiceAutoSend: false,
+    emailBalanceReminderEnabled: false,
+    emailBalanceReminderFrequency: "weekly",
     stockLevelAlerts: true,
     reorderAlerts: true,
     pushNotifications: false,
@@ -211,10 +276,73 @@ export default function SettingsPage() {
     autoArchiveAfterDays: 365,
     archiveEnabled: false,
     legacyMode: false,
+    rolePermissions: Object.fromEntries(
+      CORE_ROLES.map((role) => [role, getDefaultPermissionsForRole(role)]),
+    ) as Record<string, string[]>,
+    customRoles: [] as CustomRole[],
+    currencyRateSource: "manual" as "manual" | "api",
+    currencyAutoRefreshMinutes: 60,
+    currencyLastSyncAt: "",
+    currencyRates: [
+      { code: "USD", rate: 0.00027 },
+      { code: "KES", rate: 0.036 },
+    ] as CurrencyRate[],
   });
+
+  const [currencyTestAmount, setCurrencyTestAmount] = useState("1000");
+  const [currencyTestFrom, setCurrencyTestFrom] = useState("UGX");
+  const [currencyTestTo, setCurrencyTestTo] = useState("USD");
+  const [currencyRateStatus, setCurrencyRateStatus] = useState("");
+  const [syncingRates, setSyncingRates] = useState(false);
+  const [customRoleName, setCustomRoleName] = useState("");
 
   const [settingsCreatedAt, setSettingsCreatedAt] = useState("");
   const [settingsUpdatedAt, setSettingsUpdatedAt] = useState("");
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+
+  const [fiscalYears, setFiscalYears] = useState<FiscalYearItem[]>([]);
+  const [selectedFiscalYearId, setSelectedFiscalYearId] = useState("");
+  const [fiscalSummary, setFiscalSummary] = useState<FiscalSummary | null>(
+    null,
+  );
+  const [fiscalTab, setFiscalTab] = useState<"config" | "summary" | "archive">(
+    "config",
+  );
+  const [newFiscalYear, setNewFiscalYear] = useState({
+    label: "",
+    startDate: "",
+    endDate: "",
+    cycle: "ura_jul_jun",
+    setActive: true,
+  });
+
+  useEffect(() => {
+    const section = searchParams.get("section") as SettingsSection | null;
+    if (!section) return;
+    const allowed: SettingsSection[] = [
+      "general",
+      "email",
+      "discount",
+      "financial",
+      "currency",
+      "inventory",
+      "notifications",
+      "security",
+      "display",
+      "reports",
+      "users",
+      "tax",
+      "branches",
+      "fiscal",
+      "archive",
+      "legacy",
+      "stock",
+    ];
+    if (allowed.includes(section)) {
+      setActiveSection(section);
+    }
+  }, [searchParams]);
 
   // Users
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -328,6 +456,26 @@ export default function SettingsPage() {
                 ts.notifyOnNegativeStock ?? prev.notifyOnNegativeStock,
               emailNotifications:
                 ts.emailNotifications ?? prev.emailNotifications,
+              emailProvider: ts.emailProvider || prev.emailProvider,
+              emailApiKey: ts.emailApiKey || prev.emailApiKey,
+              emailSmtpHost: ts.emailSmtpHost || prev.emailSmtpHost,
+              emailSmtpPort: ts.emailSmtpPort ?? prev.emailSmtpPort,
+              emailSmtpUser: ts.emailSmtpUser || prev.emailSmtpUser,
+              emailSmtpPassword: ts.emailSmtpPassword || prev.emailSmtpPassword,
+              emailFromName: ts.emailFromName || prev.emailFromName,
+              emailFromAddress: ts.emailFromAddress || prev.emailFromAddress,
+              emailReplyToAddress:
+                ts.emailReplyToAddress || prev.emailReplyToAddress,
+              emailReceiptAutoSend:
+                ts.emailReceiptAutoSend ?? prev.emailReceiptAutoSend,
+              emailInvoiceAutoSend:
+                ts.emailInvoiceAutoSend ?? prev.emailInvoiceAutoSend,
+              emailBalanceReminderEnabled:
+                ts.emailBalanceReminderEnabled ??
+                prev.emailBalanceReminderEnabled,
+              emailBalanceReminderFrequency:
+                ts.emailBalanceReminderFrequency ||
+                prev.emailBalanceReminderFrequency,
               stockLevelAlerts: ts.stockLevelAlerts ?? prev.stockLevelAlerts,
               reorderAlerts: ts.reorderAlerts ?? prev.reorderAlerts,
               pushNotifications: ts.pushNotifications ?? prev.pushNotifications,
@@ -363,6 +511,20 @@ export default function SettingsPage() {
                 ts.autoArchiveAfterDays ?? prev.autoArchiveAfterDays,
               archiveEnabled: ts.archiveEnabled ?? prev.archiveEnabled,
               legacyMode: ts.legacyMode ?? prev.legacyMode,
+              rolePermissions:
+                (ts.rolePermissions as Record<string, string[]>) ||
+                prev.rolePermissions,
+              customRoles: (ts.customRoles as CustomRole[]) || prev.customRoles,
+              currencyRateSource:
+                (ts.currencyRateSource as "manual" | "api") ||
+                prev.currencyRateSource,
+              currencyAutoRefreshMinutes:
+                ts.currencyAutoRefreshMinutes ??
+                prev.currencyAutoRefreshMinutes,
+              currencyLastSyncAt:
+                (ts.currencyLastSyncAt as string) || prev.currencyLastSyncAt,
+              currencyRates:
+                (ts.currencyRates as CurrencyRate[]) || prev.currencyRates,
             }));
           }
         }
@@ -447,6 +609,19 @@ export default function SettingsPage() {
       autoReorderOnNegative: false,
       notifyOnNegativeStock: true,
       emailNotifications: true,
+      emailProvider: "smtp",
+      emailApiKey: "",
+      emailSmtpHost: "",
+      emailSmtpPort: 587,
+      emailSmtpUser: "",
+      emailSmtpPassword: "",
+      emailFromName: "",
+      emailFromAddress: "",
+      emailReplyToAddress: "",
+      emailReceiptAutoSend: false,
+      emailInvoiceAutoSend: false,
+      emailBalanceReminderEnabled: false,
+      emailBalanceReminderFrequency: "weekly",
       stockLevelAlerts: true,
       reorderAlerts: true,
       pushNotifications: false,
@@ -476,6 +651,17 @@ export default function SettingsPage() {
       autoArchiveAfterDays: 365,
       archiveEnabled: false,
       legacyMode: false,
+      rolePermissions: Object.fromEntries(
+        CORE_ROLES.map((role) => [role, getDefaultPermissionsForRole(role)]),
+      ) as Record<string, string[]>,
+      customRoles: [],
+      currencyRateSource: "manual",
+      currencyAutoRefreshMinutes: 60,
+      currencyLastSyncAt: "",
+      currencyRates: [
+        { code: "USD", rate: 0.00027 },
+        { code: "KES", rate: 0.036 },
+      ],
     });
   };
 
@@ -485,6 +671,128 @@ export default function SettingsPage() {
   const handleThemeSelect = (theme: "light" | "dark") => {
     upd("theme", theme);
     applyThemeSetting(theme);
+  };
+
+  const fetchFiscalYears = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (selectedFiscalYearId)
+        params.set("fiscalYearId", selectedFiscalYearId);
+      const res = await fetch(`/api/fiscal-years?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setFiscalYears(data.fiscalYears || []);
+      if (data.selectedFiscalYearId)
+        setSelectedFiscalYearId(data.selectedFiscalYearId);
+      setFiscalSummary(data.summary || null);
+    } catch {
+      // ignore
+    }
+  }, [selectedFiscalYearId]);
+
+  useEffect(() => {
+    fetchFiscalYears();
+  }, [fetchFiscalYears]);
+
+  useEffect(() => {
+    if (s.currencyRateSource !== "api") return;
+    const intervalMs = Math.max(5, s.currencyAutoRefreshMinutes || 60) * 60000;
+    const id = window.setInterval(() => {
+      void refreshCurrencyRates();
+    }, intervalMs);
+    return () => window.clearInterval(id);
+  }, [
+    s.currencyRateSource,
+    s.currencyAutoRefreshMinutes,
+    s.currency,
+    s.currencyRates,
+  ]);
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailAddress.trim()) return;
+    setTestingEmail(true);
+    try {
+      const res = await fetch("/api/settings/email/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: testEmailAddress.trim() }),
+      });
+      const data = await res.json();
+      setSaveMsg({
+        type: res.ok ? "success" : "error",
+        text: data.message || data.error || "Email test request failed",
+      });
+    } catch {
+      setSaveMsg({ type: "error", text: "Failed to send test email" });
+    }
+    setTestingEmail(false);
+  };
+
+  const handleCreateFiscalYear = async () => {
+    if (
+      !newFiscalYear.label ||
+      !newFiscalYear.startDate ||
+      !newFiscalYear.endDate
+    )
+      return;
+    try {
+      const res = await fetch("/api/fiscal-years", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newFiscalYear),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSaveMsg({
+          type: "error",
+          text: data.error || "Failed to create fiscal year",
+        });
+        return;
+      }
+      setSaveMsg({ type: "success", text: "Fiscal year created" });
+      setNewFiscalYear({
+        label: "",
+        startDate: "",
+        endDate: "",
+        cycle: "ura_jul_jun",
+        setActive: true,
+      });
+      fetchFiscalYears();
+    } catch {
+      setSaveMsg({ type: "error", text: "Failed to create fiscal year" });
+    }
+  };
+
+  const runFiscalAction = async (
+    fiscalYearId: string,
+    action: "set-active" | "close" | "archive",
+  ) => {
+    if (action === "archive") {
+      const confirmed = confirm(
+        "Archive this fiscal year? All records for this period will be locked permanently.",
+      );
+      if (!confirmed) return;
+    }
+
+    try {
+      const res = await fetch(`/api/fiscal-years/${fiscalYearId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSaveMsg({
+          type: "error",
+          text: data.error || "Fiscal year update failed",
+        });
+        return;
+      }
+      setSaveMsg({ type: "success", text: "Fiscal year updated" });
+      fetchFiscalYears();
+    } catch {
+      setSaveMsg({ type: "error", text: "Fiscal year update failed" });
+    }
   };
 
   // User handlers
@@ -614,17 +922,153 @@ export default function SettingsPage() {
   const roleBadge = (role: string) => {
     const colors: Record<string, string> = {
       admin: "bg-purple-50 text-purple-600 ring-purple-600/20",
-      manager: "bg-blue-50 text-blue-600 ring-blue-600/20",
-      cashier: "bg-emerald-50 text-amber-600 ring-amber-600/20",
+      store_manager: "bg-blue-50 text-blue-600 ring-blue-600/20",
+      warehouse_manager: "bg-indigo-50 text-indigo-600 ring-indigo-600/20",
+      accountant: "bg-emerald-50 text-emerald-600 ring-emerald-600/20",
+      cashier: "bg-amber-50 text-amber-600 ring-amber-600/20",
+      customer_service: "bg-cyan-50 text-cyan-700 ring-cyan-700/20",
+      inventory_clerk: "bg-orange-50 text-orange-600 ring-orange-600/20",
+      manager: "bg-slate-50 text-slate-600 ring-slate-600/20",
     };
     return (
       <span
         className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ring-1 ${colors[role] || "bg-gray-50 text-gray-600 ring-gray-600/20"}`}
       >
-        {role}
+        {getRoleLabel(role)}
       </span>
     );
   };
+
+  const allAvailableRoles = [
+    ...CORE_ROLES,
+    ...s.customRoles.filter((r) => r.isActive).map((r) => r.key),
+  ];
+
+  const togglePermission = (role: string, module: string) => {
+    setS((prev) => {
+      const current = prev.rolePermissions[role] || [];
+      const next = current.includes(module)
+        ? current.filter((m) => m !== module)
+        : [...current, module];
+      return {
+        ...prev,
+        rolePermissions: {
+          ...prev.rolePermissions,
+          [role]: next,
+        },
+      };
+    });
+  };
+
+  const addCustomRole = () => {
+    const cleanedName = customRoleName.trim();
+    if (!cleanedName) return;
+    const key = cleanedName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    if (!key) return;
+    if (allAvailableRoles.includes(key)) {
+      setSaveMsg({ type: "error", text: "Role already exists" });
+      return;
+    }
+    setS((prev) => ({
+      ...prev,
+      customRoles: [
+        ...prev.customRoles,
+        {
+          key,
+          name: cleanedName,
+          permissions: ["dashboard"],
+          isActive: true,
+        },
+      ],
+      rolePermissions: {
+        ...prev.rolePermissions,
+        [key]: ["dashboard"],
+      },
+    }));
+    setCustomRoleName("");
+  };
+
+  const removeCustomRole = (key: string) => {
+    setS((prev) => {
+      const nextPermissions = { ...prev.rolePermissions };
+      delete nextPermissions[key];
+      return {
+        ...prev,
+        customRoles: prev.customRoles.filter((r) => r.key !== key),
+        rolePermissions: nextPermissions,
+      };
+    });
+    if (userRole === key) setUserRole("cashier");
+  };
+
+  const handleBaseCurrencyChange = (nextCurrency: string) => {
+    if (nextCurrency === s.currency) return;
+    const applyExisting = confirm(
+      `Switch base currency to ${nextCurrency}? Choose OK to also flag existing records for conversion guidance.`,
+    );
+    setS((prev) => ({
+      ...prev,
+      currency: nextCurrency,
+      ...(applyExisting
+        ? {
+            receiptFooter:
+              `${prev.receiptFooter || ""}\n[Note] Currency changed to ${nextCurrency}. Review legacy price records for conversion.`.trim(),
+          }
+        : {}),
+    }));
+  };
+
+  async function refreshCurrencyRates() {
+    if (s.currencyRateSource !== "api") return;
+    setSyncingRates(true);
+    setCurrencyRateStatus("");
+    try {
+      const res = await fetch(
+        `https://open.er-api.com/v6/latest/${s.currency}`,
+      );
+      const data = await res.json();
+      if (!res.ok || data?.result === "error" || !data?.rates) {
+        setCurrencyRateStatus("Failed to refresh rates from provider");
+        return;
+      }
+      const now = new Date().toISOString();
+      const nextRates = s.currencyRates
+        .map((row) => {
+          const rate = Number(data.rates[row.code]);
+          if (!Number.isFinite(rate) || rate <= 0) return row;
+          return { ...row, rate, lastUpdatedAt: now };
+        })
+        .filter((row) => row.code !== s.currency);
+
+      setS((prev) => ({
+        ...prev,
+        currencyRates: nextRates,
+        currencyLastSyncAt: now,
+      }));
+      setCurrencyRateStatus("Rates refreshed successfully");
+    } catch {
+      setCurrencyRateStatus("Failed to refresh rates from provider");
+    }
+    setSyncingRates(false);
+  }
+
+  const testConvertedAmount = (() => {
+    const amount = Number(currencyTestAmount || 0);
+    if (!Number.isFinite(amount)) return 0;
+    if (currencyTestFrom === currencyTestTo) return amount;
+
+    const fromRate =
+      currencyTestFrom === s.currency
+        ? 1
+        : (s.currencyRates.find((r) => r.code === currencyTestFrom)?.rate ?? 0);
+    const toRate =
+      currencyTestTo === s.currency
+        ? 1
+        : (s.currencyRates.find((r) => r.code === currencyTestTo)?.rate ?? 0);
+
+    if (!fromRate || !toRate) return 0;
+    return (amount / fromRate) * toRate;
+  })();
 
   const SectionCard = ({
     title,
@@ -867,6 +1311,181 @@ export default function SettingsPage() {
             </SectionCard>
           )}
 
+          {/* ═══════ EMAIL ═══════ */}
+          {activeSection === "email" && (
+            <SectionCard
+              title="Email Integration"
+              description="Configure in-app email sending for receipts, invoices, and balance reminders"
+            >
+              <div className="max-w-3xl space-y-6">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Email Provider</label>
+                    <select
+                      value={s.emailProvider}
+                      onChange={(e) => upd("emailProvider", e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="sendgrid">SendGrid</option>
+                      <option value="mailgun">Mailgun</option>
+                      <option value="smtp">SMTP</option>
+                      <option value="postmark">Postmark</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>API Key (Optional)</label>
+                    <input
+                      type="password"
+                      value={s.emailApiKey}
+                      onChange={(e) => upd("emailApiKey", e.target.value)}
+                      className={inputClass}
+                      placeholder="Provider API key"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="lg:col-span-2">
+                    <label className={labelClass}>SMTP Host</label>
+                    <input
+                      value={s.emailSmtpHost}
+                      onChange={(e) => upd("emailSmtpHost", e.target.value)}
+                      className={inputClass}
+                      placeholder="smtp.example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>SMTP Port</label>
+                    <input
+                      type="number"
+                      value={s.emailSmtpPort}
+                      onChange={(e) =>
+                        upd("emailSmtpPort", parseInt(e.target.value) || 587)
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>SMTP User</label>
+                    <input
+                      value={s.emailSmtpUser}
+                      onChange={(e) => upd("emailSmtpUser", e.target.value)}
+                      className={inputClass}
+                      placeholder="username"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelClass}>SMTP Password</label>
+                  <input
+                    type="password"
+                    value={s.emailSmtpPassword}
+                    onChange={(e) => upd("emailSmtpPassword", e.target.value)}
+                    className={inputClass}
+                    placeholder="Stored encrypted at rest"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className={labelClass}>From Name</label>
+                    <input
+                      value={s.emailFromName}
+                      onChange={(e) => upd("emailFromName", e.target.value)}
+                      className={inputClass}
+                      placeholder="MEKA POS"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>From Email Address</label>
+                    <input
+                      type="email"
+                      value={s.emailFromAddress}
+                      onChange={(e) => upd("emailFromAddress", e.target.value)}
+                      className={inputClass}
+                      placeholder="noreply@yourdomain.com"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Reply-To Address</label>
+                    <input
+                      type="email"
+                      value={s.emailReplyToAddress}
+                      onChange={(e) =>
+                        upd("emailReplyToAddress", e.target.value)
+                      }
+                      className={inputClass}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+                  <p className="text-sm font-semibold text-gray-800 mb-3">
+                    Automation
+                  </p>
+                  <div className="space-y-1">
+                    <Toggle
+                      checked={s.emailReceiptAutoSend}
+                      onChange={(v) => upd("emailReceiptAutoSend", v)}
+                      label="Receipt Auto-Send"
+                      description="Automatically email receipt after each sale"
+                    />
+                    <Toggle
+                      checked={s.emailInvoiceAutoSend}
+                      onChange={(v) => upd("emailInvoiceAutoSend", v)}
+                      label="Invoice Auto-Send"
+                      description="Automatically email invoice when created"
+                    />
+                    <Toggle
+                      checked={s.emailBalanceReminderEnabled}
+                      onChange={(v) => upd("emailBalanceReminderEnabled", v)}
+                      label="Balance Reminder"
+                      description="Send reminders to customers with outstanding balances"
+                    />
+                  </div>
+                  {s.emailBalanceReminderEnabled && (
+                    <div className="pt-3">
+                      <label className={labelClass}>Reminder Frequency</label>
+                      <select
+                        value={s.emailBalanceReminderFrequency}
+                        onChange={(e) =>
+                          upd("emailBalanceReminderFrequency", e.target.value)
+                        }
+                        className={inputClass + " max-w-xs"}
+                      >
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="overdue">On Overdue</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="w-full max-w-xs">
+                    <label className={labelClass}>Test Email Address</label>
+                    <input
+                      type="email"
+                      value={testEmailAddress}
+                      onChange={(e) => setTestEmailAddress(e.target.value)}
+                      className={inputClass}
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSendTestEmail}
+                    disabled={testingEmail || !testEmailAddress}
+                    className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 disabled:opacity-50"
+                  >
+                    {testingEmail ? "Sending..." : "Send Test Email"}
+                  </button>
+                </div>
+              </div>
+            </SectionCard>
+          )}
+
           {/* ═══════ DISCOUNT ═══════ */}
           {activeSection === "discount" && (
             <SectionCard
@@ -964,35 +1583,230 @@ export default function SettingsPage() {
           {activeSection === "currency" && (
             <SectionCard
               title="Currency Settings"
-              description="Configure your business currency"
+              description="Configure base currency, conversion source, and live rates"
             >
-              <div className="max-w-lg space-y-4">
-                <div>
-                  <label className={labelClass}>Primary Currency</label>
-                  <select
-                    value={s.currency}
-                    onChange={(e) => upd("currency", e.target.value)}
-                    className={inputClass}
+              <div className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Base Currency</label>
+                    <select
+                      value={s.currency}
+                      onChange={(e) => handleBaseCurrencyChange(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="UGX">UGX - Ugandan Shilling</option>
+                      <option value="KES">KES - Kenyan Shilling</option>
+                      <option value="TZS">TZS - Tanzanian Shilling</option>
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="EUR">EUR - Euro</option>
+                      <option value="GBP">GBP - British Pound</option>
+                      <option value="RWF">RWF - Rwandan Franc</option>
+                      <option value="NGN">NGN - Nigerian Naira</option>
+                      <option value="ZAR">ZAR - South African Rand</option>
+                      <option value="GHS">GHS - Ghanaian Cedi</option>
+                    </select>
+                    <p className="mt-1 text-[12px] text-gray-500">
+                      Preview:{" "}
+                      {new Intl.NumberFormat("en", {
+                        style: "currency",
+                        currency: s.currency,
+                        minimumFractionDigits: 0,
+                      }).format(1000)}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Rate Source</label>
+                    <select
+                      value={s.currencyRateSource}
+                      onChange={(e) =>
+                        upd("currencyRateSource", e.target.value)
+                      }
+                      className={inputClass}
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="api">API (auto-sync)</option>
+                    </select>
+                    <p className="mt-1 text-[12px] text-gray-500">
+                      {s.currencyRateSource === "api"
+                        ? "Rates can be refreshed automatically from a public FX provider."
+                        : "You control all exchange rates manually."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 rounded-xl border border-gray-100 bg-gray-50/60 p-4 md:grid-cols-[1fr_auto] md:items-end">
+                  <div>
+                    <label className={labelClass}>
+                      Auto Refresh Interval (Minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min={5}
+                      value={s.currencyAutoRefreshMinutes}
+                      onChange={(e) =>
+                        upd(
+                          "currencyAutoRefreshMinutes",
+                          Math.max(5, Number(e.target.value) || 5),
+                        )
+                      }
+                      className={inputClass + " max-w-[220px]"}
+                    />
+                    <p className="mt-1 text-[12px] text-gray-500">
+                      Last Sync:{" "}
+                      {s.currencyLastSyncAt
+                        ? new Date(s.currencyLastSyncAt).toLocaleString()
+                        : "Never"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={refreshCurrencyRates}
+                    disabled={syncingRates || s.currencyRateSource !== "api"}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 disabled:opacity-50"
                   >
-                    <option value="UGX">UGX - Ugandan Shilling</option>
-                    <option value="KES">KES - Kenyan Shilling</option>
-                    <option value="TZS">TZS - Tanzanian Shilling</option>
-                    <option value="USD">USD - US Dollar</option>
-                    <option value="EUR">EUR - Euro</option>
-                    <option value="GBP">GBP - British Pound</option>
-                    <option value="RWF">RWF - Rwandan Franc</option>
-                    <option value="NGN">NGN - Nigerian Naira</option>
-                    <option value="ZAR">ZAR - South African Rand</option>
-                    <option value="GHS">GHS - Ghanaian Cedi</option>
-                  </select>
-                  <p className="mt-2 text-sm text-gray-500">
-                    Preview:{" "}
-                    {new Intl.NumberFormat("en", {
-                      style: "currency",
-                      currency: s.currency,
-                      minimumFractionDigits: 0,
-                    }).format(1000)}
-                  </p>
+                    <RefreshCw
+                      className={`h-4 w-4 ${syncingRates ? "animate-spin" : ""}`}
+                    />
+                    {syncingRates ? "Refreshing..." : "Refresh Rates"}
+                  </button>
+                </div>
+
+                {currencyRateStatus && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-700">
+                    {currencyRateStatus}
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-gray-100">
+                  <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                    <p className="text-sm font-semibold text-gray-700">
+                      Exchange Rates
+                    </p>
+                    <button
+                      onClick={() =>
+                        setS((prev) => ({
+                          ...prev,
+                          currencyRates: [
+                            ...prev.currencyRates,
+                            { code: "USD", rate: 1 },
+                          ],
+                        }))
+                      }
+                      className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600"
+                    >
+                      Add Rate
+                    </button>
+                  </div>
+                  <div className="space-y-2 p-4">
+                    {s.currencyRates.map((rate, idx) => (
+                      <div
+                        key={`${rate.code}-${idx}`}
+                        className="grid grid-cols-[110px_1fr_auto] gap-2"
+                      >
+                        <input
+                          value={rate.code}
+                          onChange={(e) => {
+                            const code = e.target.value
+                              .toUpperCase()
+                              .slice(0, 3);
+                            setS((prev) => ({
+                              ...prev,
+                              currencyRates: prev.currencyRates.map((r, i) =>
+                                i === idx ? { ...r, code } : r,
+                              ),
+                            }));
+                          }}
+                          className={inputClass + " mt-0"}
+                          placeholder="USD"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.000001"
+                          value={rate.rate}
+                          onChange={(e) => {
+                            const nextRate = Number(e.target.value || 0);
+                            setS((prev) => ({
+                              ...prev,
+                              currencyRates: prev.currencyRates.map((r, i) =>
+                                i === idx ? { ...r, rate: nextRate } : r,
+                              ),
+                            }));
+                          }}
+                          className={inputClass + " mt-0"}
+                          placeholder={`1 ${s.currency} = ?`}
+                        />
+                        <button
+                          onClick={() =>
+                            setS((prev) => ({
+                              ...prev,
+                              currencyRates: prev.currencyRates.filter(
+                                (_, i) => i !== idx,
+                              ),
+                            }))
+                          }
+                          className="rounded-lg border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-emerald-700" />
+                    <p className="text-sm font-semibold text-emerald-800">
+                      Test Conversion
+                    </p>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <input
+                      type="number"
+                      value={currencyTestAmount}
+                      onChange={(e) => setCurrencyTestAmount(e.target.value)}
+                      className={inputClass + " mt-0"}
+                    />
+                    <select
+                      value={currencyTestFrom}
+                      onChange={(e) => setCurrencyTestFrom(e.target.value)}
+                      className={inputClass + " mt-0"}
+                    >
+                      {Array.from(
+                        new Set([
+                          s.currency,
+                          ...s.currencyRates.map((r) => r.code),
+                        ]),
+                      ).map((code) => (
+                        <option key={`from-${code}`} value={code}>
+                          {code}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={currencyTestTo}
+                      onChange={(e) => setCurrencyTestTo(e.target.value)}
+                      className={inputClass + " mt-0"}
+                    >
+                      {Array.from(
+                        new Set([
+                          s.currency,
+                          ...s.currencyRates.map((r) => r.code),
+                        ]),
+                      ).map((code) => (
+                        <option key={`to-${code}`} value={code}>
+                          {code}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-semibold text-emerald-800">
+                      {new Intl.NumberFormat("en", {
+                        style: "currency",
+                        currency: currencyTestTo || s.currency,
+                        minimumFractionDigits: 2,
+                      }).format(testConvertedAmount || 0)}
+                    </div>
+                  </div>
                 </div>
               </div>
             </SectionCard>
@@ -1375,83 +2189,296 @@ export default function SettingsPage() {
           {activeSection === "fiscal" && (
             <SectionCard
               title="Fiscal Year Management"
-              description="Configure your organization's fiscal year periods"
+              description="Configuration, financial summary, and archive management"
             >
-              <div className="max-w-lg space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={labelClass}>
-                      Fiscal Year Start (MM-DD)
-                    </label>
-                    <input
-                      type="text"
-                      value={s.fiscalYearStart}
-                      onChange={(e) => upd("fiscalYearStart", e.target.value)}
-                      className={inputClass}
-                      placeholder="01-01"
-                    />
-                    <p className="mt-1 text-[11px] text-gray-400">
-                      Format: MM-DD (e.g. 01-01 for January 1st)
-                    </p>
-                  </div>
-                  <div>
-                    <label className={labelClass}>
-                      Fiscal Year End (MM-DD)
-                    </label>
-                    <input
-                      type="text"
-                      value={s.fiscalYearEnd}
-                      onChange={(e) => upd("fiscalYearEnd", e.target.value)}
-                      className={inputClass}
-                      placeholder="12-31"
-                    />
-                    <p className="mt-1 text-[11px] text-gray-400">
-                      Format: MM-DD (e.g. 12-31 for December 31st)
-                    </p>
-                  </div>
+              <div className="space-y-5">
+                <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 w-fit">
+                  {(
+                    [
+                      { key: "config", label: "Tab 1: Configuration" },
+                      { key: "summary", label: "Tab 2: Financial Summary" },
+                      { key: "archive", label: "Tab 3: Archive" },
+                    ] as {
+                      key: "config" | "summary" | "archive";
+                      label: string;
+                    }[]
+                  ).map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setFiscalTab(tab.key)}
+                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-all ${
+                        fiscalTab === tab.key
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <label className={labelClass}>Current Fiscal Year</label>
-                  <input
-                    type="text"
-                    value={s.currentFiscalYear}
-                    onChange={(e) => upd("currentFiscalYear", e.target.value)}
-                    className={inputClass + " max-w-xs"}
-                    placeholder="e.g. 2025/2026"
-                  />
-                </div>
-                <div className="rounded-xl bg-blue-50 p-4 border border-blue-100">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Calendar className="h-4 w-4 text-blue-600" />
-                    <p className="text-sm font-semibold text-blue-700">
-                      Fiscal Year Summary
-                    </p>
+
+                {fiscalTab === "config" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className={labelClass}>Fiscal Year Label</label>
+                      <input
+                        value={newFiscalYear.label}
+                        onChange={(e) =>
+                          setNewFiscalYear((prev) => ({
+                            ...prev,
+                            label: e.target.value,
+                          }))
+                        }
+                        className={inputClass}
+                        placeholder="e.g. FY 2025/2026"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Fiscal Cycle</label>
+                      <select
+                        value={newFiscalYear.cycle}
+                        onChange={(e) =>
+                          setNewFiscalYear((prev) => ({
+                            ...prev,
+                            cycle: e.target.value as
+                              | "ura_jul_jun"
+                              | "calendar_jan_dec"
+                              | "custom",
+                          }))
+                        }
+                        className={inputClass}
+                      >
+                        <option value="ura_jul_jun">URA Cycle (Jul-Jun)</option>
+                        <option value="calendar_jan_dec">
+                          Calendar Year (Jan-Dec)
+                        </option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Start Date</label>
+                      <input
+                        type="date"
+                        value={newFiscalYear.startDate}
+                        onChange={(e) =>
+                          setNewFiscalYear((prev) => ({
+                            ...prev,
+                            startDate: e.target.value,
+                          }))
+                        }
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>End Date</label>
+                      <input
+                        type="date"
+                        value={newFiscalYear.endDate}
+                        onChange={(e) =>
+                          setNewFiscalYear((prev) => ({
+                            ...prev,
+                            endDate: e.target.value,
+                          }))
+                        }
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="md:col-span-2 flex items-center gap-2">
+                      <input
+                        id="setActiveYear"
+                        type="checkbox"
+                        checked={newFiscalYear.setActive}
+                        onChange={(e) =>
+                          setNewFiscalYear((prev) => ({
+                            ...prev,
+                            setActive: e.target.checked,
+                          }))
+                        }
+                      />
+                      <label
+                        htmlFor="setActiveYear"
+                        className="text-sm text-gray-600"
+                      >
+                        Set as active fiscal year after creation
+                      </label>
+                    </div>
+                    <div className="md:col-span-2">
+                      <button
+                        onClick={handleCreateFiscalYear}
+                        className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20"
+                      >
+                        Create Fiscal Year
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-[11px] text-blue-500">Start Date</p>
-                      <p className="font-medium text-blue-800">
-                        {s.fiscalYearStart || "Not set"}
-                      </p>
+                )}
+
+                {fiscalTab === "summary" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className={labelClass}>Select Fiscal Year</label>
+                      <select
+                        value={selectedFiscalYearId}
+                        onChange={(e) =>
+                          setSelectedFiscalYearId(e.target.value)
+                        }
+                        className={inputClass + " max-w-xs mt-0"}
+                      >
+                        {fiscalYears.map((year) => (
+                          <option key={year._id} value={year._id}>
+                            {year.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <div>
-                      <p className="text-[11px] text-blue-500">End Date</p>
-                      <p className="font-medium text-blue-800">
-                        {s.fiscalYearEnd || "Not set"}
-                      </p>
+
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      {[
+                        {
+                          label: "Total Revenue",
+                          value: fiscalSummary?.totalRevenue || 0,
+                          color: "text-emerald-700 bg-emerald-50",
+                        },
+                        {
+                          label: "Total Expenses",
+                          value: fiscalSummary?.totalExpenses || 0,
+                          color: "text-orange-700 bg-orange-50",
+                        },
+                        {
+                          label: "Gross Profit",
+                          value: fiscalSummary?.grossProfit || 0,
+                          color: "text-blue-700 bg-blue-50",
+                        },
+                        {
+                          label: "Net Profit",
+                          value: fiscalSummary?.netProfit || 0,
+                          color: "text-purple-700 bg-purple-50",
+                        },
+                      ].map((card) => (
+                        <div
+                          key={card.label}
+                          className={`rounded-xl p-4 ${card.color}`}
+                        >
+                          <p className="text-[11px] uppercase tracking-wider">
+                            {card.label}
+                          </p>
+                          <p className="mt-2 text-lg font-bold">
+                            {Number(card.value).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <p className="text-[11px] text-blue-500">Current Year</p>
-                      <p className="font-medium text-blue-800">
-                        {s.currentFiscalYear || "Not set"}
+
+                    <div className="rounded-xl border border-gray-100 p-4">
+                      <p className="text-sm font-semibold text-gray-800 mb-2">
+                        Monthly Revenue vs Expenses
                       </p>
+                      <div className="space-y-2">
+                        {(fiscalSummary?.monthlyRevenueVsExpenses || []).map(
+                          (row) => {
+                            const max = Math.max(row.revenue, row.expenses, 1);
+                            return (
+                              <div key={row.month} className="space-y-1">
+                                <p className="text-xs text-gray-500">
+                                  {row.month}
+                                </p>
+                                <div className="h-2 rounded bg-gray-100 overflow-hidden">
+                                  <div
+                                    className="h-full bg-emerald-500"
+                                    style={{
+                                      width: `${(row.revenue / max) * 100}%`,
+                                    }}
+                                  />
+                                </div>
+                                <div className="h-2 rounded bg-gray-100 overflow-hidden">
+                                  <div
+                                    className="h-full bg-orange-400"
+                                    style={{
+                                      width: `${(row.expenses / max) * 100}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[11px] text-blue-500">Status</p>
-                      <p className="font-medium text-emerald-700">Active</p>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-gray-100 p-4">
+                        <p className="text-sm font-semibold text-gray-800 mb-2">
+                          VAT/Tax Collected
+                        </p>
+                        <p className="text-xl font-bold text-blue-700">
+                          {Number(
+                            fiscalSummary?.vatCollected || 0,
+                          ).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-gray-100 p-4">
+                        <p className="text-sm font-semibold text-gray-800 mb-2">
+                          Outstanding Invoices
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Count: {fiscalSummary?.outstandingInvoices.count || 0}
+                        </p>
+                        <p className="text-lg font-bold text-amber-700">
+                          {Number(
+                            fiscalSummary?.outstandingInvoices.total || 0,
+                          ).toLocaleString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+
+                {fiscalTab === "archive" && (
+                  <div className="space-y-3">
+                    {fiscalYears
+                      .filter((year) => year.status !== "active")
+                      .map((year) => (
+                        <div
+                          key={year._id}
+                          className="rounded-xl border border-gray-100 p-4"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-gray-800">
+                                {year.label}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(year.startDate).toLocaleDateString()}{" "}
+                                - {new Date(year.endDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {year.status !== "archived" && (
+                                <button
+                                  onClick={() =>
+                                    runFiscalAction(year._id, "archive")
+                                  }
+                                  className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                                >
+                                  Archive
+                                </button>
+                              )}
+                              {year.status !== "active" && (
+                                <button
+                                  onClick={() =>
+                                    runFiscalAction(year._id, "set-active")
+                                  }
+                                  className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                >
+                                  Set Active
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             </SectionCard>
           )}
@@ -1565,9 +2592,11 @@ export default function SettingsPage() {
                       onChange={(e) => upd("defaultUserRole", e.target.value)}
                       className={inputClass + " max-w-xs"}
                     >
-                      <option value="cashier">Cashier</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
+                      {allAvailableRoles.map((role) => (
+                        <option key={role} value={role}>
+                          {ROLE_LABELS[role] || getRoleLabel(role)}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <Toggle
@@ -1688,20 +2717,60 @@ export default function SettingsPage() {
                       Role Permissions
                     </p>
                   </div>
-                  <ul className="space-y-1 text-[13px] text-gray-500">
-                    <li>
-                      • <strong className="text-gray-700">Admin</strong> — Full
-                      access to all features and settings
-                    </li>
-                    <li>
-                      • <strong className="text-gray-700">Manager</strong> —
-                      Manage inventory, sales, purchases, reports
-                    </li>
-                    <li>
-                      • <strong className="text-gray-700">Cashier</strong> — POS
-                      terminal and basic sales operations
-                    </li>
-                  </ul>
+                  <div className="space-y-3">
+                    {allAvailableRoles.map((role) => (
+                      <div
+                        key={role}
+                        className="rounded-lg border border-gray-200 bg-white p-3"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-gray-700">
+                            {ROLE_LABELS[role] || getRoleLabel(role)}
+                          </p>
+                          {s.customRoles.some((r) => r.key === role) && (
+                            <button
+                              onClick={() => removeCustomRole(role)}
+                              className="text-xs font-semibold text-red-600"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {MODULE_PERMISSIONS.map((module) => {
+                            const enabled =
+                              (s.rolePermissions[role] || []).includes(
+                                module,
+                              ) || role === "admin";
+                            return (
+                              <button
+                                key={`${role}-${module}`}
+                                disabled={role === "admin"}
+                                onClick={() => togglePermission(role, module)}
+                                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${enabled ? "bg-blue-50 text-blue-700 ring-1 ring-blue-700/20" : "bg-gray-100 text-gray-500"} ${role === "admin" ? "opacity-70" : ""}`}
+                              >
+                                {module.replace("_", " ")}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <input
+                        value={customRoleName}
+                        onChange={(e) => setCustomRoleName(e.target.value)}
+                        className={inputClass + " mt-0"}
+                        placeholder="Add custom role (e.g. auditor)"
+                      />
+                      <button
+                        onClick={addCustomRole}
+                        className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700"
+                      >
+                        Add Role
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </SectionCard>
             </div>
@@ -1870,9 +2939,11 @@ export default function SettingsPage() {
                     onChange={(e) => setUserRole(e.target.value)}
                     className={inputClass}
                   >
-                    <option value="cashier">Cashier</option>
-                    <option value="manager">Manager</option>
-                    <option value="admin">Admin</option>
+                    {allAvailableRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {ROLE_LABELS[role] || getRoleLabel(role)}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 {branches.length > 0 && (

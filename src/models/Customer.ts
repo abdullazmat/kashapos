@@ -10,6 +10,10 @@ export interface ICustomer extends Document {
   notes: string;
   totalPurchases: number;
   totalSpent: number;
+  outstandingBalance: number;
+  creditLimit: number;
+  paymentStatus: "cleared" | "partial" | "overdue";
+  lastPaymentDate?: Date;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -31,6 +35,14 @@ const CustomerSchema = new Schema<ICustomer>(
     notes: { type: String, default: "" },
     totalPurchases: { type: Number, default: 0 },
     totalSpent: { type: Number, default: 0 },
+    outstandingBalance: { type: Number, default: 0 },
+    creditLimit: { type: Number, default: 0 },
+    paymentStatus: {
+      type: String,
+      enum: ["cleared", "partial", "overdue"],
+      default: "cleared",
+    },
+    lastPaymentDate: { type: Date },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },

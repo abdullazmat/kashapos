@@ -275,19 +275,14 @@ export default function CashFlowPage() {
                 Overview of cash flow across different time periods
               </p>
             </div>
-            <button
-              onClick={fetchCashFlow}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2.5 text-sm font-bold text-white shadow-md"
-            >
-              <RefreshCw className="h-4 w-4" /> Refresh Summaries
-            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {periods.map((p, i) => (
               <div
                 key={i}
-                className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden"
+                onClick={() => setActiveTab("report")}
+                className="h-full cursor-pointer rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden transition hover:shadow-md"
               >
                 <div
                   className={`bg-gradient-to-r ${p.color} px-5 py-3 flex items-center justify-between`}
@@ -295,7 +290,7 @@ export default function CashFlowPage() {
                   <h3 className="text-base font-bold text-white">{p.label}</h3>
                   <Calendar className="h-5 w-5 text-white/70" />
                 </div>
-                <div className="p-5 space-y-4">
+                <div className="flex h-[calc(100%-52px)] flex-col justify-between p-5 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-emerald-500" />
@@ -449,6 +444,12 @@ export default function CashFlowPage() {
       ) : (
         /* Cash Flow Report */
         <div className="space-y-6">
+          {reportData.outflows.length === 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              No expenses recorded yet. Add expenses to get a complete outflow
+              picture.
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-4">

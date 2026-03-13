@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
+import type { ComponentType } from "react";
 import {
   ArrowLeft,
   Search,
@@ -51,10 +52,20 @@ interface Customer {
   name: string;
   email: string;
   phone: string;
+  outstandingBalance?: number;
+  creditLimit?: number;
 }
 interface CartItem extends Product {
   quantity: number;
 }
+
+type PaymentMethod =
+  | "cash"
+  | "card"
+  | "mobile_money"
+  | "split"
+  | "bank_transfer"
+  | "credit";
 
 export default function POSTerminalPage() {
   const { tenant } = useSession();
@@ -68,7 +79,7 @@ export default function POSTerminalPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState("");
   const [creditDueDate, setCreditDueDate] = useState("");
   const [bankReference, setBankReference] = useState("");
@@ -209,20 +220,17 @@ export default function POSTerminalPage() {
           total: cartTotal,
           amountPaid:
             paymentMethod === "credit"
-              ? 0
+              ? Math.max(0, parseFloat(amountPaid) || 0)
               : parseFloat(amountPaid) || cartTotal,
           status: paymentMethod === "credit" ? "pending" : "completed",
           ...(paymentMethod === "credit" &&
             creditDueDate && { dueDate: creditDueDate }),
-          ...(paymentMethod === "bank" &&
+          ...(paymentMethod === "bank_transfer" &&
             bankReference && { reference: bankReference }),
         }),
       });
       const data = await res.json();
       if (res.ok) {
-        const selectedCustomerRecord = customers.find(
-          (customer) => customer._id === selectedCustomer,
-        );
         setLastSale({
           saleNumber: data.sale?.orderNumber || "N/A",
           total: cartTotal,
@@ -235,7 +243,7 @@ export default function POSTerminalPage() {
           customerName: selectedCustomerRecord?.name,
           amountPaid:
             paymentMethod === "credit"
-              ? 0
+              ? Math.max(0, parseFloat(amountPaid) || 0)
               : parseFloat(amountPaid) || cartTotal,
           change: paymentMethod === "cash" ? Math.max(0, change) : 0,
           creditDueDate: paymentMethod === "credit" ? creditDueDate : undefined,
@@ -321,6 +329,21 @@ export default function POSTerminalPage() {
   }
 
   const change = parseFloat(amountPaid) - cartTotal;
+  const selectedCustomerRecord = customers.find(
+    (customer) => customer._id === selectedCustomer,
+  );
+  const paymentOptions: {
+    key: PaymentMethod;
+    label: string;
+    icon: ComponentType<{ className?: string }>;
+  }[] = [
+    { key: "cash", label: "Cash", icon: Banknote },
+    { key: "card", label: "Card", icon: CreditCard },
+    { key: "mobile_money", label: "M-Pesa", icon: Smartphone },
+    { key: "split", label: "Split", icon: ArrowUpDown },
+    { key: "bank_transfer", label: "Bank", icon: Building2 },
+    { key: "credit", label: "Credit", icon: CalendarClock },
+  ];
 
   if (loading) {
     return (
@@ -462,7 +485,7 @@ export default function POSTerminalPage() {
                         <img
                           src={p.image}
                           alt={p.name}
-                          className="h-full w-full object-cover rounded-xl\"
+                          className="h-full w-full rounded-xl object-cover"
                         />
                       ) : (
                         <ImageIcon className="h-8 w-8 text-gray-300 transition-transform group-hover:scale-110" />
@@ -698,13 +721,7 @@ export default function POSTerminalPage() {
                   Payment Method
                 </label>
                 <div className="grid grid-cols-5 gap-2">
-                  {[
-                    { key: "cash", label: "Cash", icon: Banknote },
-                    { key: "card", label: "Card", icon: CreditCard },
-                    { key: "mobile_money", label: "M-Pesa", icon: Smartphone },
-                    { key: "bank", label: "Bank", icon: Building2 },
-                    { key: "credit", label: "Credit", icon: CalendarClock },
-                  ].map((m) => (
+                  {paymentOptions.map((m) => (
                     <button
                       key={m.key}
                       onClick={() => setPaymentMethod(m.key)}
@@ -730,7 +747,32 @@ export default function POSTerminalPage() {
                 <div className="space-y-3">
                   {!selectedCustomer && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                      ⚠ Please select a customer for credit sales
+                      Please select a customer for credit sales
+                    </div>
+                  )}
+                  {selectedCustomerRecord && (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-blue-700">
+                        Customer Credit Profile
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-blue-800">
+                        <div>
+                          Outstanding:{" "}
+                          {formatCurrency(
+                            selectedCustomerRecord.outstandingBalance || 0,
+                            currency,
+                          )}
+                        </div>
+                        <div>
+                          Credit Limit:{" "}
+                          {selectedCustomerRecord.creditLimit
+                            ? formatCurrency(
+                                selectedCustomerRecord.creditLimit,
+                                currency,
+                              )
+                            : "Not set"}
+                        </div>
+                      </div>
                     </div>
                   )}
                   <div>
@@ -749,7 +791,7 @@ export default function POSTerminalPage() {
               )}
 
               {/* Bank transfer reference */}
-              {paymentMethod === "bank" && (
+              {paymentMethod === "bank_transfer" && (
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     Bank Reference / Transaction ID
@@ -765,24 +807,45 @@ export default function POSTerminalPage() {
               )}
 
               {/* Amount Paid */}
-              {paymentMethod === "cash" && (
+              {(paymentMethod === "cash" || paymentMethod === "credit") && (
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                    Amount Received
+                    {paymentMethod === "credit"
+                      ? "Amount Paid Now (Optional)"
+                      : "Amount Received"}
                   </label>
                   <input
                     type="number"
                     value={amountPaid}
                     onChange={(e) => setAmountPaid(e.target.value)}
+                    min={0}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3 text-center text-lg font-bold text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                   />
-                  {change >= 0 && parseFloat(amountPaid) > 0 && (
-                    <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-2.5">
-                      <span className="text-sm font-medium text-emerald-700">
-                        Change
+                  {paymentMethod === "cash" &&
+                    change >= 0 &&
+                    parseFloat(amountPaid) > 0 && (
+                      <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-2.5">
+                        <span className="text-sm font-medium text-emerald-700">
+                          Change
+                        </span>
+                        <span className="text-lg font-bold text-emerald-600">
+                          {formatCurrency(change, currency)}
+                        </span>
+                      </div>
+                    )}
+                  {paymentMethod === "credit" && (
+                    <div className="mt-3 flex items-center justify-between rounded-xl bg-amber-50 px-4 py-2.5">
+                      <span className="text-sm font-medium text-amber-700">
+                        Remaining Balance
                       </span>
-                      <span className="text-lg font-bold text-emerald-600">
-                        {formatCurrency(change, currency)}
+                      <span className="text-lg font-bold text-amber-700">
+                        {formatCurrency(
+                          Math.max(
+                            0,
+                            cartTotal - (parseFloat(amountPaid) || 0),
+                          ),
+                          currency,
+                        )}
                       </span>
                     </div>
                   )}
@@ -803,7 +866,8 @@ export default function POSTerminalPage() {
                 disabled={
                   processing ||
                   (paymentMethod === "cash" && change < 0) ||
-                  (paymentMethod === "credit" && !selectedCustomer)
+                  (paymentMethod === "credit" &&
+                    (!selectedCustomer || !creditDueDate))
                 }
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
               >

@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Invoice from "@/models/Invoice";
+import Customer from "@/models/Customer";
+import Tenant from "@/models/Tenant";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import { generateInvoiceNumber } from "@/lib/utils";
+import { sendTenantEmail } from "@/lib/mailer";
 
 export async function GET(request: NextRequest) {
   try {
@@ -54,6 +57,31 @@ export async function POST(request: NextRequest) {
       invoiceNumber,
       createdBy: auth.userId,
     });
+
+    const [tenant, customer] = await Promise.all([
+      Tenant.findById(auth.tenantId)
+        .select("settings.emailInvoiceAutoSend")
+        .lean(),
+      body.customerId
+        ? Customer.findOne({ _id: body.customerId, tenantId: auth.tenantId })
+            .select("email name")
+            .lean()
+        : Promise.resolve(null),
+    ]);
+
+    if (tenant?.settings?.emailInvoiceAutoSend && customer?.email) {
+      try {
+        await sendTenantEmail({
+          tenantId: auth.tenantId,
+          to: customer.email,
+          subject: `Invoice ${invoice.invoiceNumber}`,
+          text: `Invoice ${invoice.invoiceNumber} total: ${invoice.total}. Balance: ${invoice.balance}.`,
+          html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>Invoice ${invoice.invoiceNumber}</h2><p>Total: ${invoice.total.toLocaleString()}</p><p>Balance: ${invoice.balance.toLocaleString()}</p></div>`,
+        });
+      } catch {
+        // Keep invoice creation successful even if delivery fails.
+      }
+    }
 
     return apiSuccess(invoice, 201);
   } catch (error) {

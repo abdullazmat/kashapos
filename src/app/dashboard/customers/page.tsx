@@ -35,8 +35,10 @@ interface Customer {
   address: string;
   totalPurchases: number;
   totalSpent: number;
-  balance?: number;
+  outstandingBalance?: number;
   creditLimit?: number;
+  paymentStatus?: "cleared" | "partial" | "overdue";
+  lastPaymentDate?: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -258,7 +260,8 @@ export default function CustomersPage() {
           },
           {
             label: "With Balance",
-            value: customers.filter((c) => (c.balance ?? 0) > 0).length,
+            value: customers.filter((c) => (c.outstandingBalance ?? 0) > 0)
+              .length,
             icon: CreditCard,
             color: "amber",
           },
@@ -433,9 +436,9 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <span
-                        className={`font-semibold ${(c.balance ?? 0) > 0 ? "text-red-600" : "text-gray-400"}`}
+                        className={`font-semibold ${(c.outstandingBalance ?? 0) > 0 ? "text-red-600" : "text-gray-400"}`}
                       >
-                        {formatCurrency(c.balance ?? 0, currency)}
+                        {formatCurrency(c.outstandingBalance ?? 0, currency)}
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-right text-gray-500">
@@ -717,8 +720,8 @@ export default function CustomersPage() {
                       {customers.map((c) => (
                         <option key={c._id} value={c._id}>
                           {c.name}
-                          {(c.balance ?? 0) > 0
-                            ? ` (Balance: ${formatCurrency(c.balance ?? 0, currency)})`
+                          {(c.outstandingBalance ?? 0) > 0
+                            ? ` (Balance: ${formatCurrency(c.outstandingBalance ?? 0, currency)})`
                             : ""}
                         </option>
                       ))}
@@ -761,8 +764,11 @@ export default function CustomersPage() {
                     {[
                       { key: "cash", label: "Cash", icon: Banknote },
                       { key: "card", label: "Card", icon: CreditCard },
-                      { key: "credit", label: "Credit", icon: Wallet },
-                      { key: "bank", label: "Bank Transfer", icon: DollarSign },
+                      {
+                        key: "bank_transfer",
+                        label: "Bank Transfer",
+                        icon: DollarSign,
+                      },
                       {
                         key: "mobile_money",
                         label: "Mobile Money",
@@ -842,7 +848,7 @@ export default function CustomersPage() {
                         <span className="text-gray-500">Outstanding</span>
                         <span className="font-semibold text-red-600">
                           {formatCurrency(
-                            paymentCustomer.balance ?? 0,
+                            paymentCustomer.outstandingBalance ?? 0,
                             currency,
                           )}
                         </span>
