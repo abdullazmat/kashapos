@@ -157,7 +157,10 @@ async function ensureStockAvailability(
   }).lean();
 
   const stockMap = new Map(
-    stockRows.map((stock) => [String(stock.productId), stock.quantity]),
+    stockRows.map((stock) => [
+      String(stock.productId),
+      (Number(stock.quantity) || 0) - (Number(stock.reservedQuantity) || 0),
+    ]),
   );
 
   for (const [productId, delta] of deltas.entries()) {

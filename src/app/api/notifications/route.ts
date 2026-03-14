@@ -8,6 +8,7 @@ import NotificationRead from "@/models/NotificationRead";
 import PurchaseOrder from "@/models/PurchaseOrder";
 import Sale from "@/models/Sale";
 import Stock from "@/models/Stock";
+import "@/models/Vendor";
 
 type NotificationType = "warning" | "success" | "info";
 

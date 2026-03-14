@@ -99,6 +99,7 @@ interface TenantData {
     sidebarDefaultCollapsed?: boolean;
     rolePermissions?: Record<string, string[]>;
     aiAssistantEnabled?: boolean;
+    sessionTimeout?: number;
     currencyRates?: { code: string; rate: number; lastUpdatedAt?: string }[];
     currencyLedger?: string;
   };
@@ -438,6 +439,8 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const activeQueryString =
+    typeof window !== "undefined" ? window.location.search : "";
   const [user, setUser] = useState<UserData | null>(null);
   const [tenant, setTenant] = useState<TenantData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -589,10 +592,7 @@ export default function DashboardLayout({
       if (!hrefQueryString) return true;
 
       const hrefParams = new URLSearchParams(hrefQueryString);
-      const activeParams =
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search)
-          : new URLSearchParams();
+      const activeParams = new URLSearchParams(activeQueryString);
       for (const [key, value] of hrefParams.entries()) {
         if (activeParams.get(key) !== value) {
           return false;
@@ -600,7 +600,7 @@ export default function DashboardLayout({
       }
       return true;
     },
-    [pathname],
+    [pathname, activeQueryString],
   );
 
   // Auto-expand menus whose children match the current path
@@ -925,10 +925,23 @@ export default function DashboardLayout({
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, applyThemePreference]);
 
   useEffect(() => {
     fetchSession();
+  }, [fetchSession]);
+
+  useEffect(() => {
+    const handleSettingsUpdated = () => {
+      void fetchSession();
+    };
+
+    window.addEventListener("meka-settings-updated", handleSettingsUpdated);
+    return () =>
+      window.removeEventListener(
+        "meka-settings-updated",
+        handleSettingsUpdated,
+      );
   }, [fetchSession]);
 
   useEffect(() => {
@@ -938,6 +951,66 @@ export default function DashboardLayout({
     const intervalId = window.setInterval(fetchNotifications, 60000);
     return () => window.clearInterval(intervalId);
   }, [fetchNotifications, user]);
+
+  useEffect(() => {
+    if (!user || !tenant) return;
+
+    const timeoutMinutes = Number(tenant.settings?.sessionTimeout || 0);
+    if (!Number.isFinite(timeoutMinutes) || timeoutMinutes <= 0) return;
+
+    let timeoutId: number | undefined;
+
+    const forceSignOut = async () => {
+      try {
+        await fetch("/api/auth/sign-out", { method: "POST" });
+      } finally {
+        router.push("/sign-in");
+      }
+    };
+
+    const resetIdleTimer = () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      timeoutId = window.setTimeout(
+        () => {
+          void forceSignOut();
+        },
+        timeoutMinutes * 60 * 1000,
+      );
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "touchstart",
+      "scroll",
+    ];
+
+    for (const eventName of activityEvents) {
+      window.addEventListener(eventName, resetIdleTimer, { passive: true });
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        resetIdleTimer();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    resetIdleTimer();
+
+    return () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      for (const eventName of activityEvents) {
+        window.removeEventListener(eventName, resetIdleTimer);
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [user, tenant, router]);
 
   useEffect(() => {
     const savedHistory = localStorage.getItem("meka-ai-chat-history");

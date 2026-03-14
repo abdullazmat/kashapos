@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "../layout";
 import {
   TrendingUp,
@@ -189,10 +189,13 @@ export default function ReportsPage() {
     fetchData();
   }, [fetchData]);
 
-  const receivables =
-    invoiceData?.invoices?.filter(
-      (inv) => inv.status !== "paid" && inv.status !== "cancelled",
-    ) || [];
+  const receivables = useMemo(
+    () =>
+      invoiceData?.invoices?.filter(
+        (inv) => inv.status !== "paid" && inv.status !== "cancelled",
+      ) ?? [],
+    [invoiceData],
+  );
   const totalReceivable = receivables.reduce(
     (sum, inv) => sum + (inv.balance || inv.total - inv.amountPaid),
     0,
@@ -202,9 +205,12 @@ export default function ReportsPage() {
       inv.status === "overdue" ||
       (inv.dueDate && new Date(inv.dueDate) < new Date()),
   );
-  const purchaseOrders = purchaseData?.orders || [];
+  const purchaseOrders = useMemo(
+    () => purchaseData?.orders ?? [],
+    [purchaseData],
+  );
   const totalPurchased = purchaseOrders.reduce((sum, po) => sum + po.total, 0);
-  const monthlySales = data?.weeklySales || [];
+  const monthlySales = useMemo(() => data?.weeklySales ?? [], [data]);
   const chartTitle =
     period === "today"
       ? "Today Revenue"

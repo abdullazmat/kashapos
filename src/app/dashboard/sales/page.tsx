@@ -69,6 +69,13 @@ interface ProductOption {
   name: string;
   sku: string;
   price: number;
+  hasVariants?: boolean;
+  variants?: {
+    name: string;
+    sku: string;
+    price: number;
+    stock: number;
+  }[];
 }
 
 interface CustomerOption {
@@ -86,6 +93,7 @@ interface BranchOption {
 }
 
 interface OrderItem {
+  lineKey: string;
   productId: string;
   productName: string;
   sku: string;
@@ -148,6 +156,11 @@ export default function SalesPage() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [showOrderCustomerModal, setShowOrderCustomerModal] = useState(false);
+  const [creatingOrderCustomer, setCreatingOrderCustomer] = useState(false);
+  const [newOrderCustomerName, setNewOrderCustomerName] = useState("");
+  const [newOrderCustomerPhone, setNewOrderCustomerPhone] = useState("");
+  const [newOrderCustomerEmail, setNewOrderCustomerEmail] = useState("");
   const [quickFilter, setQuickFilter] = useState<"all" | "today" | "custom">(
     "all",
   );
@@ -226,16 +239,28 @@ export default function SalesPage() {
     setOrderWalkInPhone("");
     setOrderError("");
     setProductSearch("");
+    setShowOrderCustomerModal(false);
+    setNewOrderCustomerName("");
+    setNewOrderCustomerPhone("");
+    setNewOrderCustomerEmail("");
     fetchFormData();
     setShowCreateModal(true);
   };
 
-  const addProduct = (p: ProductOption) => {
-    const existing = orderItems.find((i) => i.productId === p._id);
+  const addProduct = (
+    p: ProductOption,
+    variant?: { name: string; sku: string; price: number; stock: number },
+  ) => {
+    const lineKey = `${p._id}:${variant?.sku || "base"}`;
+    const resolvedName = variant ? `${p.name} - ${variant.name}` : p.name;
+    const resolvedSku = variant?.sku || p.sku;
+    const resolvedPrice = variant?.price ?? p.price;
+
+    const existing = orderItems.find((i) => i.lineKey === lineKey);
     if (existing) {
       setOrderItems(
         orderItems.map((i) =>
-          i.productId === p._id
+          i.lineKey === lineKey
             ? {
                 ...i,
                 quantity: i.quantity + 1,
@@ -248,14 +273,15 @@ export default function SalesPage() {
       setOrderItems([
         ...orderItems,
         {
+          lineKey,
           productId: p._id,
-          productName: p.name,
-          sku: p.sku,
+          productName: resolvedName,
+          sku: resolvedSku,
           quantity: 1,
-          unitPrice: p.price,
+          unitPrice: resolvedPrice,
           discount: 0,
           tax: 0,
-          total: p.price,
+          total: resolvedPrice,
         },
       ]);
     }
@@ -276,6 +302,42 @@ export default function SalesPage() {
   const removeItem = (idx: number) => {
     setOrderItems(orderItems.filter((_, i) => i !== idx));
   };
+
+  async function quickCreateOrderCustomer() {
+    if (!newOrderCustomerName.trim() || creatingOrderCustomer) return;
+    setCreatingOrderCustomer(true);
+    setOrderError("");
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newOrderCustomerName.trim(),
+          phone: newOrderCustomerPhone.trim(),
+          email: newOrderCustomerEmail.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOrderError(data.error || "Failed to create customer");
+        return;
+      }
+
+      const created = data.customer || data;
+      setCustomers((prev) => [created, ...prev]);
+      setOrderCustomer(created._id);
+      setOrderWalkInName("");
+      setOrderWalkInPhone("");
+      setShowOrderCustomerModal(false);
+      setNewOrderCustomerName("");
+      setNewOrderCustomerPhone("");
+      setNewOrderCustomerEmail("");
+    } catch {
+      setOrderError("Failed to create customer");
+    } finally {
+      setCreatingOrderCustomer(false);
+    }
+  }
 
   const orderSubtotal = useMemo(
     () => orderItems.reduce((s, i) => s + i.total, 0),
@@ -510,11 +572,58 @@ export default function SalesPage() {
     setPage(1);
   };
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      p.sku.toLowerCase().includes(productSearch.toLowerCase()),
-  );
+  const variantSearchResults = useMemo(() => {
+    const query = productSearch.trim().toLowerCase();
+    if (!query) return [];
+
+    const rows: Array<{
+      key: string;
+      label: string;
+      sku: string;
+      price: number;
+      parent: ProductOption;
+      variant?: { name: string; sku: string; price: number; stock: number };
+      stockText: string;
+    }> = [];
+
+    for (const product of products) {
+      const baseMatches =
+        product.name.toLowerCase().includes(query) ||
+        product.sku.toLowerCase().includes(query);
+
+      if (baseMatches) {
+        rows.push({
+          key: `${product._id}:base`,
+          label: product.name,
+          sku: product.sku,
+          price: product.price,
+          parent: product,
+          stockText: "",
+        });
+      }
+
+      if (product.hasVariants && product.variants?.length) {
+        for (const variant of product.variants) {
+          const variantMatches =
+            variant.name.toLowerCase().includes(query) ||
+            variant.sku.toLowerCase().includes(query) ||
+            product.name.toLowerCase().includes(query);
+          if (!variantMatches) continue;
+          rows.push({
+            key: `${product._id}:${variant.sku}`,
+            label: `${product.name} - ${variant.name}`,
+            sku: variant.sku,
+            price: variant.price,
+            parent: product,
+            variant,
+            stockText: `Stock ${variant.stock}`,
+          });
+        }
+      }
+    }
+
+    return rows.slice(0, 20);
+  }, [productSearch, products]);
 
   const selectedOrderCustomer = customers.find((c) => c._id === orderCustomer);
   const isWalkInOrder = !orderCustomer;
@@ -1179,6 +1288,14 @@ export default function SalesPage() {
                         </option>
                       ))}
                     </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowOrderCustomerModal(true)}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add New Customer
+                    </button>
                     {!orderCustomer && (
                       <div className="grid grid-cols-2 gap-2">
                         <input
@@ -1239,24 +1356,29 @@ export default function SalesPage() {
                       placeholder="Search products by name or SKU…"
                       className="w-full rounded-xl border border-gray-200 bg-gray-50/50 py-2.5 pl-9 pr-3 text-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                     />
-                    {productSearch && filteredProducts.length > 0 && (
+                    {productSearch && variantSearchResults.length > 0 && (
                       <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-10 max-h-48 overflow-y-auto">
-                        {filteredProducts.slice(0, 10).map((p) => (
+                        {variantSearchResults.map((row) => (
                           <button
-                            key={p._id}
-                            onClick={() => addProduct(p)}
+                            key={row.key}
+                            onClick={() => addProduct(row.parent, row.variant)}
                             className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-gray-50 text-left"
                           >
                             <div>
                               <span className="font-medium text-gray-800">
-                                {p.name}
+                                {row.label}
                               </span>
                               <span className="ml-2 text-[11px] text-gray-400">
-                                {p.sku}
+                                {row.sku}
                               </span>
+                              {row.stockText && (
+                                <span className="ml-2 text-[11px] text-blue-500">
+                                  {row.stockText}
+                                </span>
+                              )}
                             </div>
                             <span className="text-gray-600 font-semibold">
-                              {formatCurrency(p.price, currency)}
+                              {formatCurrency(row.price, currency)}
                             </span>
                           </button>
                         ))}
@@ -1536,6 +1658,58 @@ export default function SalesPage() {
               >
                 <Save className="h-4 w-4" />
                 {savingOrder ? "Creating..." : "Create Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showOrderCustomerModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowOrderCustomerModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-gray-800">Add Customer</h3>
+            <p className="mt-1 text-xs text-gray-400">
+              Create customer while building this sales order.
+            </p>
+            <div className="mt-4 space-y-3">
+              <input
+                value={newOrderCustomerName}
+                onChange={(e) => setNewOrderCustomerName(e.target.value)}
+                placeholder="Customer name *"
+                className={inputClass}
+              />
+              <input
+                value={newOrderCustomerPhone}
+                onChange={(e) => setNewOrderCustomerPhone(e.target.value)}
+                placeholder="Phone"
+                className={inputClass}
+              />
+              <input
+                value={newOrderCustomerEmail}
+                onChange={(e) => setNewOrderCustomerEmail(e.target.value)}
+                placeholder="Email"
+                className={inputClass}
+              />
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setShowOrderCustomerModal(false)}
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={quickCreateOrderCustomer}
+                disabled={!newOrderCustomerName.trim() || creatingOrderCustomer}
+                className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {creatingOrderCustomer ? "Saving..." : "Save Customer"}
               </button>
             </div>
           </div>

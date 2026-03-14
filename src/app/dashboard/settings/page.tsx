@@ -214,6 +214,7 @@ export default function SettingsPage() {
   // Settings state
   const [s, setS] = useState({
     businessName: "",
+    logo: "",
     currency: "UGX",
     taxRate: 0,
     receiptHeader: "",
@@ -393,6 +394,7 @@ export default function SettingsPage() {
       setS((prev) => ({
         ...prev,
         businessName: tenant.name || "",
+        logo: tenant.logo || "",
         currency: ts.currency || "UGX",
         taxRate: ts.taxRate || 0,
         receiptHeader: ts.receiptHeader || "",
@@ -433,6 +435,8 @@ export default function SettingsPage() {
             setS((prev) => ({
               ...prev,
               businessName: data.name || prev.businessName,
+              logo:
+                typeof data.logo === "string" ? data.logo : (prev.logo ?? ""),
               currency: ts.currency || prev.currency,
               taxRate: ts.taxRate ?? prev.taxRate,
               receiptHeader: ts.receiptHeader || prev.receiptHeader,
@@ -579,6 +583,15 @@ export default function SettingsPage() {
       });
       if (res.ok) {
         applyThemeSetting(s.theme);
+        window.dispatchEvent(
+          new CustomEvent("meka-settings-updated", {
+            detail: {
+              currency: s.currency,
+              currencyRates: s.currencyRates,
+              currencyLedger: s.currency,
+            },
+          }),
+        );
         setSaveMsg({ type: "success", text: "Settings saved successfully!" });
         setTimeout(() => setSaveMsg(null), 3000);
       } else {
@@ -597,6 +610,7 @@ export default function SettingsPage() {
     applyThemeSetting("light");
     setS({
       businessName: s.businessName,
+      logo: s.logo,
       currency: "UGX",
       taxRate: 18,
       receiptHeader: "",
@@ -674,6 +688,32 @@ export default function SettingsPage() {
   const upd = (field: string, value: unknown) =>
     setS((prev) => ({ ...prev, [field]: value }));
 
+  const handleLogoFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setSaveMsg({ type: "error", text: "Please upload an image file." });
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setSaveMsg({ type: "error", text: "Logo must be 2MB or smaller." });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      upd("logo", String(reader.result || ""));
+      setSaveMsg(null);
+    };
+    reader.onerror = () => {
+      setSaveMsg({ type: "error", text: "Failed to read logo file." });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleThemeSelect = (theme: "light" | "dark") => {
     upd("theme", theme);
     applyThemeSetting(theme);
@@ -700,6 +740,40 @@ export default function SettingsPage() {
     fetchFiscalYears();
   }, [fetchFiscalYears]);
 
+  const refreshCurrencyRates = useCallback(async () => {
+    if (s.currencyRateSource !== "api") return;
+    setSyncingRates(true);
+    setCurrencyRateStatus("");
+    try {
+      const res = await fetch(
+        `https://open.er-api.com/v6/latest/${s.currency}`,
+      );
+      const data = await res.json();
+      if (!res.ok || data?.result === "error" || !data?.rates) {
+        setCurrencyRateStatus("Failed to refresh rates from provider");
+        return;
+      }
+      const now = new Date().toISOString();
+      const nextRates = s.currencyRates
+        .map((row) => {
+          const rate = Number(data.rates[row.code]);
+          if (!Number.isFinite(rate) || rate <= 0) return row;
+          return { ...row, rate, lastUpdatedAt: now };
+        })
+        .filter((row) => row.code !== s.currency);
+
+      setS((prev) => ({
+        ...prev,
+        currencyRates: nextRates,
+        currencyLastSyncAt: now,
+      }));
+      setCurrencyRateStatus("Rates refreshed successfully");
+    } catch {
+      setCurrencyRateStatus("Failed to refresh rates from provider");
+    }
+    setSyncingRates(false);
+  }, [s.currency, s.currencyRateSource, s.currencyRates]);
+
   useEffect(() => {
     if (s.currencyRateSource !== "api") return;
     const intervalMs = Math.max(5, s.currencyAutoRefreshMinutes || 60) * 60000;
@@ -710,8 +784,7 @@ export default function SettingsPage() {
   }, [
     s.currencyRateSource,
     s.currencyAutoRefreshMinutes,
-    s.currency,
-    s.currencyRates,
+    refreshCurrencyRates,
   ]);
 
   const handleSendTestEmail = async () => {
@@ -1027,40 +1100,6 @@ export default function SettingsPage() {
     }));
   };
 
-  async function refreshCurrencyRates() {
-    if (s.currencyRateSource !== "api") return;
-    setSyncingRates(true);
-    setCurrencyRateStatus("");
-    try {
-      const res = await fetch(
-        `https://open.er-api.com/v6/latest/${s.currency}`,
-      );
-      const data = await res.json();
-      if (!res.ok || data?.result === "error" || !data?.rates) {
-        setCurrencyRateStatus("Failed to refresh rates from provider");
-        return;
-      }
-      const now = new Date().toISOString();
-      const nextRates = s.currencyRates
-        .map((row) => {
-          const rate = Number(data.rates[row.code]);
-          if (!Number.isFinite(rate) || rate <= 0) return row;
-          return { ...row, rate, lastUpdatedAt: now };
-        })
-        .filter((row) => row.code !== s.currency);
-
-      setS((prev) => ({
-        ...prev,
-        currencyRates: nextRates,
-        currencyLastSyncAt: now,
-      }));
-      setCurrencyRateStatus("Rates refreshed successfully");
-    } catch {
-      setCurrencyRateStatus("Failed to refresh rates from provider");
-    }
-    setSyncingRates(false);
-  }
-
   const testConvertedAmount = (() => {
     const amount = Number(currencyTestAmount || 0);
     if (!Number.isFinite(amount)) return 0;
@@ -1237,6 +1276,54 @@ export default function SettingsPage() {
                     onChange={(e) => upd("businessName", e.target.value)}
                     className={inputClass}
                   />
+                </div>
+                <div>
+                  <label className={labelClass}>Business Logo</label>
+                  <div className="mt-1.5 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+                    <div className="flex gap-3">
+                      <div className="h-16 w-16 overflow-hidden rounded-lg border border-gray-200 bg-white flex items-center justify-center text-[10px] text-gray-400">
+                        {s.logo ? (
+                          <img
+                            src={s.logo}
+                            alt="Business logo"
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          "No logo"
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="text"
+                          value={s.logo}
+                          onChange={(e) => upd("logo", e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm transition-colors focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          placeholder="Paste logo URL or upload image below"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <label className="inline-flex cursor-pointer items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
+                            Upload Logo
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleLogoFileUpload}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => upd("logo", "")}
+                            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          Recommended: square PNG/JPG, up to 2MB.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
 import {
   Package,
   Plus,
@@ -11,6 +11,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Layers,
   ImagePlus,
   RotateCcw,
@@ -35,6 +37,16 @@ interface Product {
   image?: string;
   stock?: number;
   categoryAttributes?: Record<string, unknown>;
+  hasVariants?: boolean;
+  variants?: {
+    name: string;
+    sku: string;
+    barcode?: string;
+    imei?: string;
+    price: number;
+    costPrice: number;
+    stock: number;
+  }[];
 }
 
 interface Category {
@@ -98,6 +110,23 @@ const CATEGORY_FIELD_MAP: Record<string, DynamicFieldConfig[]> = {
   ELECTRONICS: [
     { key: "brand", label: "Brand", type: "text" },
     { key: "model", label: "Model Number", type: "text" },
+    {
+      key: "storage",
+      label: "Storage Options",
+      type: "text",
+      placeholder: "128GB,256GB,512GB",
+    },
+    {
+      key: "colors",
+      label: "Colors",
+      type: "text",
+      placeholder: "Black,White,Blue",
+    },
+    {
+      key: "imeiOptional",
+      label: "Capture IMEI (optional)",
+      type: "toggle",
+    },
     { key: "warrantyMonths", label: "Warranty (months)", type: "number" },
     {
       key: "condition",
@@ -141,6 +170,25 @@ function resolveCategoryKey(name?: string) {
   return "GENERAL";
 }
 
+function toTagTokens(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .map((item) => item.toLowerCase());
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => item.toLowerCase());
+  }
+
+  return [];
+}
+
 export default function InventoryPage() {
   const { tenant } = useSession();
   const currency = tenant?.settings?.currency || "UGX";
@@ -157,6 +205,11 @@ export default function InventoryPage() {
   const [stockFilter, setStockFilter] = useState<
     "all" | "in-stock" | "low" | "out"
   >("all");
+  const [sizeFilter, setSizeFilter] = useState("all");
+  const [colorFilter, setColorFilter] = useState("all");
+  const [materialFilter, setMaterialFilter] = useState("all");
+  const [storageFilter, setStorageFilter] = useState("all");
+  const [expandedProducts, setExpandedProducts] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     name: "",
@@ -335,6 +388,135 @@ export default function InventoryPage() {
     "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
   const zeroStockCount = products.filter((p) => (p.stock ?? 0) === 0).length;
+  const attributeCatalog = useMemo(() => {
+    const sizes = new Set<string>();
+    const colors = new Set<string>();
+    const materials = new Set<string>();
+    const storages = new Set<string>();
+    const knownColors = [
+      "black",
+      "white",
+      "blue",
+      "red",
+      "green",
+      "yellow",
+      "purple",
+      "pink",
+      "gold",
+      "silver",
+      "gray",
+      "grey",
+      "lilac",
+      "iceblue",
+      "ice",
+    ];
+
+    for (const product of products) {
+      const attrs = product.categoryAttributes || {};
+
+      for (const token of toTagTokens(attrs.sizes)) sizes.add(token);
+      for (const token of toTagTokens(attrs.colors)) colors.add(token);
+      for (const token of toTagTokens(attrs.material)) materials.add(token);
+      for (const token of toTagTokens(attrs.storage || attrs.storageOptions)) {
+        storages.add(token);
+      }
+
+      if (product.variants?.length) {
+        for (const variant of product.variants) {
+          const tokens = variant.name.toLowerCase().split(/[^a-z0-9]+/g);
+          const knownSizes = ["xs", "s", "m", "l", "xl", "xxl"];
+          for (const token of tokens) {
+            if (knownSizes.includes(token)) {
+              sizes.add(token);
+            }
+            if (knownColors.includes(token)) {
+              colors.add(token);
+            }
+            if (/^\d+(gb|tb)$/.test(token)) {
+              storages.add(token);
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      sizes: Array.from(sizes).sort(),
+      colors: Array.from(colors).sort(),
+      materials: Array.from(materials).sort(),
+      storages: Array.from(storages).sort(),
+    };
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      const stock = product.stock ?? 0;
+      const stockMatch =
+        stockFilter === "all" ||
+        (stockFilter === "in-stock" && stock > 10) ||
+        (stockFilter === "low" && stock > 0 && stock <= 10) ||
+        (stockFilter === "out" && stock === 0);
+
+      if (!stockMatch) return false;
+
+      const attrs = product.categoryAttributes || {};
+      const sizes = new Set(toTagTokens(attrs.sizes));
+      const colors = new Set(toTagTokens(attrs.colors));
+      const materials = new Set(toTagTokens(attrs.material));
+      const storages = new Set(
+        toTagTokens(attrs.storage || attrs.storageOptions),
+      );
+
+      for (const variant of product.variants || []) {
+        const tokens = variant.name.toLowerCase().split(/[^a-z0-9]+/g);
+        for (const token of tokens) {
+          if (["xs", "s", "m", "l", "xl", "xxl"].includes(token)) {
+            sizes.add(token);
+          }
+          if (
+            [
+              "black",
+              "white",
+              "blue",
+              "red",
+              "green",
+              "yellow",
+              "purple",
+              "pink",
+              "gold",
+              "silver",
+              "gray",
+              "grey",
+              "lilac",
+              "iceblue",
+              "ice",
+            ].includes(token)
+          ) {
+            colors.add(token);
+          }
+          if (/^\d+(gb|tb)$/.test(token)) {
+            storages.add(token);
+          }
+        }
+      }
+
+      const sizeMatch = sizeFilter === "all" || sizes.has(sizeFilter);
+      const colorMatch = colorFilter === "all" || colors.has(colorFilter);
+      const materialMatch =
+        materialFilter === "all" || materials.has(materialFilter);
+      const storageMatch =
+        storageFilter === "all" || storages.has(storageFilter);
+
+      return sizeMatch && colorMatch && materialMatch && storageMatch;
+    });
+  }, [
+    products,
+    stockFilter,
+    sizeFilter,
+    colorFilter,
+    materialFilter,
+    storageFilter,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -420,12 +602,70 @@ export default function InventoryPage() {
             </button>
           ))}
         </div>
-        {(search || filterCategory || stockFilter !== "all") && (
+        <select
+          value={sizeFilter}
+          onChange={(e) => setSizeFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+        >
+          <option value="all">All Sizes</option>
+          {attributeCatalog.sizes.map((size) => (
+            <option key={`size-${size}`} value={size}>
+              {size.toUpperCase()}
+            </option>
+          ))}
+        </select>
+        <select
+          value={colorFilter}
+          onChange={(e) => setColorFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+        >
+          <option value="all">All Colors</option>
+          {attributeCatalog.colors.map((color) => (
+            <option key={`color-${color}`} value={color}>
+              {color}
+            </option>
+          ))}
+        </select>
+        <select
+          value={materialFilter}
+          onChange={(e) => setMaterialFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+        >
+          <option value="all">All Materials</option>
+          {attributeCatalog.materials.map((material) => (
+            <option key={`material-${material}`} value={material}>
+              {material}
+            </option>
+          ))}
+        </select>
+        <select
+          value={storageFilter}
+          onChange={(e) => setStorageFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+        >
+          <option value="all">All Storage</option>
+          {attributeCatalog.storages.map((storage) => (
+            <option key={`storage-${storage}`} value={storage}>
+              {storage.toUpperCase()}
+            </option>
+          ))}
+        </select>
+        {(search ||
+          filterCategory ||
+          stockFilter !== "all" ||
+          sizeFilter !== "all" ||
+          colorFilter !== "all" ||
+          materialFilter !== "all" ||
+          storageFilter !== "all") && (
           <button
             onClick={() => {
               setSearch("");
               setFilterCategory("");
               setStockFilter("all");
+              setSizeFilter("all");
+              setColorFilter("all");
+              setMaterialFilter("all");
+              setStorageFilter("all");
               setPage(1);
             }}
             className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
@@ -489,7 +729,7 @@ export default function InventoryPage() {
                     </div>
                   </td>
                 </tr>
-              ) : products.length === 0 ? (
+              ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
@@ -506,111 +746,231 @@ export default function InventoryPage() {
                   </td>
                 </tr>
               ) : (
-                products.map((p) => (
-                  <tr
-                    key={p._id}
-                    className="group transition-colors hover:bg-gray-50/80"
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        {p.image ? (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden border border-gray-100">
-                            <img
-                              src={p.image}
-                              alt={p.name}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gray-100 to-gray-200">
-                            <Package className="h-4 w-4 text-gray-500" />
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-semibold text-gray-900">
-                            {p.name}
-                          </div>
-                          <div className="text-[11px] text-gray-400">
-                            {p.barcode}
+                filteredProducts.map((p) => (
+                  <Fragment key={p._id}>
+                    <tr
+                      className="group transition-colors hover:bg-gray-50/80"
+                      onClick={() => {
+                        if (!p.hasVariants || !(p.variants?.length || 0))
+                          return;
+                        setExpandedProducts((prev) =>
+                          prev.includes(p._id)
+                            ? prev.filter((id) => id !== p._id)
+                            : [...prev, p._id],
+                        );
+                      }}
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          {p.hasVariants && (p.variants?.length || 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setExpandedProducts((prev) =>
+                                  prev.includes(p._id)
+                                    ? prev.filter((id) => id !== p._id)
+                                    : [...prev, p._id],
+                                );
+                              }}
+                              className="rounded-md border border-gray-200 bg-white p-1 text-gray-500 hover:bg-gray-50"
+                              title="Toggle variants"
+                            >
+                              {expandedProducts.includes(p._id) ? (
+                                <ChevronUp className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                          {p.image ? (
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden border border-gray-100">
+                              <img
+                                src={p.image}
+                                alt={p.name}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gray-100 to-gray-200">
+                              <Package className="h-4 w-4 text-gray-500" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {p.name}
+                            </div>
+                            <div className="text-[11px] text-gray-400">
+                              {p.barcode}
+                            </div>
+                            {p.hasVariants && (p.variants?.length || 0) > 0 && (
+                              <div className="mt-1 text-[11px] font-medium text-blue-600">
+                                {p.variants?.length} variants
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-600">
-                        {p.sku}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {p.categoryId?.name ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-600/10">
-                          <Layers className="h-3 w-3" /> {p.categoryId.name}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-600">
+                          {p.sku}
                         </span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 text-right text-gray-500">
-                      {formatCurrency(p.costPrice, currency)}
-                    </td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
-                      {formatCurrency(p.price, currency)}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      {p.price > 0 ? (
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {p.categoryId?.name ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-600/10">
+                            <Layers className="h-3 w-3" /> {p.categoryId.name}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-gray-500">
+                        {formatCurrency(p.costPrice, currency)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
+                        {formatCurrency(p.price, currency)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        {p.price > 0 ? (
+                          <span
+                            className={`text-xs font-semibold ${(p.price - p.costPrice) / p.price >= 0.2 ? "text-emerald-600" : "text-amber-600"}`}
+                          >
+                            {(
+                              ((p.price - p.costPrice) / p.price) *
+                              100
+                            ).toFixed(1)}
+                            %
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
                         <span
-                          className={`text-xs font-semibold ${(p.price - p.costPrice) / p.price >= 0.2 ? "text-emerald-600" : "text-amber-600"}`}
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            (p.stock ?? 0) === 0
+                              ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+                              : (p.stock ?? 0) <= 10
+                                ? "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
+                                : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                          }`}
                         >
-                          {(((p.price - p.costPrice) / p.price) * 100).toFixed(
-                            1,
-                          )}
-                          %
+                          {p.stock ?? 0}
                         </span>
-                      ) : (
-                        <span className="text-gray-400">-</span>
+                      </td>
+                      <td className="px-5 py-3.5 text-center">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            p.isActive
+                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                              : "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+                          }`}
+                        >
+                          {p.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openEdit(p);
+                            }}
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              deleteProduct(p._id);
+                            }}
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedProducts.includes(p._id) &&
+                      p.hasVariants &&
+                      (p.variants?.length || 0) > 0 && (
+                        <tr className="bg-blue-50/30">
+                          <td colSpan={9} className="px-5 py-3">
+                            <div className="overflow-hidden rounded-xl border border-blue-100 bg-white">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-blue-50 text-blue-900/70">
+                                    <th className="px-3 py-2 text-left font-semibold">
+                                      Variant
+                                    </th>
+                                    <th className="px-3 py-2 text-left font-semibold">
+                                      SKU
+                                    </th>
+                                    <th className="px-3 py-2 text-right font-semibold">
+                                      Cost
+                                    </th>
+                                    <th className="px-3 py-2 text-right font-semibold">
+                                      Price
+                                    </th>
+                                    <th className="px-3 py-2 text-right font-semibold">
+                                      Stock
+                                    </th>
+                                    <th className="px-3 py-2 text-left font-semibold">
+                                      IMEI
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {p.variants?.map((variant) => (
+                                    <tr
+                                      key={`${p._id}-${variant.sku}`}
+                                      className="border-t border-blue-50"
+                                    >
+                                      <td className="px-3 py-2 text-gray-700">
+                                        {variant.name}
+                                      </td>
+                                      <td className="px-3 py-2 font-mono text-gray-500">
+                                        {variant.sku}
+                                      </td>
+                                      <td className="px-3 py-2 text-right text-gray-600">
+                                        {formatCurrency(
+                                          variant.costPrice,
+                                          currency,
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-semibold text-gray-700">
+                                        {formatCurrency(
+                                          variant.price,
+                                          currency,
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-right">
+                                        <span
+                                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                            variant.stock <= 0
+                                              ? "bg-red-50 text-red-700"
+                                              : variant.stock <= 10
+                                                ? "bg-amber-50 text-amber-700"
+                                                : "bg-emerald-50 text-emerald-700"
+                                          }`}
+                                        >
+                                          {variant.stock}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-2 text-gray-500">
+                                        {variant.imei || "-"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          (p.stock ?? 0) === 0
-                            ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
-                            : (p.stock ?? 0) <= 10
-                              ? "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
-                              : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
-                        }`}
-                      >
-                        {p.stock ?? 0}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-center">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          p.isActive
-                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
-                            : "bg-red-50 text-red-700 ring-1 ring-red-600/20"
-                        }`}
-                      >
-                        {p.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteProduct(p._id)}
-                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  </Fragment>
                 ))
               )}
             </tbody>

@@ -178,6 +178,13 @@ export function getPrintBrandingMarkup(options?: {
   subtitle?: string;
 }) {
   const branding = getPrintBrandingConfig();
+  const resolvedLogo = (() => {
+    const value = (branding.logo || "").trim();
+    if (!value) return "";
+    if (/^(https?:|data:|blob:)/i.test(value)) return value;
+    if (typeof window === "undefined") return value;
+    return new URL(value, window.location.origin).toString();
+  })();
   const lines = [
     branding.receiptHeader,
     branding.physicalAddress,
@@ -187,7 +194,7 @@ export function getPrintBrandingMarkup(options?: {
   return `
     <div class="brand-header">
       <div class="brand-header-main">
-        ${branding.logo ? `<img class="brand-logo" src="${branding.logo}" alt="${escapeHtml(branding.businessName || "Business logo")}" />` : ""}
+        ${resolvedLogo ? `<img class="brand-logo" src="${resolvedLogo}" alt="${escapeHtml(branding.businessName || "Business logo")}" />` : ""}
         <div class="brand-copy">
           <h1>${escapeHtml(branding.businessName || "Meka PoS")}</h1>
           ${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}

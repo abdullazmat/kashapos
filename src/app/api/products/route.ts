@@ -39,17 +39,25 @@ export async function GET(request: NextRequest) {
 
     // Attach stock quantities to products
     const productIds = products.map((p) => p._id);
+    const stockMatch: Record<string, unknown> = {
+      tenantId: auth.tenantId,
+      productId: { $in: productIds },
+    };
+
+    if (auth.branchId) {
+      stockMatch.branchId = auth.branchId;
+    }
+
     const stockEntries = await Stock.aggregate([
       {
-        $match: {
-          tenantId: auth.tenantId,
-          productId: { $in: productIds },
-        },
+        $match: stockMatch,
       },
       {
         $group: {
           _id: "$productId",
-          totalQuantity: { $sum: "$quantity" },
+          totalQuantity: {
+            $sum: { $subtract: ["$quantity", "$reservedQuantity"] },
+          },
         },
       },
     ]);
@@ -59,10 +67,20 @@ export async function GET(request: NextRequest) {
         s.totalQuantity,
       ]),
     );
-    const productsWithStock = products.map((p) => ({
-      ...p,
-      stock: stockMap.get(p._id.toString()) ?? 0,
-    }));
+    const productsWithStock = products.map((p) => {
+      const stockFromRows = stockMap.get(p._id.toString()) ?? 0;
+      const variantStock = Array.isArray(p.variants)
+        ? p.variants.reduce(
+            (sum, variant) => sum + (Number(variant.stock) || 0),
+            0,
+          )
+        : 0;
+
+      return {
+        ...p,
+        stock: p.hasVariants ? variantStock : stockFromRows,
+      };
+    });
 
     return apiSuccess({
       products: productsWithStock,

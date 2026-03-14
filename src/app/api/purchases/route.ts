@@ -19,7 +19,7 @@ type NormalizedPurchasePayload = {
   vendorId: string;
   branchId: string;
   items: {
-    productId: string;
+    productId?: string;
     productName: string;
     quantity: number;
     unitCost: number;
@@ -45,7 +45,7 @@ function asNumber(value: unknown, fallback = 0) {
 function getReceivedQuantities(
   status: string,
   items: Array<{
-    productId: string;
+    productId?: string;
     quantity: number;
     receivedQuantity: number;
   }>,
@@ -54,6 +54,7 @@ function getReceivedQuantities(
   if (status !== "received") return quantities;
 
   for (const item of items) {
+    if (!item.productId) continue;
     const quantity =
       item.receivedQuantity > 0 ? item.receivedQuantity : item.quantity;
     quantities.set(
@@ -104,15 +105,15 @@ async function normalizePurchasePayload(
   const productIds = rawItems
     .map((item) => String(item.productId || item.product || "").trim())
     .filter(Boolean);
-  if (productIds.length !== rawItems.length) {
-    throw new Error("Each purchase item must reference a product");
-  }
 
-  const products = await Product.find({
-    tenantId,
-    _id: { $in: productIds },
-  }).lean();
-  if (products.length !== new Set(productIds).size) {
+  const uniqueProductIds = Array.from(new Set(productIds));
+  const products = uniqueProductIds.length
+    ? await Product.find({
+        tenantId,
+        _id: { $in: uniqueProductIds },
+      }).lean()
+    : [];
+  if (products.length !== uniqueProductIds.length) {
     throw new Error("One or more selected products no longer exist");
   }
 
@@ -123,12 +124,20 @@ async function normalizePurchasePayload(
   let subtotal = 0;
   const items = rawItems.map((item) => {
     const productId = String(item.productId || item.product || "").trim();
-    const product = productMap.get(productId);
-    if (!product)
+    const product = productId ? productMap.get(productId) : null;
+    if (productId && !product) {
       throw new Error("One or more selected products no longer exist");
+    }
+
+    const resolvedProductName = item.productName?.trim() || product?.name || "";
+    if (!resolvedProductName) {
+      throw new Error(
+        "Each purchase item must include a product or description",
+      );
+    }
 
     const quantity = Math.max(1, Math.floor(asNumber(item.quantity, 1)));
-    const unitCost = Math.max(0, asNumber(item.unitCost, product.costPrice));
+    const unitCost = Math.max(0, asNumber(item.unitCost, product?.costPrice));
     const receivedQuantity = Math.max(
       0,
       Math.floor(asNumber(item.receivedQuantity, 0)),
@@ -137,8 +146,8 @@ async function normalizePurchasePayload(
     subtotal += total;
 
     return {
-      productId,
-      productName: item.productName?.trim() || product.name,
+      productId: productId || undefined,
+      productName: resolvedProductName,
       quantity,
       unitCost,
       receivedQuantity,

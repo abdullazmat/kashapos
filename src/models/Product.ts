@@ -4,6 +4,7 @@ export interface IProductVariant {
   name: string;
   sku: string;
   barcode: string;
+  imei?: string;
   price: number;
   costPrice: number;
   stock: number;
@@ -35,6 +36,7 @@ const ProductVariantSchema = new Schema<IProductVariant>({
   name: { type: String, required: true },
   sku: { type: String, required: true },
   barcode: { type: String, default: "" },
+  imei: { type: String, default: "" },
   price: { type: Number, required: true },
   costPrice: { type: Number, default: 0 },
   stock: { type: Number, default: 0 },

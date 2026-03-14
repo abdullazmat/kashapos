@@ -16,7 +16,7 @@ import {
   DollarSign,
   CreditCard,
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, slugify } from "@/lib/utils";
 import { useSession } from "../layout";
 
 interface PurchaseOrder {
@@ -50,6 +50,7 @@ interface Product {
   _id: string;
   name: string;
   costPrice: number;
+  unit?: string;
 }
 interface Branch {
   _id: string;
@@ -71,6 +72,10 @@ export default function PurchasesPage() {
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showAddVendor, setShowAddVendor] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
+  const [savingVendor, setSavingVendor] = useState(false);
+  const [savingCatalogItemIndex, setSavingCatalogItemIndex] = useState<
+    number | null
+  >(null);
   const [formError, setFormError] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
 
@@ -83,8 +88,9 @@ export default function PurchasesPage() {
     paymentMethod: "cash",
     amountPaid: "",
     items: [] as {
-      productId: string;
+      productId?: string;
       productName: string;
+      unit: string;
       quantity: number;
       unitCost: number;
       total: number;
@@ -141,13 +147,21 @@ export default function PurchasesPage() {
       ...newOrder,
       items: [
         ...newOrder.items,
-        { productId: "", productName: "", quantity: 1, unitCost: 0, total: 0 },
+        {
+          productId: "",
+          productName: "",
+          unit: "piece",
+          quantity: 1,
+          unitCost: 0,
+          total: 0,
+        },
       ],
     });
   };
 
   const addNewVendor = async () => {
-    if (!newVendorName.trim()) return;
+    if (!newVendorName.trim() || savingVendor) return;
+    setSavingVendor(true);
     try {
       const res = await fetch("/api/vendors", {
         method: "POST",
@@ -160,9 +174,15 @@ export default function PurchasesPage() {
         setNewOrder({ ...newOrder, vendorId: vendor._id });
         setShowAddVendor(false);
         setNewVendorName("");
+        setFormError("");
+      } else {
+        const payload = await res.json();
+        setFormError(payload.error || "Failed to create supplier");
       }
     } catch {
-      // ignore
+      setFormError("Failed to create supplier. Please try again.");
+    } finally {
+      setSavingVendor(false);
     }
   };
 
@@ -170,18 +190,92 @@ export default function PurchasesPage() {
     const items = [...newOrder.items];
     const item = { ...items[index], [field]: value };
     if (field === "productId") {
-      const p = products.find((pr) => pr._id === value);
+      const selectedProductId = String(value || "");
+      const p = products.find((pr) => pr._id === selectedProductId);
       if (p) {
+        item.productId = p._id;
         item.productName = p.name;
+        item.unit = p.unit || item.unit || "piece";
         item.unitCost = p.costPrice;
         item.total = p.costPrice * item.quantity;
+      } else {
+        item.productId = "";
       }
+    }
+    if (field === "productName") {
+      const typedName = String(value || "").trim();
+      item.productName = typedName;
+      const matched = products.find(
+        (pr) => pr.name.toLowerCase() === typedName.toLowerCase(),
+      );
+      if (matched) {
+        item.productId = matched._id;
+        item.unit = matched.unit || item.unit || "piece";
+        item.unitCost = matched.costPrice;
+      } else {
+        item.productId = "";
+      }
+      item.total = (item.unitCost || 0) * (item.quantity || 0);
     }
     if (field === "quantity" || field === "unitCost") {
       item.total = (item.unitCost || 0) * (item.quantity || 0);
     }
     items[index] = item;
     setNewOrder({ ...newOrder, items });
+  };
+
+  const saveItemToCatalog = async (index: number) => {
+    const item = newOrder.items[index];
+    const name = item?.productName?.trim();
+    if (!name || item?.productId || savingCatalogItemIndex !== null) {
+      return;
+    }
+
+    setSavingCatalogItemIndex(index);
+    try {
+      const stamp = Date.now().toString(36).toUpperCase();
+      const createdSku = `PUR-${stamp}`;
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          slug: `${slugify(name)}-${stamp.toLowerCase()}`,
+          sku: createdSku,
+          price: Math.max(0, Number(item.unitCost) || 0),
+          costPrice: Math.max(0, Number(item.unitCost) || 0),
+          unit: item.unit || "piece",
+          hasVariants: false,
+          variants: [],
+          trackStock: true,
+          isActive: true,
+        }),
+      });
+
+      const payload = await res.json();
+      if (!res.ok) {
+        setFormError(payload.error || "Failed to create item");
+        return;
+      }
+
+      const createdProduct = payload as Product;
+      setProducts((prev) => [createdProduct, ...prev]);
+      const items = [...newOrder.items];
+      items[index] = {
+        ...items[index],
+        productId: createdProduct._id,
+        productName: createdProduct.name,
+        unitCost: createdProduct.costPrice,
+        unit: createdProduct.unit || items[index].unit,
+        total: (createdProduct.costPrice || 0) * (items[index].quantity || 0),
+      };
+      setNewOrder({ ...newOrder, items });
+      setFormError("");
+    } catch {
+      setFormError("Failed to create item. Please try again.");
+    } finally {
+      setSavingCatalogItemIndex(null);
+    }
   };
 
   const removeItem = (index: number) => {
@@ -204,9 +298,14 @@ export default function PurchasesPage() {
       return;
     }
 
-    if (newOrder.items.some((item) => !item.productId || item.quantity <= 0)) {
+    if (
+      newOrder.items.some(
+        (item) =>
+          (!item.productId && !item.productName.trim()) || item.quantity <= 0,
+      )
+    ) {
       setFormError(
-        "Each order item must include a product and a valid quantity.",
+        "Each order item must include an item name and a valid quantity.",
       );
       return;
     }
@@ -273,15 +372,13 @@ export default function PurchasesPage() {
 
   const selectedInventoryRows = useMemo(
     () =>
-      newOrder.items
-        .filter((item) => item.productId)
-        .map((item) => ({
-          id: item.productId,
-          name: item.productName,
-          quantity: item.quantity,
-          unitCost: item.unitCost,
-          total: item.total,
-        })),
+      newOrder.items.map((item, index) => ({
+        id: item.productId || `${item.productName}-${index}`,
+        name: item.productName,
+        quantity: item.quantity,
+        unitCost: item.unitCost,
+        total: item.total,
+      })),
     [newOrder.items],
   );
 
@@ -644,14 +741,21 @@ export default function PurchasesPage() {
                             type="text"
                             value={newVendorName}
                             onChange={(e) => setNewVendorName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                void addNewVendor();
+                              }
+                            }}
                             placeholder="New supplier name"
                             className={inputClass + " flex-1"}
                           />
                           <button
-                            onClick={addNewVendor}
-                            className="rounded-xl bg-emerald-500 px-3 text-white text-sm font-medium hover:bg-emerald-600"
+                            onClick={() => void addNewVendor()}
+                            disabled={savingVendor}
+                            className="rounded-xl bg-emerald-500 px-3 text-white text-sm font-medium hover:bg-emerald-600 disabled:opacity-60"
                           >
-                            Save
+                            {savingVendor ? "Saving..." : "Save"}
                           </button>
                           <button
                             onClick={() => {
@@ -780,26 +884,33 @@ export default function PurchasesPage() {
                     )}
 
                     <div className="space-y-2">
+                      <datalist id="purchase-item-options">
+                        {products.map((p) => (
+                          <option key={p._id} value={p.name} />
+                        ))}
+                      </datalist>
                       {newOrder.items.map((item, i) => (
                         <div
                           key={i}
                           className="grid grid-cols-12 gap-2 items-center rounded-xl border border-gray-100 bg-gray-50/50 p-2.5"
                         >
-                          <select
-                            value={item.productId}
+                          <input
+                            type="text"
+                            list="purchase-item-options"
+                            value={item.productName}
                             onChange={(e) =>
-                              updateItem(i, "productId", e.target.value)
+                              updateItem(i, "productName", e.target.value)
                             }
                             className="col-span-4 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
+                            placeholder="Type/select item or enter description"
+                          />
+                          <select
+                            value={item.unit || "piece"}
+                            onChange={(e) =>
+                              updateItem(i, "unit", e.target.value)
+                            }
+                            className="col-span-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
                           >
-                            <option value="">Type or select item</option>
-                            {products.map((p) => (
-                              <option key={p._id} value={p._id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
-                          <select className="col-span-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm">
                             <option value="piece">Piece</option>
                             <option value="box">Box</option>
                             <option value="kg">Kg</option>
@@ -837,6 +948,22 @@ export default function PurchasesPage() {
                             {formatCurrency(item.total, currency)}
                           </span>
                           <div className="col-span-1 flex justify-center">
+                            {!item.productId && item.productName.trim() ? (
+                              <button
+                                onClick={() => void saveItemToCatalog(i)}
+                                disabled={savingCatalogItemIndex !== null}
+                                className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                                title="Save as catalog item"
+                              >
+                                {savingCatalogItemIndex === i ? (
+                                  <span className="text-[10px] font-semibold">
+                                    ...
+                                  </span>
+                                ) : (
+                                  <Plus className="h-4 w-4" />
+                                )}
+                              </button>
+                            ) : null}
                             <button
                               onClick={() => removeItem(i)}
                               className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"

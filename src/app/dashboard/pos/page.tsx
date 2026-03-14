@@ -52,6 +52,14 @@ interface Product {
   category?: { _id: string; name: string };
   stock?: number;
   createdAt?: string;
+  hasVariants?: boolean;
+  variants?: {
+    name: string;
+    sku: string;
+    price: number;
+    stock: number;
+    imei?: string;
+  }[];
 }
 interface Customer {
   _id: string;
@@ -63,6 +71,9 @@ interface Customer {
 }
 interface CartItem extends Product {
   quantity: number;
+  lineKey: string;
+  variantName?: string;
+  variantSku?: string;
 }
 
 type PaymentMethod =
@@ -72,6 +83,19 @@ type PaymentMethod =
   | "split"
   | "bank_transfer"
   | "credit";
+
+const PAYMENT_OPTIONS: {
+  key: PaymentMethod;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}[] = [
+  { key: "cash", label: "Cash", icon: Banknote },
+  { key: "card", label: "Card", icon: CreditCard },
+  { key: "mobile_money", label: "M-Pesa", icon: Smartphone },
+  { key: "split", label: "Split", icon: ArrowUpDown },
+  { key: "bank_transfer", label: "Bank", icon: Building2 },
+  { key: "credit", label: "Credit", icon: CalendarClock },
+];
 
 type SplitMethod = "cash" | "card" | "mobile_money" | "bank_transfer";
 
@@ -105,8 +129,15 @@ export default function POSTerminalPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false);
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [walkInName, setWalkInName] = useState("");
   const [walkInPhone, setWalkInPhone] = useState("");
+  const [expandedProductId, setExpandedProductId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState("");
   const [creditDueDate, setCreditDueDate] = useState("");
@@ -179,6 +210,8 @@ export default function POSTerminalPage() {
 
   useEffect(() => {
     fetchData();
+    const intervalId = window.setInterval(fetchData, 45000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   async function fetchData() {
@@ -202,10 +235,16 @@ export default function POSTerminalPage() {
   }
 
   const filteredProducts = useMemo(() => {
+    const query = search.toLowerCase();
     const filtered = products.filter((p) => {
       const matchSearch =
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.sku.toLowerCase().includes(search.toLowerCase());
+        p.name.toLowerCase().includes(query) ||
+        p.sku.toLowerCase().includes(query) ||
+        (p.variants || []).some(
+          (variant) =>
+            variant.name.toLowerCase().includes(query) ||
+            variant.sku.toLowerCase().includes(query),
+        );
       const matchCat =
         selectedCategory === "all" || p.category?._id === selectedCategory;
       return matchSearch && matchCat;
@@ -238,7 +277,7 @@ export default function POSTerminalPage() {
   const orderItems = useMemo(
     () =>
       cart.map((item) => ({
-        id: item._id,
+        id: item.lineKey,
         name: item.name,
         qty: item.quantity,
         price: item.price,
@@ -256,28 +295,105 @@ export default function POSTerminalPage() {
     () => cart.reduce((s, i) => s + i.quantity, 0),
     [cart],
   );
+  const filteredCustomers = useMemo(() => {
+    const query = customerSearch.trim().toLowerCase();
+    if (!query) return customers;
+    return customers.filter(
+      (customer) =>
+        customer.name.toLowerCase().includes(query) ||
+        customer.phone.toLowerCase().includes(query) ||
+        customer.email.toLowerCase().includes(query),
+    );
+  }, [customerSearch, customers]);
 
-  function addToCart(product: Product) {
+  function addToCart(
+    product: Product,
+    variant?: {
+      name: string;
+      sku: string;
+      price: number;
+      stock: number;
+      imei?: string;
+    },
+  ) {
+    const lineKey = `${product._id}:${variant?.sku || "base"}`;
+    const displayName = variant
+      ? `${product.name} - ${variant.name}`
+      : product.name;
+    const linePrice = variant?.price ?? product.price;
+    const lineSku = variant?.sku || product.sku;
+
     setCart((prev) => {
-      const existing = prev.find((i) => i._id === product._id);
+      const existing = prev.find((i) => i.lineKey === lineKey);
       if (existing)
         return prev.map((i) =>
-          i._id === product._id ? { ...i, quantity: i.quantity + 1 } : i,
+          i.lineKey === lineKey ? { ...i, quantity: i.quantity + 1 } : i,
         );
-      return [...prev, { ...product, quantity: 1 }];
+      return [
+        ...prev,
+        {
+          ...product,
+          name: displayName,
+          sku: lineSku,
+          price: linePrice,
+          quantity: 1,
+          lineKey,
+          variantName: variant?.name,
+          variantSku: variant?.sku,
+        },
+      ];
     });
+    setExpandedProductId("");
   }
 
-  function updateQty(id: string, delta: number) {
+  function updateQty(lineKey: string, delta: number) {
     setCart((prev) =>
       prev
-        .map((i) => (i._id === id ? { ...i, quantity: i.quantity + delta } : i))
+        .map((i) =>
+          i.lineKey === lineKey ? { ...i, quantity: i.quantity + delta } : i,
+        )
         .filter((i) => i.quantity > 0),
     );
   }
 
-  function removeItem(id: string) {
-    setCart((prev) => prev.filter((i) => i._id !== id));
+  function removeItem(lineKey: string) {
+    setCart((prev) => prev.filter((i) => i.lineKey !== lineKey));
+  }
+
+  async function quickCreateCustomer() {
+    if (!newCustomerName.trim() || creatingCustomer) return;
+    setCreatingCustomer(true);
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newCustomerName.trim(),
+          phone: newCustomerPhone.trim(),
+          email: newCustomerEmail.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSaleError(data.error || "Failed to create customer");
+        return;
+      }
+
+      const created = data.customer || data;
+      setCustomers((prev) => [created, ...prev]);
+      setSelectedCustomer(created._id);
+      setWalkInName("");
+      setWalkInPhone("");
+      setShowCreateCustomerModal(false);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      setNewCustomerEmail("");
+      setSaleError("");
+    } catch {
+      setSaleError("Failed to create customer");
+    } finally {
+      setCreatingCustomer(false);
+    }
   }
 
   function openPayment() {
@@ -457,6 +573,7 @@ export default function POSTerminalPage() {
       });
       const data = await res.json();
       if (res.ok) {
+        await fetchData();
         setLastSale({
           saleNumber: data.sale?.orderNumber || "N/A",
           total: cartTotal,
@@ -558,23 +675,11 @@ export default function POSTerminalPage() {
   );
   const selectedCustomerOutstanding =
     selectedCustomerRecord?.outstandingBalance || 0;
-  const paymentOptions: {
-    key: PaymentMethod;
-    label: string;
-    icon: ComponentType<{ className?: string }>;
-  }[] = [
-    { key: "cash", label: "Cash", icon: Banknote },
-    { key: "card", label: "Card", icon: CreditCard },
-    { key: "mobile_money", label: "M-Pesa", icon: Smartphone },
-    { key: "split", label: "Split", icon: ArrowUpDown },
-    { key: "bank_transfer", label: "Bank", icon: Building2 },
-    { key: "credit", label: "Credit", icon: CalendarClock },
-  ];
   const availablePaymentOptions = useMemo(
     () =>
       isWalkInCustomer
-        ? paymentOptions.filter((option) => option.key !== "credit")
-        : paymentOptions,
+        ? PAYMENT_OPTIONS.filter((option) => option.key !== "credit")
+        : PAYMENT_OPTIONS,
     [isWalkInCustomer],
   );
 
@@ -701,13 +806,23 @@ export default function POSTerminalPage() {
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filteredProducts.map((p) => {
-                const inCart = cart.find((i) => i._id === p._id);
+                const inCartQty = cart
+                  .filter((i) => i._id === p._id)
+                  .reduce((sum, item) => sum + item.quantity, 0);
                 return (
                   <button
                     key={p._id}
-                    onClick={() => addToCart(p)}
+                    onClick={() => {
+                      if (p.hasVariants && (p.variants?.length || 0) > 0) {
+                        setExpandedProductId((current) =>
+                          current === p._id ? "" : p._id,
+                        );
+                        return;
+                      }
+                      addToCart(p);
+                    }}
                     className={`group relative flex flex-col rounded-2xl border bg-white p-3 text-left transition-all hover:shadow-lg hover:shadow-gray-200/60 ${
-                      inCart
+                      inCartQty > 0
                         ? "border-orange-300 ring-2 ring-orange-500/20"
                         : "border-gray-100 hover:border-gray-200"
                     }`}
@@ -729,6 +844,11 @@ export default function POSTerminalPage() {
                       {p.name}
                     </p>
                     <p className="mt-0.5 text-[11px] text-gray-400">{p.sku}</p>
+                    {p.hasVariants && (p.variants?.length || 0) > 0 && (
+                      <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-500">
+                        {p.variants?.length} variants - tap to expand
+                      </p>
+                    )}
 
                     <div className="mt-auto flex items-end justify-between pt-2">
                       <span className="text-[15px] font-bold text-orange-600">
@@ -747,11 +867,37 @@ export default function POSTerminalPage() {
                       )}
                     </div>
 
-                    {inCart && (
+                    {inCartQty > 0 && (
                       <div className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-[11px] font-bold text-white shadow-md shadow-orange-500/30">
-                        {inCart.quantity}
+                        {inCartQty}
                       </div>
                     )}
+
+                    {expandedProductId === p._id &&
+                      p.hasVariants &&
+                      (p.variants?.length || 0) > 0 && (
+                        <div className="mt-2 space-y-1 rounded-xl border border-blue-100 bg-blue-50/40 p-2">
+                          {p.variants?.map((variant) => (
+                            <button
+                              key={`${p._id}-${variant.sku}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                addToCart(p, variant);
+                              }}
+                              className="flex w-full items-center justify-between rounded-lg border border-blue-100 bg-white px-2 py-1.5 text-left hover:border-orange-300 hover:bg-orange-50/30"
+                            >
+                              <span className="text-[11px] font-semibold text-gray-700">
+                                {variant.name}
+                                {variant.imei ? ` (IMEI ${variant.imei})` : ""}
+                              </span>
+                              <span className="text-[11px] text-gray-500">
+                                {formatCurrency(variant.price, currency)} -{" "}
+                                {variant.stock}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                   </button>
                 );
               })}
@@ -791,6 +937,12 @@ export default function POSTerminalPage() {
             <User className="h-3 w-3" />
             Customer
           </label>
+          <input
+            value={customerSearch}
+            onChange={(e) => setCustomerSearch(e.target.value)}
+            placeholder="Search customer by name, phone..."
+            className="mb-2 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+          />
           <select
             value={selectedCustomer}
             onChange={(e) => {
@@ -808,7 +960,7 @@ export default function POSTerminalPage() {
             className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
           >
             <option value="">Walk-in Customer</option>
-            {customers.map((c) => (
+            {filteredCustomers.map((c) => (
               <option key={c._id} value={c._id}>
                 {c.name}
                 {c.phone ? ` (${c.phone})` : ""}
@@ -818,6 +970,14 @@ export default function POSTerminalPage() {
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={() => setShowCreateCustomerModal(true)}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add New Customer
+          </button>
           {!selectedCustomer && (
             <div className="mt-2 grid grid-cols-2 gap-2">
               <input
@@ -922,7 +1082,7 @@ export default function POSTerminalPage() {
             <div className="divide-y divide-gray-50 px-4 py-2">
               {cart.map((item) => (
                 <div
-                  key={item._id}
+                  key={item.lineKey}
                   className="group flex items-start gap-3 py-3"
                 >
                   {/* Item icon */}
@@ -942,7 +1102,7 @@ export default function POSTerminalPage() {
                   {/* Qty controls */}
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => updateQty(item._id, -1)}
+                      onClick={() => updateQty(item.lineKey, -1)}
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500"
                     >
                       <Minus className="h-3 w-3" />
@@ -951,7 +1111,7 @@ export default function POSTerminalPage() {
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQty(item._id, 1)}
+                      onClick={() => updateQty(item.lineKey, 1)}
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
                     >
                       <Plus className="h-3 w-3" />
@@ -964,7 +1124,7 @@ export default function POSTerminalPage() {
                       {formatCurrency(item.price * item.quantity, currency)}
                     </span>
                     <button
-                      onClick={() => removeItem(item._id)}
+                      onClick={() => removeItem(item.lineKey)}
                       className="text-gray-300 opacity-0 transition-all hover:text-red-500 group-hover:opacity-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1006,6 +1166,58 @@ export default function POSTerminalPage() {
           </button>
         </div>
       </div>
+
+      {showCreateCustomerModal && (
+        <div
+          className="fixed inset-0 z-[65] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowCreateCustomerModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-gray-800">Add Customer</h3>
+            <p className="mt-1 text-xs text-gray-400">
+              Create customer without leaving the POS terminal.
+            </p>
+            <div className="mt-4 space-y-3">
+              <input
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+                placeholder="Customer name *"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm text-gray-800 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+              <input
+                value={newCustomerPhone}
+                onChange={(e) => setNewCustomerPhone(e.target.value)}
+                placeholder="Phone"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm text-gray-800 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+              <input
+                value={newCustomerEmail}
+                onChange={(e) => setNewCustomerEmail(e.target.value)}
+                placeholder="Email"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm text-gray-800 focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setShowCreateCustomerModal(false)}
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={quickCreateCustomer}
+                disabled={!newCustomerName.trim() || creatingCustomer}
+                className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {creatingCustomer ? "Saving..." : "Save Customer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Payment Modal ── */}
       {showPayment && (

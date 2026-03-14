@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
     return apiSuccess({
       id: tenant._id,
       name: tenant.name,
+      logo: tenant.logo || "",
       settings: tenant.settings,
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
@@ -125,6 +126,9 @@ export async function PATCH(request: NextRequest) {
 
     if (typeof body.businessName === "string") {
       allowedFields.name = body.businessName.trim();
+    }
+    if (typeof body.logo === "string") {
+      allowedFields.logo = body.logo.trim();
     }
     if (typeof body.currency === "string") {
       allowedFields["settings.currency"] = body.currency;
@@ -244,6 +248,7 @@ export async function PATCH(request: NextRequest) {
     return apiSuccess({
       id: tenant._id,
       name: tenant.name,
+      logo: tenant.logo || "",
       settings: tenant.settings,
     });
   } catch (error) {
