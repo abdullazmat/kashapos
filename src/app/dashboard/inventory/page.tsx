@@ -34,12 +34,111 @@ interface Product {
   description: string;
   image?: string;
   stock?: number;
+  categoryAttributes?: Record<string, unknown>;
 }
 
 interface Category {
   _id: string;
   name: string;
   slug: string;
+}
+
+type DynamicFieldType = "text" | "number" | "date" | "select" | "toggle";
+
+type DynamicFieldConfig = {
+  key: string;
+  label: string;
+  type: DynamicFieldType;
+  options?: string[];
+  placeholder?: string;
+};
+
+const CATEGORY_FIELD_MAP: Record<string, DynamicFieldConfig[]> = {
+  APPAREL: [
+    { key: "sizes", label: "Sizes", type: "text", placeholder: "XS,S,M,L" },
+    { key: "colors", label: "Colors", type: "text", placeholder: "Black,Blue" },
+    { key: "material", label: "Material", type: "text" },
+    { key: "brand", label: "Brand", type: "text" },
+    {
+      key: "gender",
+      label: "Gender",
+      type: "select",
+      options: ["unisex", "male", "female", "kids"],
+    },
+    { key: "style", label: "Style/Type", type: "text" },
+  ],
+  FOOD: [
+    {
+      key: "ripeness",
+      label: "Ripeness / State",
+      type: "select",
+      options: ["raw", "ripe", "fresh", "frozen", "processed"],
+    },
+    { key: "storageCondition", label: "Storage Condition", type: "text" },
+    { key: "expiryDate", label: "Expiry Date", type: "date" },
+    { key: "weight", label: "Weight", type: "text" },
+    { key: "origin", label: "Origin", type: "text" },
+    { key: "allergens", label: "Allergens", type: "text" },
+    { key: "organic", label: "Organic", type: "toggle" },
+    { key: "halal", label: "Halal", type: "toggle" },
+  ],
+  BEVERAGE: [
+    { key: "volume", label: "Volume", type: "text" },
+    {
+      key: "temperature",
+      label: "Serve Temperature",
+      type: "select",
+      options: ["cold", "ambient", "warm", "hot"],
+    },
+    { key: "brand", label: "Brand", type: "text" },
+    { key: "expiryDate", label: "Expiry Date", type: "date" },
+    { key: "alcoholic", label: "Alcoholic", type: "toggle" },
+    { key: "carbonated", label: "Carbonated", type: "toggle" },
+  ],
+  ELECTRONICS: [
+    { key: "brand", label: "Brand", type: "text" },
+    { key: "model", label: "Model Number", type: "text" },
+    { key: "warrantyMonths", label: "Warranty (months)", type: "number" },
+    {
+      key: "condition",
+      label: "Condition",
+      type: "select",
+      options: ["new", "refurbished", "used"],
+    },
+    { key: "voltage", label: "Voltage", type: "text" },
+    { key: "finish", label: "Color / Finish", type: "text" },
+  ],
+  FURNITURE: [
+    { key: "material", label: "Material", type: "text" },
+    { key: "finish", label: "Color / Finish", type: "text" },
+    { key: "dimensions", label: "Dimensions (LxWxH)", type: "text" },
+    { key: "weight", label: "Weight", type: "text" },
+    { key: "requiresAssembly", label: "Requires Assembly", type: "toggle" },
+  ],
+  GENERAL: [
+    { key: "brand", label: "Brand", type: "text" },
+    {
+      key: "condition",
+      label: "Condition",
+      type: "select",
+      options: ["new", "used", "refurbished"],
+    },
+    { key: "descriptionExtra", label: "Description", type: "text" },
+  ],
+};
+
+function resolveCategoryKey(name?: string) {
+  const normalized = (name || "").toLowerCase();
+  if (normalized.includes("apparel") || normalized.includes("cloth")) {
+    return "APPAREL";
+  }
+  if (normalized.includes("food")) return "FOOD";
+  if (normalized.includes("beverage") || normalized.includes("drink")) {
+    return "BEVERAGE";
+  }
+  if (normalized.includes("electronic")) return "ELECTRONICS";
+  if (normalized.includes("furniture")) return "FURNITURE";
+  return "GENERAL";
 }
 
 export default function InventoryPage() {
@@ -73,6 +172,7 @@ export default function InventoryPage() {
     image: "",
     reorderLevel: "",
     maxStockLevel: "",
+    categoryAttributes: {} as Record<string, unknown>,
   });
   const [catForm, setCatForm] = useState({
     name: "",
@@ -136,6 +236,7 @@ export default function InventoryPage() {
       image: "",
       reorderLevel: "",
       maxStockLevel: "",
+      categoryAttributes: {},
     });
     setShowModal(true);
   };
@@ -156,6 +257,7 @@ export default function InventoryPage() {
       image: p.image || "",
       reorderLevel: "",
       maxStockLevel: "",
+      categoryAttributes: p.categoryAttributes || {},
     });
     setShowModal(true);
   };
@@ -176,6 +278,7 @@ export default function InventoryPage() {
       maxStockLevel: form.maxStockLevel
         ? parseInt(form.maxStockLevel)
         : undefined,
+      categoryAttributes: form.categoryAttributes,
     };
     const url = editing ? `/api/products/${editing._id}` : "/api/products";
     const method = editing ? "PUT" : "POST";
@@ -217,6 +320,16 @@ export default function InventoryPage() {
   };
 
   const totalPages = Math.ceil(total / 20);
+  const selectedCategory = categories.find((c) => c._id === form.categoryId);
+  const categoryKey = resolveCategoryKey(selectedCategory?.name);
+  const dynamicFields =
+    CATEGORY_FIELD_MAP[categoryKey] || CATEGORY_FIELD_MAP.GENERAL;
+  const cost = parseFloat(form.costPrice) || 0;
+  const price = parseFloat(form.price) || 0;
+  const pricingWarning =
+    cost > 0 && price > 0 && cost > price
+      ? "Selling price is below cost - this product will sell at a loss"
+      : "";
 
   const inputClass =
     "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
@@ -612,6 +725,11 @@ export default function InventoryPage() {
                     />
                   </div>
                 </div>
+                {pricingWarning && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-700">
+                    {pricingWarning}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[13px] font-semibold text-gray-700">
@@ -687,6 +805,106 @@ export default function InventoryPage() {
                       <option value="box">Boxes</option>
                       <option value="pack">Packs</option>
                     </select>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
+                  <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-blue-700">
+                    Category Fields: {selectedCategory?.name || "General"}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {dynamicFields.map((field) => {
+                      const value = form.categoryAttributes[field.key];
+
+                      if (field.type === "toggle") {
+                        return (
+                          <label
+                            key={field.key}
+                            className="flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-gray-700"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={Boolean(value)}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  categoryAttributes: {
+                                    ...form.categoryAttributes,
+                                    [field.key]: e.target.checked,
+                                  },
+                                })
+                              }
+                              className="h-4 w-4 rounded border-gray-300 text-orange-600"
+                            />
+                            {field.label}
+                          </label>
+                        );
+                      }
+
+                      if (field.type === "select") {
+                        return (
+                          <div key={field.key}>
+                            <label className="text-[13px] font-semibold text-gray-700">
+                              {field.label}
+                            </label>
+                            <select
+                              value={String(value || "")}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  categoryAttributes: {
+                                    ...form.categoryAttributes,
+                                    [field.key]: e.target.value,
+                                  },
+                                })
+                              }
+                              className={inputClass}
+                            >
+                              <option value="">Select</option>
+                              {(field.options || []).map((option) => (
+                                <option
+                                  key={`${field.key}-${option}`}
+                                  value={option}
+                                >
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={field.key}>
+                          <label className="text-[13px] font-semibold text-gray-700">
+                            {field.label}
+                          </label>
+                          <input
+                            type={
+                              field.type === "date"
+                                ? "date"
+                                : field.type === "number"
+                                  ? "number"
+                                  : "text"
+                            }
+                            value={String(value || "")}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                categoryAttributes: {
+                                  ...form.categoryAttributes,
+                                  [field.key]:
+                                    field.type === "number"
+                                      ? Number(e.target.value || 0)
+                                      : e.target.value,
+                                },
+                              })
+                            }
+                            placeholder={field.placeholder}
+                            className={inputClass}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 <div>

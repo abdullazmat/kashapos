@@ -39,9 +39,24 @@ export interface ISale extends Document {
   paymentDetails: {
     cashAmount?: number;
     cardAmount?: number;
+    cardLast4?: string;
+    cardExpiry?: string;
+    cardholderName?: string;
+    cardType?: string;
     mobileMoneyAmount?: number;
     mobileMoneyProvider?: "mtn" | "airtel";
     mobileMoneyRef?: string;
+    mobileMoneyPhone?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankBranchCode?: string;
+    bankReference?: string;
+    transferDate?: Date;
+    splitPayments?: {
+      method: "cash" | "card" | "mobile_money" | "bank_transfer";
+      amount: number;
+      reference?: string;
+    }[];
     changeGiven?: number;
   };
   status: "completed" | "pending" | "refunded" | "voided";
@@ -111,9 +126,30 @@ const SaleSchema = new Schema<ISale>(
     paymentDetails: {
       cashAmount: { type: Number },
       cardAmount: { type: Number },
+      cardLast4: { type: String },
+      cardExpiry: { type: String },
+      cardholderName: { type: String },
+      cardType: { type: String },
       mobileMoneyAmount: { type: Number },
       mobileMoneyProvider: { type: String, enum: ["mtn", "airtel"] },
       mobileMoneyRef: { type: String },
+      mobileMoneyPhone: { type: String },
+      bankName: { type: String },
+      bankAccountNumber: { type: String },
+      bankBranchCode: { type: String },
+      bankReference: { type: String },
+      transferDate: { type: Date },
+      splitPayments: [
+        {
+          method: {
+            type: String,
+            enum: ["cash", "card", "mobile_money", "bank_transfer"],
+            required: true,
+          },
+          amount: { type: Number, required: true },
+          reference: { type: String },
+        },
+      ],
       changeGiven: { type: Number },
     },
     status: {

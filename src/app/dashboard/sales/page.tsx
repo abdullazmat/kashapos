@@ -102,6 +102,18 @@ const inputClass =
 export default function SalesPage() {
   const { tenant } = useSession();
   const currency = tenant?.settings?.currency || "UGX";
+  const supportedCurrencies = new Set([
+    "UGX",
+    "USD",
+    "KES",
+    "EUR",
+    "GBP",
+    "TZS",
+    "RWF",
+    "NGN",
+    "ZAR",
+    "GHS",
+  ]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -276,28 +288,52 @@ export default function SalesPage() {
   const orderTotal = orderSubtotal + orderTax;
 
   const saveOrder = async () => {
-    if (orderItems.length === 0) {
-      setOrderError("Add at least one item");
-      return;
-    }
-    if (!orderBranch) {
-      setOrderError("Select a store/branch");
-      return;
-    }
-    if (!orderCustomer && !orderWalkInName.trim()) {
-      setOrderError("Enter walk-in name or select an existing customer");
-      return;
-    }
+    const validateOrder = () => {
+      const errors: string[] = [];
 
-    if (orderPaymentMethod === "credit" && !orderCustomer) {
-      setOrderError("Credit sales require a saved customer profile");
-      return;
-    }
+      if (orderItems.length === 0) {
+        errors.push("Add at least one item");
+      }
+      if (!orderBranch) {
+        errors.push("Select a store/branch");
+      }
+      if (!orderCustomer && !orderWalkInName.trim()) {
+        errors.push("Enter walk-in name or select an existing customer");
+      }
 
-    if (orderPaymentMethod === "credit" && !orderDueDate) {
-      setOrderError("Select a due date for credit sales");
-      return;
-    }
+      // Issue #1: Walk-in + Credit block
+      if (orderPaymentMethod === "credit" && !orderCustomer) {
+        errors.push("Credit sales require a saved customer profile");
+      }
+
+      // Issue #3: Backdated due date block
+      if (orderPaymentMethod === "credit" && !orderDueDate) {
+        errors.push("Select a due date for credit sales");
+      }
+      if (orderDueDate) {
+        const selected = new Date(orderDueDate);
+        const today = new Date();
+        selected.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        if (selected < today) {
+          errors.push("Due date cannot be in the past");
+        }
+      }
+
+      // Issue #2: Currency support guard
+      if (!supportedCurrencies.has(String(currency).toUpperCase())) {
+        errors.push("Selected currency is not supported");
+      }
+
+      if (errors.length > 0) {
+        setOrderError(errors.join(" "));
+        return false;
+      }
+
+      return true;
+    };
+
+    if (!validateOrder()) return;
 
     const parsedInputAmount = Number.parseFloat(orderAmountPaid);
     const parsedAmountPaid = Number.isFinite(parsedInputAmount)
@@ -481,6 +517,7 @@ export default function SalesPage() {
   );
 
   const selectedOrderCustomer = customers.find((c) => c._id === orderCustomer);
+  const isWalkInOrder = !orderCustomer;
 
   const getSaleCustomerName = (sale: Sale) => {
     if (sale.customerId?.name) return sale.customerId.name;
@@ -1117,10 +1154,16 @@ export default function SalesPage() {
                     <select
                       value={orderCustomer}
                       onChange={(e) => {
-                        setOrderCustomer(e.target.value);
-                        if (e.target.value) {
+                        const nextCustomer = e.target.value;
+                        setOrderCustomer(nextCustomer);
+
+                        if (nextCustomer) {
                           setOrderWalkInName("");
                           setOrderWalkInPhone("");
+                        } else if (orderPaymentMethod === "credit") {
+                          setOrderPaymentMethod("cash");
+                          setOrderDueDate("");
+                          setOrderStatus("completed");
                         }
                       }}
                       className={inputClass}
@@ -1328,10 +1371,17 @@ export default function SalesPage() {
                         <option value="mobile_money" className="text-gray-900">
                           Mobile Money
                         </option>
-                        <option value="credit" className="text-gray-900">
-                          Credit
-                        </option>
+                        {!isWalkInOrder && (
+                          <option value="credit" className="text-gray-900">
+                            Credit
+                          </option>
+                        )}
                       </select>
+                      {isWalkInOrder && (
+                        <p className="mt-1 text-[11px] text-amber-300">
+                          Credit is available for saved customers only.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="text-[11px] font-semibold text-gray-400">

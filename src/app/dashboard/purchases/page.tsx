@@ -254,6 +254,56 @@ export default function PurchasesPage() {
 
   const totalPages = Math.ceil(total / 20);
 
+  const orderSubtotal = useMemo(
+    () => newOrder.items.reduce((sum, item) => sum + item.total, 0),
+    [newOrder.items],
+  );
+  const orderTax = useMemo(() => orderSubtotal * 0, [orderSubtotal]);
+  const orderTotal = orderSubtotal + orderTax;
+  const orderBalance = Math.max(
+    0,
+    orderTotal - (parseFloat(newOrder.amountPaid) || 0),
+  );
+
+  const selectedProductNames = useMemo(
+    () =>
+      new Set(newOrder.items.map((item) => item.productName).filter(Boolean)),
+    [newOrder.items],
+  );
+
+  const selectedInventoryRows = useMemo(
+    () =>
+      newOrder.items
+        .filter((item) => item.productId)
+        .map((item) => ({
+          id: item.productId,
+          name: item.productName,
+          quantity: item.quantity,
+          unitCost: item.unitCost,
+          total: item.total,
+        })),
+    [newOrder.items],
+  );
+
+  const selectedPurchaseHistoryRows = useMemo(
+    () =>
+      orders
+        .filter((order) =>
+          order.items.some((line) =>
+            selectedProductNames.has(String(line.productName)),
+          ),
+        )
+        .slice(0, 5)
+        .map((order) => ({
+          id: order._id,
+          orderNumber: order.orderNumber,
+          vendor: order.vendorId?.name || "-",
+          total: order.total,
+          createdAt: order.createdAt,
+        })),
+    [orders, selectedProductNames],
+  );
+
   const stats = useMemo(() => {
     const totalValue = orders.reduce((a, o) => a + o.total, 0);
     const received = orders.filter((o) => o.status === "received").length;
@@ -872,10 +922,7 @@ export default function PurchasesPage() {
                     <div className="flex justify-between">
                       <span className="text-gray-500">Total Amount</span>
                       <span className="font-bold text-gray-900">
-                        {formatCurrency(
-                          newOrder.items.reduce((sum, i) => sum + i.total, 0),
-                          currency,
-                        )}
+                        {formatCurrency(orderTotal, currency)}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -892,18 +939,102 @@ export default function PurchasesPage() {
                         Balance Due
                       </span>
                       <span className="font-bold text-gray-900">
-                        {formatCurrency(
-                          Math.max(
-                            0,
-                            newOrder.items.reduce(
-                              (sum, i) => sum + i.total,
-                              0,
-                            ) - (parseFloat(newOrder.amountPaid) || 0),
-                          ),
-                          currency,
-                        )}
+                        {formatCurrency(orderBalance, currency)}
                       </span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-100 bg-white p-4">
+                  <h3 className="text-sm font-bold text-gray-800 mb-2">
+                    Selected Inventory Table
+                  </h3>
+                  <div className="max-h-40 overflow-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-gray-500">
+                          <th className="py-1">Item</th>
+                          <th className="py-1 text-right">Qty</th>
+                          <th className="py-1 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedInventoryRows.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={3}
+                              className="py-3 text-center text-gray-400"
+                            >
+                              No selected items yet
+                            </td>
+                          </tr>
+                        ) : (
+                          selectedInventoryRows.map((row) => (
+                            <tr
+                              key={row.id}
+                              className="border-t border-gray-50"
+                            >
+                              <td className="py-1 text-gray-700">
+                                {row.name || "-"}
+                              </td>
+                              <td className="py-1 text-right text-gray-600">
+                                {row.quantity}
+                              </td>
+                              <td className="py-1 text-right font-medium text-gray-800">
+                                {formatCurrency(row.total, currency)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-100 bg-white p-4">
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
+                    <CreditCard className="h-4 w-4 text-gray-500" />
+                    Purchase History Table
+                  </h3>
+                  <div className="max-h-40 overflow-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-gray-500">
+                          <th className="py-1">Order</th>
+                          <th className="py-1">Vendor</th>
+                          <th className="py-1 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedPurchaseHistoryRows.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={3}
+                              className="py-3 text-center text-gray-400"
+                            >
+                              Select items to view history
+                            </td>
+                          </tr>
+                        ) : (
+                          selectedPurchaseHistoryRows.map((row) => (
+                            <tr
+                              key={row.id}
+                              className="border-t border-gray-50"
+                            >
+                              <td className="py-1 text-gray-700">
+                                {row.orderNumber}
+                              </td>
+                              <td className="py-1 text-gray-600">
+                                {row.vendor}
+                              </td>
+                              <td className="py-1 text-right font-medium text-gray-800">
+                                {formatCurrency(row.total, currency)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>

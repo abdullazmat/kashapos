@@ -61,9 +61,24 @@ type NormalizedSalePayload = {
   paymentDetails: {
     cashAmount?: number;
     cardAmount?: number;
+    cardLast4?: string;
+    cardExpiry?: string;
+    cardholderName?: string;
+    cardType?: string;
     mobileMoneyAmount?: number;
     mobileMoneyProvider?: "mtn" | "airtel";
     mobileMoneyRef?: string;
+    mobileMoneyPhone?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankBranchCode?: string;
+    bankReference?: string;
+    transferDate?: Date;
+    splitPayments?: {
+      method: "cash" | "card" | "mobile_money" | "bank_transfer";
+      amount: number;
+      reference?: string;
+    }[];
     changeGiven?: number;
   };
   status: "completed" | "pending" | "refunded" | "voided";
@@ -73,6 +88,21 @@ type NormalizedSalePayload = {
 function asNumber(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeDayBoundary(date: Date) {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+}
+
+function validateDueDateNotBackdated(dueDate?: Date) {
+  if (!dueDate) return;
+  const today = normalizeDayBoundary(new Date());
+  const selected = normalizeDayBoundary(dueDate);
+  if (selected < today) {
+    throw new Error("Due date cannot be in the past");
+  }
 }
 
 function contributesToCustomer(status: string) {
@@ -322,13 +352,27 @@ async function normalizeSalePayload(
     dueDateValue && !Number.isNaN(dueDateValue.getTime())
       ? dueDateValue
       : undefined;
+
+  validateDueDateNotBackdated(dueDate);
+
+  if (paymentMethod === "credit" && !dueDate) {
+    throw new Error("Due date is required for credit sales");
+  }
+
   if (remainingBalance > 0 && !body.customerId && !body.customer) {
     throw new Error("Customer is required for credit balance sales");
   }
 
   const paymentStatus = resolvePaymentStatus(remainingBalance, dueDate);
+  const paymentDetailsInput =
+    typeof body.paymentDetails === "object" && body.paymentDetails
+      ? (body.paymentDetails as Record<string, unknown>)
+      : {};
   const mobileMoneyProvider: "mtn" | "airtel" =
-    body.mobileMoneyProvider === "airtel" ? "airtel" : "mtn";
+    body.mobileMoneyProvider === "airtel" ||
+    paymentDetailsInput.mobileMoneyProvider === "airtel"
+      ? "airtel"
+      : "mtn";
   const paymentDetails: NormalizedSalePayload["paymentDetails"] =
     paymentMethod === "cash"
       ? {
@@ -336,28 +380,189 @@ async function normalizeSalePayload(
           changeGiven: Math.max(0, amountPaid - computedTotal),
         }
       : paymentMethod === "card"
-        ? { cardAmount: amountPaid || computedTotal }
-        : paymentMethod === "mobile_money"
-          ? {
-              mobileMoneyAmount: amountPaid || computedTotal,
-              mobileMoneyProvider,
-              mobileMoneyRef:
-                typeof body.mobileMoneyRef === "string"
-                  ? body.mobileMoneyRef
-                  : undefined,
+        ? (() => {
+            const cardNumberRaw = String(
+              paymentDetailsInput.cardNumber || body.cardNumber || "",
+            ).replace(/\D/g, "");
+            const cardExpiry = String(
+              paymentDetailsInput.cardExpiry || body.cardExpiry || "",
+            ).trim();
+            const cardCvv = String(
+              paymentDetailsInput.cardCvv || body.cardCvv || "",
+            ).replace(/\D/g, "");
+            if (!cardNumberRaw || cardNumberRaw.length < 12) {
+              throw new Error("Card number is required for card payments");
             }
-          : paymentMethod === "bank_transfer"
-            ? {
-                cardAmount: amountPaid || computedTotal,
+            if (!cardExpiry) {
+              throw new Error("Card expiry is required for card payments");
+            }
+            if (!cardCvv || cardCvv.length < 3) {
+              throw new Error("CVV is required for card payments");
+            }
+            return {
+              cardAmount: amountPaid || computedTotal,
+              cardLast4: cardNumberRaw.slice(-4),
+              cardExpiry,
+              cardholderName: String(
+                paymentDetailsInput.cardholderName || body.cardholderName || "",
+              ).trim(),
+              cardType: String(
+                paymentDetailsInput.cardType || body.cardType || "",
+              ).trim(),
+            };
+          })()
+        : paymentMethod === "mobile_money"
+          ? (() => {
+              const phone = String(
+                paymentDetailsInput.mobileMoneyPhone ||
+                  body.mobileMoneyPhone ||
+                  "",
+              ).trim();
+              if (!phone) {
+                throw new Error(
+                  "Phone number is required for mobile money payments",
+                );
               }
+              return {
+                mobileMoneyAmount: amountPaid || computedTotal,
+                mobileMoneyProvider,
+                mobileMoneyPhone: phone,
+                mobileMoneyRef:
+                  typeof (
+                    paymentDetailsInput.mobileMoneyRef || body.mobileMoneyRef
+                  ) === "string"
+                    ? String(
+                        paymentDetailsInput.mobileMoneyRef ||
+                          body.mobileMoneyRef,
+                      )
+                    : undefined,
+              };
+            })()
+          : paymentMethod === "bank_transfer"
+            ? (() => {
+                const bankName = String(
+                  paymentDetailsInput.bankName || body.bankName || "",
+                ).trim();
+                const accountNumber = String(
+                  paymentDetailsInput.bankAccountNumber ||
+                    body.bankAccountNumber ||
+                    "",
+                ).trim();
+                const reference = String(
+                  paymentDetailsInput.bankReference ||
+                    body.bankReference ||
+                    body.reference ||
+                    "",
+                ).trim();
+                if (!bankName || !accountNumber || !reference) {
+                  throw new Error(
+                    "Bank name, account number, and transfer reference are required",
+                  );
+                }
+                const transferDateRaw = String(
+                  paymentDetailsInput.transferDate || body.transferDate || "",
+                ).trim();
+                const transferDate = transferDateRaw
+                  ? new Date(transferDateRaw)
+                  : undefined;
+                return {
+                  cardAmount: amountPaid || computedTotal,
+                  bankName,
+                  bankAccountNumber: accountNumber,
+                  bankReference: reference,
+                  bankBranchCode: String(
+                    paymentDetailsInput.bankBranchCode ||
+                      body.bankBranchCode ||
+                      "",
+                  ).trim(),
+                  ...(transferDate && !Number.isNaN(transferDate.getTime())
+                    ? { transferDate }
+                    : {}),
+                };
+              })()
             : paymentMethod === "credit"
               ? {
                   cashAmount: amountPaid > 0 ? amountPaid : undefined,
                 }
-              : {
-                  cashAmount: computedTotal / 2,
-                  cardAmount: computedTotal / 2,
-                };
+              : (() => {
+                  const splitPayments = Array.isArray(
+                    paymentDetailsInput.splitPayments,
+                  )
+                    ? (paymentDetailsInput.splitPayments
+                        .map((row) => {
+                          const record = row as Record<string, unknown>;
+                          const method = String(record.method || "") as
+                            | "cash"
+                            | "card"
+                            | "mobile_money"
+                            | "bank_transfer";
+                          const amount = asNumber(record.amount, 0);
+                          const reference = String(
+                            record.reference || "",
+                          ).trim();
+                          if (
+                            ![
+                              "cash",
+                              "card",
+                              "mobile_money",
+                              "bank_transfer",
+                            ].includes(method)
+                          ) {
+                            return null;
+                          }
+                          if (amount <= 0) {
+                            return null;
+                          }
+                          return {
+                            method,
+                            amount,
+                            reference: reference || undefined,
+                          };
+                        })
+                        .filter(Boolean) as {
+                        method:
+                          | "cash"
+                          | "card"
+                          | "mobile_money"
+                          | "bank_transfer";
+                        amount: number;
+                        reference?: string;
+                      }[])
+                    : [];
+
+                  if (splitPayments.length < 2) {
+                    throw new Error(
+                      "Split payments require at least two payment methods",
+                    );
+                  }
+
+                  const splitTotal = splitPayments.reduce(
+                    (sum, row) => sum + row.amount,
+                    0,
+                  );
+                  if (Math.abs(splitTotal - computedTotal) > 0.01) {
+                    throw new Error(
+                      "Split payment amounts must equal the order total",
+                    );
+                  }
+
+                  const cashAmount =
+                    splitPayments.find((row) => row.method === "cash")
+                      ?.amount || undefined;
+                  const cardAmount =
+                    splitPayments.find((row) => row.method === "card")
+                      ?.amount || undefined;
+                  const mobileMoneyAmount =
+                    splitPayments.find((row) => row.method === "mobile_money")
+                      ?.amount || undefined;
+
+                  return {
+                    cashAmount,
+                    cardAmount,
+                    mobileMoneyAmount,
+                    splitPayments,
+                  };
+                })();
 
   return {
     branchId: resolvedBranchId,

@@ -13,6 +13,19 @@ type CurrencyDisplayConfig = {
   rates?: CurrencyRate[];
 };
 
+const USD_BASE_RATES: Record<string, number> = {
+  USD: 1,
+  UGX: 3700,
+  KES: 129,
+  EUR: 0.92,
+  GBP: 0.79,
+  TZS: 2550,
+  RWF: 1280,
+  NGN: 1550,
+  ZAR: 18.4,
+  GHS: 15.6,
+};
+
 type PrintBrandingConfig = {
   businessName?: string;
   logo?: string;
@@ -41,7 +54,7 @@ function getCurrencyDisplayConfig(): CurrencyDisplayConfig {
     return {
       ledgerCurrency: DEFAULT_LEDGER_CURRENCY,
       referenceCurrency: DEFAULT_LEDGER_CURRENCY,
-      rates: [],
+      rates: getDefaultCurrencyRates(DEFAULT_LEDGER_CURRENCY),
     };
   }
 
@@ -54,6 +67,20 @@ function getCurrencyDisplayConfig(): CurrencyDisplayConfig {
       DEFAULT_LEDGER_CURRENCY,
     rates: window.__MEKA_CURRENCY_CONFIG__?.rates || [],
   };
+}
+
+export function getDefaultCurrencyRates(
+  baseCurrency = DEFAULT_LEDGER_CURRENCY,
+) {
+  const normalizedBase = normalizeCurrencyCode(baseCurrency);
+  const baseRate = USD_BASE_RATES[normalizedBase] || USD_BASE_RATES.UGX;
+
+  return Object.entries(USD_BASE_RATES)
+    .filter(([code]) => code !== normalizedBase)
+    .map(([code, rate]) => ({
+      code,
+      rate: rate / baseRate,
+    }));
 }
 
 function resolveCurrencyRate(

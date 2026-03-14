@@ -25,7 +25,6 @@ import {
   ArrowUpDown,
   Clock,
   ImageIcon,
-  UserRound,
 } from "lucide-react";
 import {
   printHtml,
@@ -74,9 +73,29 @@ type PaymentMethod =
   | "bank_transfer"
   | "credit";
 
+type SplitMethod = "cash" | "card" | "mobile_money" | "bank_transfer";
+
+type SplitEntry = {
+  method: SplitMethod;
+  amount: string;
+  reference: string;
+};
+
 export default function POSTerminalPage() {
   const { tenant } = useSession();
   const currency = tenant?.settings?.currency || "UGX";
+  const supportedCurrencies = new Set([
+    "UGX",
+    "USD",
+    "KES",
+    "EUR",
+    "GBP",
+    "TZS",
+    "RWF",
+    "NGN",
+    "ZAR",
+    "GHS",
+  ]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<{ _id: string; name: string }[]>(
     [],
@@ -92,6 +111,24 @@ export default function POSTerminalPage() {
   const [amountPaid, setAmountPaid] = useState("");
   const [creditDueDate, setCreditDueDate] = useState("");
   const [bankReference, setBankReference] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardholderName, setCardholderName] = useState("");
+  const [cardType, setCardType] = useState("");
+  const [mobileMoneyProvider, setMobileMoneyProvider] = useState<
+    "mtn" | "airtel" | "mpesa"
+  >("mtn");
+  const [mobileMoneyPhone, setMobileMoneyPhone] = useState("");
+  const [mobileMoneyReference, setMobileMoneyReference] = useState("");
+  const [splitPayments, setSplitPayments] = useState<SplitEntry[]>([
+    { method: "cash", amount: "", reference: "" },
+    { method: "card", amount: "", reference: "" },
+  ]);
+  const [bankName, setBankName] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankBranchCode, setBankBranchCode] = useState("");
+  const [transferDate, setTransferDate] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("name-asc");
   const [showSort, setShowSort] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -110,8 +147,35 @@ export default function POSTerminalPage() {
   const [processing, setProcessing] = useState(false);
   const [saleError, setSaleError] = useState("");
 
+  const isWalkInCustomer = !selectedCustomer;
   const isCreditWithoutCustomer =
-    paymentMethod === "credit" && !selectedCustomer && !walkInName.trim();
+    paymentMethod === "credit" && !selectedCustomer;
+
+  const splitTotal = useMemo(
+    () =>
+      splitPayments.reduce(
+        (sum, payment) => sum + (parseFloat(payment.amount) || 0),
+        0,
+      ),
+    [splitPayments],
+  );
+
+  function formatCardNumber(value: string) {
+    return value
+      .replace(/\D/g, "")
+      .substring(0, 16)
+      .replace(/(.{4})/g, "$1 ")
+      .trim();
+  }
+
+  function isBackdated(dateValue: string) {
+    if (!dateValue) return false;
+    const selected = new Date(dateValue);
+    const today = new Date();
+    selected.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return selected < today;
+  }
 
   useEffect(() => {
     fetchData();
@@ -171,6 +235,23 @@ export default function POSTerminalPage() {
     () => cart.reduce((s, i) => s + i.price * i.quantity, 0),
     [cart],
   );
+  const orderItems = useMemo(
+    () =>
+      cart.map((item) => ({
+        id: item._id,
+        name: item.name,
+        qty: item.quantity,
+        price: item.price,
+        lineTotal: item.price * item.quantity,
+      })),
+    [cart],
+  );
+  const orderSubtotal = useMemo(
+    () => orderItems.reduce((sum, item) => sum + item.lineTotal, 0),
+    [orderItems],
+  );
+  const orderTax = useMemo(() => orderSubtotal * 0.18, [orderSubtotal]);
+  const orderGrandTotal = orderSubtotal + orderTax;
   const cartCount = useMemo(
     () => cart.reduce((s, i) => s + i.quantity, 0),
     [cart],
@@ -205,11 +286,114 @@ export default function POSTerminalPage() {
     setAmountPaid(cartTotal.toFixed(2));
     setCreditDueDate("");
     setBankReference("");
+    setCardNumber("");
+    setCardExpiry("");
+    setCardCvv("");
+    setCardholderName("");
+    setCardType("");
+    setMobileMoneyProvider("mtn");
+    setMobileMoneyPhone("");
+    setMobileMoneyReference("");
+    setSplitPayments([
+      { method: "cash", amount: "", reference: "" },
+      { method: "card", amount: "", reference: "" },
+    ]);
+    setBankName("");
+    setBankAccountNumber("");
+    setBankBranchCode("");
+    setTransferDate("");
     setShowPayment(true);
   }
 
   async function completeSale() {
     if (processing) return;
+
+    const validateOrder = () => {
+      const errors: string[] = [];
+
+      // Issue #1: Walk-in + credit block
+      if (paymentMethod === "credit" && !selectedCustomer) {
+        errors.push("Credit sales require a saved customer profile");
+      }
+
+      // Issue #3: Backdated due-date block
+      if (paymentMethod === "credit" && isBackdated(creditDueDate)) {
+        errors.push("Due date cannot be in the past");
+      }
+
+      // Issue #2: Currency support guard
+      if (!supportedCurrencies.has(String(currency).toUpperCase())) {
+        errors.push("Selected currency is not supported");
+      }
+
+      if (paymentMethod === "card") {
+        const digits = cardNumber.replace(/\D/g, "");
+        if (
+          digits.length < 12 ||
+          !cardExpiry.trim() ||
+          cardCvv.trim().length < 3
+        ) {
+          errors.push(
+            "Card number, expiry, and CVV are required for card payment",
+          );
+        }
+      }
+
+      if (paymentMethod === "mobile_money" && !mobileMoneyPhone.trim()) {
+        errors.push("Phone number is required for mobile money payment");
+      }
+
+      if (
+        paymentMethod === "bank_transfer" &&
+        (!bankName.trim() || !bankAccountNumber.trim() || !bankReference.trim())
+      ) {
+        errors.push(
+          "Bank name, account number, and transfer reference are required",
+        );
+      }
+
+      if (paymentMethod === "split") {
+        const validSplitEntries = splitPayments.filter(
+          (row) => row.method && (parseFloat(row.amount) || 0) > 0,
+        );
+        if (validSplitEntries.length < 2) {
+          errors.push("Split payment requires at least two payment methods");
+        }
+        if (Math.abs(splitTotal - cartTotal) > 0.01) {
+          errors.push(
+            "Split payment amounts must add up to the total amount due",
+          );
+        }
+      }
+
+      if (errors.length > 0) {
+        setSaleError(errors.join(" "));
+        return false;
+      }
+
+      return true;
+    };
+
+    if (!validateOrder()) return;
+
+    const parsedAmountPaid = Number.parseFloat(amountPaid);
+    const resolvedAmountPaid =
+      paymentMethod === "credit"
+        ? Math.max(0, Number.isFinite(parsedAmountPaid) ? parsedAmountPaid : 0)
+        : paymentMethod === "split"
+          ? splitTotal
+          : Number.isFinite(parsedAmountPaid)
+            ? parsedAmountPaid
+            : cartTotal;
+
+    const splitPaymentPayload = splitPayments
+      .filter((row) => (parseFloat(row.amount) || 0) > 0)
+      .map((row) => ({
+        method: row.method,
+        amount: parseFloat(row.amount) || 0,
+        reference: row.reference.trim() || undefined,
+      }));
+
     setProcessing(true);
     setSaleError("");
     try {
@@ -232,10 +416,38 @@ export default function POSTerminalPage() {
           subtotal: cartTotal,
           totalTax: 0,
           total: cartTotal,
-          amountPaid:
-            paymentMethod === "credit"
-              ? Math.max(0, parseFloat(amountPaid) || 0)
-              : parseFloat(amountPaid) || cartTotal,
+          amountPaid: resolvedAmountPaid,
+          ...(paymentMethod === "mobile_money" && {
+            mobileMoneyProvider:
+              mobileMoneyProvider === "airtel" ? "airtel" : "mtn",
+            mobileMoneyRef: mobileMoneyReference.trim() || undefined,
+            mobileMoneyPhone: mobileMoneyPhone.trim() || undefined,
+          }),
+          paymentDetails: {
+            ...(paymentMethod === "card" && {
+              cardNumber,
+              cardExpiry,
+              cardCvv,
+              cardholderName,
+              cardType,
+            }),
+            ...(paymentMethod === "mobile_money" && {
+              mobileMoneyProvider:
+                mobileMoneyProvider === "airtel" ? "airtel" : "mtn",
+              mobileMoneyRef: mobileMoneyReference,
+              mobileMoneyPhone,
+            }),
+            ...(paymentMethod === "bank_transfer" && {
+              bankName,
+              bankAccountNumber,
+              bankBranchCode,
+              bankReference,
+              transferDate,
+            }),
+            ...(paymentMethod === "split" && {
+              splitPayments: splitPaymentPayload,
+            }),
+          },
           status: paymentMethod === "credit" ? "pending" : "completed",
           ...(paymentMethod === "credit" &&
             creditDueDate && { dueDate: creditDueDate }),
@@ -255,10 +467,7 @@ export default function POSTerminalPage() {
           })),
           paymentMethod,
           customerName: selectedCustomerRecord?.name || walkInName.trim(),
-          amountPaid:
-            paymentMethod === "credit"
-              ? Math.max(0, parseFloat(amountPaid) || 0)
-              : parseFloat(amountPaid) || cartTotal,
+          amountPaid: resolvedAmountPaid,
           change: paymentMethod === "cash" ? Math.max(0, change) : 0,
           creditDueDate: paymentMethod === "credit" ? creditDueDate : undefined,
         });
@@ -361,6 +570,13 @@ export default function POSTerminalPage() {
     { key: "bank_transfer", label: "Bank", icon: Building2 },
     { key: "credit", label: "Credit", icon: CalendarClock },
   ];
+  const availablePaymentOptions = useMemo(
+    () =>
+      isWalkInCustomer
+        ? paymentOptions.filter((option) => option.key !== "credit")
+        : paymentOptions,
+    [isWalkInCustomer],
+  );
 
   if (loading) {
     return (
@@ -578,10 +794,15 @@ export default function POSTerminalPage() {
           <select
             value={selectedCustomer}
             onChange={(e) => {
-              setSelectedCustomer(e.target.value);
-              if (e.target.value) {
+              const nextCustomer = e.target.value;
+              setSelectedCustomer(nextCustomer);
+
+              if (nextCustomer) {
                 setWalkInName("");
                 setWalkInPhone("");
+              } else if (paymentMethod === "credit") {
+                setPaymentMethod("cash");
+                setCreditDueDate("");
               }
             }}
             className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
@@ -620,6 +841,69 @@ export default function POSTerminalPage() {
                 : "No existing credit due"}
             </div>
           )}
+          {!selectedCustomer && (
+            <p className="mt-2 text-[11px] text-amber-700">
+              Credit is available for saved customers only.
+            </p>
+          )}
+        </div>
+
+        {/* Reactive order table */}
+        <div className="border-b border-gray-100 px-5 py-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            Order Table
+          </p>
+          <div className="max-h-36 overflow-y-auto rounded-xl border border-gray-100">
+            <table className="w-full text-[11px]">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="px-2 py-1.5 text-left font-semibold">Item</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">Qty</th>
+                  <th className="px-2 py-1.5 text-right font-semibold">
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {orderItems.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="px-2 py-3 text-center text-gray-400"
+                    >
+                      No items selected
+                    </td>
+                  </tr>
+                ) : (
+                  orderItems.map((item) => (
+                    <tr key={item.id} className="border-t border-gray-50">
+                      <td className="px-2 py-1.5 text-gray-700">{item.name}</td>
+                      <td className="px-2 py-1.5 text-right text-gray-600">
+                        {item.qty}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-medium text-gray-800">
+                        {formatCurrency(item.lineTotal, currency)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-2 space-y-1 text-[11px]">
+            <div className="flex justify-between text-gray-500">
+              <span>Subtotal</span>
+              <span>{formatCurrency(orderSubtotal, currency)}</span>
+            </div>
+            <div className="flex justify-between text-gray-500">
+              <span>Tax (18%)</span>
+              <span>{formatCurrency(orderTax, currency)}</span>
+            </div>
+            <div className="flex justify-between font-semibold text-gray-700">
+              <span>Total</span>
+              <span>{formatCurrency(orderGrandTotal, currency)}</span>
+            </div>
+          </div>
         </div>
 
         {/* Cart Items */}
@@ -771,7 +1055,7 @@ export default function POSTerminalPage() {
                   Payment Method
                 </label>
                 <div className="grid grid-cols-5 gap-2">
-                  {paymentOptions.map((m) => (
+                  {availablePaymentOptions.map((m) => (
                     <button
                       key={m.key}
                       onClick={() => setPaymentMethod(m.key)}
@@ -797,41 +1081,32 @@ export default function POSTerminalPage() {
                 <div className="space-y-3">
                   {isCreditWithoutCustomer && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                      Add a customer or enter a walk-in name to continue with a
-                      credit sale.
+                      Credit sales require a saved customer profile.
                     </div>
                   )}
-                  {(selectedCustomerRecord || walkInName.trim()) && (
+                  {selectedCustomerRecord && (
                     <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
                       <p className="text-sm font-semibold text-blue-700">
                         Customer Credit Profile
                       </p>
-                      {selectedCustomerRecord ? (
-                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-blue-800">
-                          <div>
-                            Outstanding:{" "}
-                            {formatCurrency(
-                              selectedCustomerRecord.outstandingBalance || 0,
-                              currency,
-                            )}
-                          </div>
-                          <div>
-                            Credit Limit:{" "}
-                            {selectedCustomerRecord.creditLimit
-                              ? formatCurrency(
-                                  selectedCustomerRecord.creditLimit,
-                                  currency,
-                                )
-                              : "Not set"}
-                          </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-blue-800">
+                        <div>
+                          Outstanding:{" "}
+                          {formatCurrency(
+                            selectedCustomerRecord.outstandingBalance || 0,
+                            currency,
+                          )}
                         </div>
-                      ) : (
-                        <div className="mt-2 flex items-center gap-2 text-xs text-blue-800">
-                          <UserRound className="h-3.5 w-3.5" />
-                          Walk-in credit sale for {walkInName.trim()}
-                          {walkInPhone.trim() ? ` (${walkInPhone.trim()})` : ""}
+                        <div>
+                          Credit Limit:{" "}
+                          {selectedCustomerRecord.creditLimit
+                            ? formatCurrency(
+                                selectedCustomerRecord.creditLimit,
+                                currency,
+                              )
+                            : "Not set"}
                         </div>
-                      )}
+                      </div>
                     </div>
                   )}
                   <div>
@@ -845,33 +1120,289 @@ export default function POSTerminalPage() {
                       min={new Date().toISOString().split("T")[0]}
                       className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                     />
+                    {isBackdated(creditDueDate) && (
+                      <p className="mt-1 text-[11px] text-red-600">
+                        Due date cannot be in the past.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === "card" && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      Card Number
+                    </label>
+                    <input
+                      type="text"
+                      value={cardNumber}
+                      onChange={(e) =>
+                        setCardNumber(formatCardNumber(e.target.value))
+                      }
+                      placeholder="XXXX XXXX XXXX XXXX"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Expiry (MM/YY)
+                      </label>
+                      <input
+                        type="text"
+                        value={cardExpiry}
+                        onChange={(e) => setCardExpiry(e.target.value)}
+                        placeholder="MM/YY"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        CVV
+                      </label>
+                      <input
+                        type="password"
+                        value={cardCvv}
+                        onChange={(e) =>
+                          setCardCvv(
+                            e.target.value.replace(/\D/g, "").slice(0, 4),
+                          )
+                        }
+                        placeholder="***"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Cardholder Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={cardholderName}
+                        onChange={(e) => setCardholderName(e.target.value)}
+                        placeholder="Name on card"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Card Type (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={cardType}
+                        onChange={(e) => setCardType(e.target.value)}
+                        placeholder="Visa / Mastercard"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === "mobile_money" && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Network
+                      </label>
+                      <select
+                        value={mobileMoneyProvider}
+                        onChange={(e) =>
+                          setMobileMoneyProvider(
+                            e.target.value as "mtn" | "airtel" | "mpesa",
+                          )
+                        }
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      >
+                        <option value="mtn">MTN MoMo</option>
+                        <option value="airtel">Airtel Money</option>
+                        <option value="mpesa">M-Pesa</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={mobileMoneyPhone}
+                        onChange={(e) => setMobileMoneyPhone(e.target.value)}
+                        placeholder="e.g. 2567XXXXXXXX"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      Reference / Transaction ID (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={mobileMoneyReference}
+                      onChange={(e) => setMobileMoneyReference(e.target.value)}
+                      placeholder="Reference"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                    />
                   </div>
                 </div>
               )}
 
               {/* Bank transfer reference */}
               {paymentMethod === "bank_transfer" && (
-                <div>
-                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                    Bank Reference / Transaction ID
-                  </label>
-                  <input
-                    type="text"
-                    value={bankReference}
-                    onChange={(e) => setBankReference(e.target.value)}
-                    placeholder="e.g. TXN-12345"
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                  />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Bank Name
+                      </label>
+                      <input
+                        type="text"
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        placeholder="e.g. Stanbic"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Account Number
+                      </label>
+                      <input
+                        type="text"
+                        value={bankAccountNumber}
+                        onChange={(e) => setBankAccountNumber(e.target.value)}
+                        placeholder="Account number"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Branch Code (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={bankBranchCode}
+                        onChange={(e) => setBankBranchCode(e.target.value)}
+                        placeholder="Branch code"
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        Transfer Date (Optional)
+                      </label>
+                      <input
+                        type="date"
+                        value={transferDate}
+                        onChange={(e) => setTransferDate(e.target.value)}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      Bank Reference / Transaction ID
+                    </label>
+                    <input
+                      type="text"
+                      value={bankReference}
+                      onChange={(e) => setBankReference(e.target.value)}
+                      placeholder="e.g. TXN-12345"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === "split" && (
+                <div className="space-y-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Split Payment Methods
+                  </p>
+                  {splitPayments.map((row, idx) => (
+                    <div
+                      key={`${row.method}-${idx}`}
+                      className="grid grid-cols-[1fr_1fr_auto] gap-2"
+                    >
+                      <select
+                        value={row.method}
+                        onChange={(e) => {
+                          const next = [...splitPayments];
+                          next[idx] = {
+                            ...row,
+                            method: e.target.value as SplitMethod,
+                          };
+                          setSplitPayments(next);
+                        }}
+                        className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2.5 text-sm text-gray-800"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="mobile_money">Mobile Money</option>
+                        <option value="bank_transfer">Bank</option>
+                      </select>
+                      <input
+                        type="number"
+                        min={0}
+                        value={row.amount}
+                        onChange={(e) => {
+                          const next = [...splitPayments];
+                          next[idx] = { ...row, amount: e.target.value };
+                          setSplitPayments(next);
+                        }}
+                        placeholder="Amount"
+                        className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2.5 text-sm text-gray-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSplitPayments((prev) =>
+                            prev.filter((_, i) => i !== idx),
+                          )
+                        }
+                        className="rounded-xl border border-red-200 px-3 py-2.5 text-xs font-semibold text-red-600"
+                        disabled={splitPayments.length <= 2}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSplitPayments((prev) => [
+                        ...prev,
+                        { method: "cash", amount: "", reference: "" },
+                      ])
+                    }
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600"
+                  >
+                    Add Method
+                  </button>
+                  <div className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
+                    Split total: {formatCurrency(splitTotal, currency)} /{" "}
+                    {formatCurrency(cartTotal, currency)}
+                  </div>
                 </div>
               )}
 
               {/* Amount Paid */}
-              {(paymentMethod === "cash" || paymentMethod === "credit") && (
+              {paymentMethod !== "split" && (
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     {paymentMethod === "credit"
                       ? "Amount Paid Now (Optional)"
-                      : "Amount Received"}
+                      : paymentMethod === "cash"
+                        ? "Amount Received"
+                        : "Amount"}
                   </label>
                   <input
                     type="number"
@@ -926,7 +1457,11 @@ export default function POSTerminalPage() {
                   processing ||
                   (paymentMethod === "cash" && change < 0) ||
                   (paymentMethod === "credit" &&
-                    (isCreditWithoutCustomer || !creditDueDate))
+                    (isCreditWithoutCustomer ||
+                      !creditDueDate ||
+                      isBackdated(creditDueDate))) ||
+                  (paymentMethod === "split" &&
+                    Math.abs(splitTotal - cartTotal) > 0.01)
                 }
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
               >

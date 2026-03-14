@@ -39,7 +39,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useSession } from "@/app/dashboard/layout";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getDefaultCurrencyRates } from "@/lib/utils";
 import {
   CORE_ROLES,
   MODULE_PERMISSIONS,
@@ -284,10 +284,7 @@ export default function SettingsPage() {
     currencyRateSource: "manual" as "manual" | "api",
     currencyAutoRefreshMinutes: 60,
     currencyLastSyncAt: "",
-    currencyRates: [
-      { code: "USD", rate: 0.00027 },
-      { code: "KES", rate: 0.036 },
-    ] as CurrencyRate[],
+    currencyRates: getDefaultCurrencyRates("UGX") as CurrencyRate[],
   });
 
   const [currencyTestAmount, setCurrencyTestAmount] = useState("1000");
@@ -670,10 +667,7 @@ export default function SettingsPage() {
       currencyRateSource: "manual",
       currencyAutoRefreshMinutes: 60,
       currencyLastSyncAt: "",
-      currencyRates: [
-        { code: "USD", rate: 0.00027 },
-        { code: "KES", rate: 0.036 },
-      ],
+      currencyRates: getDefaultCurrencyRates("UGX"),
     });
   };
 
@@ -1018,9 +1012,12 @@ export default function SettingsPage() {
     const applyExisting = confirm(
       `Switch base currency to ${nextCurrency}? Choose OK to also flag existing records for conversion guidance.`,
     );
+    const rebuiltRates = getDefaultCurrencyRates(nextCurrency);
+
     setS((prev) => ({
       ...prev,
       currency: nextCurrency,
+      currencyRates: rebuiltRates,
       ...(applyExisting
         ? {
             receiptFooter:

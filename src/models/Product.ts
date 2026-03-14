@@ -14,6 +14,7 @@ export interface IProduct extends Document {
   name: string;
   slug: string;
   description: string;
+  categoryAttributes?: Record<string, unknown>;
   sku: string;
   barcode: string;
   categoryId: mongoose.Types.ObjectId;
@@ -50,6 +51,7 @@ const ProductSchema = new Schema<IProduct>(
     name: { type: String, required: true },
     slug: { type: String, required: true },
     description: { type: String, default: "" },
+    categoryAttributes: { type: Schema.Types.Mixed, default: {} },
     sku: { type: String, required: true },
     barcode: { type: String, default: "" },
     categoryId: { type: Schema.Types.ObjectId, ref: "Category" },

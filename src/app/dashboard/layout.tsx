@@ -66,6 +66,7 @@ import {
 } from "lucide-react";
 import {
   getInitials,
+  getDefaultCurrencyRates,
   setCurrencyDisplayConfig,
   setPrintBrandingConfig,
 } from "@/lib/utils";
@@ -533,10 +534,41 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!tenant) return;
 
+    const referenceCurrency = tenant.settings.currency || "UGX";
+    const configuredRates = tenant.settings.currencyRates || [];
+    const fallbackRates = getDefaultCurrencyRates(referenceCurrency);
+    const mergedRateMap = new Map<
+      string,
+      { code: string; rate: number; lastUpdatedAt?: string }
+    >();
+
+    for (const rate of fallbackRates) {
+      mergedRateMap.set(rate.code.toUpperCase(), {
+        code: rate.code.toUpperCase(),
+        rate: Number(rate.rate),
+      });
+    }
+
+    for (const rate of configuredRates) {
+      const code = String(rate.code || "").toUpperCase();
+      const numericRate = Number(rate.rate);
+      if (!code || !Number.isFinite(numericRate) || numericRate <= 0) {
+        continue;
+      }
+
+      mergedRateMap.set(code, {
+        code,
+        rate: numericRate,
+        lastUpdatedAt: rate.lastUpdatedAt,
+      });
+    }
+
     setCurrencyDisplayConfig({
       ledgerCurrency: tenant.settings.currencyLedger || "UGX",
-      referenceCurrency: tenant.settings.currency || "UGX",
-      rates: tenant.settings.currencyRates || [],
+      referenceCurrency,
+      rates: Array.from(mergedRateMap.values()).filter(
+        (rate) => rate.code !== referenceCurrency.toUpperCase(),
+      ),
     });
 
     setPrintBrandingConfig({
@@ -1120,21 +1152,19 @@ export default function DashboardLayout({
           className={`content-area flex-1 transition-all duration-300 ${sidebarCollapsed ? "ml-[68px]" : "ml-60"}`}
         >
           {/* Top bar */}
-          <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-gray-200/60 flex items-center justify-between px-6 sticky top-0 z-30 dark:bg-gray-900/80 dark:border-gray-700/60">
+          <header className="h-16 bg-orange-500 border-b border-orange-600/80 flex items-center justify-between px-6 sticky top-0 z-30">
             <div className="flex items-center gap-4">
               {/* Greeting */}
               <div className="hidden lg:block">
-                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                <p className="text-sm font-semibold text-white">
                   {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
                 </p>
-                <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                <div className="flex items-center gap-2 text-[11px] text-orange-100">
                   {tenant?.businessName && (
                     <>
                       <Building2 className="h-3 w-3" />
                       <span>{tenant.businessName}</span>
-                      <span className="text-gray-300 dark:text-gray-600">
-                        |
-                      </span>
+                      <span className="text-orange-200/80">|</span>
                     </>
                   )}
                   <span>
