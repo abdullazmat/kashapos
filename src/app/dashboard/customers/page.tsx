@@ -43,6 +43,31 @@ interface Customer {
   createdAt: string;
 }
 
+interface CustomerPaymentHistoryItem {
+  _id: string;
+  amount: number;
+  method: string;
+  reference?: string;
+  notes?: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  recordedByName?: string;
+  createdAt: string;
+  saleId?: {
+    orderNumber?: string;
+    total?: number;
+    amountPaid?: number;
+  };
+}
+
+function formatPaymentMethodLabel(method?: string) {
+  if (!method) return "—";
+  return method
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export default function CustomersPage() {
   const { tenant } = useSession();
   const currency = tenant?.settings?.currency || "UGX";
@@ -53,6 +78,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<CustomerTab>(
     (searchParams.get("tab") as CustomerTab) || "all",
@@ -71,6 +97,16 @@ export default function CustomersPage() {
 
   const [editing, setEditing] = useState<Customer | null>(null);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
+  const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
+  const [historyItems, setHistoryItems] = useState<
+    CustomerPaymentHistoryItem[]
+  >([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [sendingReminderCustomerId, setSendingReminderCustomerId] =
+    useState("");
+  const [reminderStatus, setReminderStatus] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -109,6 +145,67 @@ export default function CustomersPage() {
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  const fetchPaymentHistory = useCallback(
+    async (customerId: string, nextPage = 1) => {
+      setHistoryLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: nextPage.toString(),
+          limit: "10",
+        });
+        const res = await fetch(
+          `/api/customers/${customerId}/payments?${params}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setHistoryItems(data.payments || []);
+          setHistoryPage(data.page || nextPage);
+          setHistoryTotalPages(data.totalPages || 1);
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [],
+  );
+
+  const openHistory = (customer: Customer) => {
+    setHistoryCustomer(customer);
+    setShowHistoryPanel(true);
+    setReminderStatus("");
+    setHistoryItems([]);
+    setHistoryPage(1);
+    setHistoryTotalPages(1);
+    void fetchPaymentHistory(customer._id, 1);
+  };
+
+  const sendBalanceReminder = async (customer: Customer) => {
+    if (!customer.email || sendingReminderCustomerId) return;
+    setSendingReminderCustomerId(customer._id);
+    setReminderStatus("");
+    try {
+      const res = await fetch(
+        `/api/customers/${customer._id}/balance-reminder`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      const payload = await res.json();
+      if (!res.ok) {
+        setReminderStatus(payload.error || "Failed to send reminder");
+        return;
+      }
+      setReminderStatus(`Reminder sent to ${customer.name}.`);
+    } catch {
+      setReminderStatus("Failed to send reminder");
+    } finally {
+      setSendingReminderCustomerId("");
+    }
+  };
 
   const openAdd = () => {
     setEditing(null);
@@ -162,6 +259,9 @@ export default function CustomersPage() {
     if (res.ok) {
       setShowPaymentModal(false);
       fetchCustomers();
+      if (historyCustomer?._id === paymentCustomer._id) {
+        fetchPaymentHistory(paymentCustomer._id, historyPage);
+      }
     }
   };
 
@@ -191,6 +291,12 @@ export default function CustomersPage() {
   };
 
   const totalPages = Math.ceil(total / 20);
+  const displayedCustomers =
+    activeTab === "balances"
+      ? customers.filter((c) => (c.outstandingBalance ?? 0) > 0)
+      : activeTab === "payments"
+        ? customers.filter((c) => Boolean(c.lastPaymentDate))
+        : customers;
   const inputClass =
     "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
@@ -350,7 +456,10 @@ export default function CustomersPage() {
                   Credit Limit
                 </th>
                 <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
-                  Status
+                  Payment Status
+                </th>
+                <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
+                  Last Payment
                 </th>
                 <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
               </tr>
@@ -358,7 +467,7 @@ export default function CustomersPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center">
+                  <td colSpan={9} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-violet-500" />
                       <span className="text-sm text-gray-400">
@@ -367,9 +476,9 @@ export default function CustomersPage() {
                     </div>
                   </td>
                 </tr>
-              ) : customers.length === 0 ? (
+              ) : displayedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center">
+                  <td colSpan={9} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                         <Users className="h-6 w-6 text-gray-400" />
@@ -384,7 +493,7 @@ export default function CustomersPage() {
                   </td>
                 </tr>
               ) : (
-                customers.map((c) => (
+                displayedCustomers.map((c) => (
                   <tr
                     key={c._id}
                     className="group transition-colors hover:bg-gray-50/80"
@@ -449,16 +558,40 @@ export default function CustomersPage() {
                     <td className="px-5 py-3.5 text-center">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          c.isActive
-                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20"
-                            : "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+                          c.paymentStatus === "overdue"
+                            ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+                            : c.paymentStatus === "partial"
+                              ? "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
+                              : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
                         }`}
                       >
-                        {c.isActive ? "Active" : "Inactive"}
+                        {c.paymentStatus || "cleared"}
                       </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-center text-[12px] text-gray-500">
+                      {c.lastPaymentDate ? formatDate(c.lastPaymentDate) : "—"}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        {(c.outstandingBalance ?? 0) > 0 && c.email && (
+                          <button
+                            onClick={() => sendBalanceReminder(c)}
+                            disabled={sendingReminderCustomerId === c._id}
+                            className="rounded-lg px-2 py-1.5 text-[11px] font-semibold text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-50"
+                            title="Send balance reminder"
+                          >
+                            {sendingReminderCustomerId === c._id
+                              ? "Sending..."
+                              : "Remind"}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openHistory(c)}
+                          className="rounded-lg px-2 py-1.5 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                          title="View payment history"
+                        >
+                          History
+                        </button>
                         <button
                           onClick={() => openPayment(c)}
                           className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
@@ -902,7 +1035,7 @@ export default function CustomersPage() {
                       },
                     ].map((step) => (
                       <div key={step.num} className="flex gap-3">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600 flex-shrink-0 mt-0.5">
+                        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">
                           {step.num}
                         </div>
                         <div>
@@ -933,6 +1066,235 @@ export default function CustomersPage() {
               >
                 Record Payment
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryPanel && historyCustomer && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm"
+          onClick={() => setShowHistoryPanel(false)}
+        >
+          <div
+            className="flex h-full w-full max-w-5xl flex-col bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Payment History
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {historyCustomer.name} • Outstanding{" "}
+                  {formatCurrency(
+                    historyCustomer.outstandingBalance ?? 0,
+                    currency,
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowHistoryPanel(false)}
+                className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {reminderStatus && (
+              <div
+                className={`mx-6 mt-4 rounded-xl border px-4 py-3 text-sm ${reminderStatus.startsWith("Reminder sent") ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}
+              >
+                {reminderStatus}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 border-b border-gray-100 bg-gray-50/60 px-6 py-4 md:grid-cols-4">
+              <div className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Outstanding Balance
+                </p>
+                <p className="mt-1 text-lg font-bold text-red-600">
+                  {formatCurrency(
+                    historyCustomer.outstandingBalance ?? 0,
+                    currency,
+                  )}
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Total Purchases
+                </p>
+                <p className="mt-1 text-lg font-bold text-gray-900">
+                  {historyCustomer.totalPurchases}
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Last Payment Date
+                </p>
+                <p className="mt-1 text-lg font-bold text-gray-900">
+                  {historyCustomer.lastPaymentDate
+                    ? formatDate(historyCustomer.lastPaymentDate)
+                    : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Payment Status
+                </p>
+                <span
+                  className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    historyCustomer.paymentStatus === "overdue"
+                      ? "bg-red-50 text-red-700"
+                      : historyCustomer.paymentStatus === "partial"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {historyCustomer.paymentStatus || "cleared"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto px-6 py-5">
+              <div className="mb-4 flex items-center justify-end">
+                <button
+                  onClick={() => sendBalanceReminder(historyCustomer)}
+                  disabled={
+                    !historyCustomer.email ||
+                    (historyCustomer.outstandingBalance ?? 0) <= 0 ||
+                    sendingReminderCustomerId === historyCustomer._id
+                  }
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {sendingReminderCustomerId === historyCustomer._id
+                    ? "Sending reminder..."
+                    : "Send Balance Reminder"}
+                </button>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-240 text-sm">
+                    <thead>
+                      <tr className="border-b border-orange-100 bg-orange-50/70">
+                        <th className="px-4 py-3 text-left text-[13px] font-semibold text-gray-600">
+                          Date
+                        </th>
+                        <th className="px-4 py-3 text-left text-[13px] font-semibold text-gray-600">
+                          Reference
+                        </th>
+                        <th className="px-4 py-3 text-right text-[13px] font-semibold text-gray-600">
+                          Sale Amount
+                        </th>
+                        <th className="px-4 py-3 text-right text-[13px] font-semibold text-gray-600">
+                          Amount Paid
+                        </th>
+                        <th className="px-4 py-3 text-right text-[13px] font-semibold text-gray-600">
+                          Balance Before
+                        </th>
+                        <th className="px-4 py-3 text-right text-[13px] font-semibold text-gray-600">
+                          Balance After
+                        </th>
+                        <th className="px-4 py-3 text-left text-[13px] font-semibold text-gray-600">
+                          Method
+                        </th>
+                        <th className="px-4 py-3 text-left text-[13px] font-semibold text-gray-600">
+                          Recorded By
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {historyLoading ? (
+                        <tr>
+                          <td
+                            colSpan={8}
+                            className="px-4 py-16 text-center text-gray-400"
+                          >
+                            Loading payment history...
+                          </td>
+                        </tr>
+                      ) : historyItems.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={8}
+                            className="px-4 py-16 text-center text-gray-400"
+                          >
+                            No payment history found for this customer.
+                          </td>
+                        </tr>
+                      ) : (
+                        historyItems.map((payment) => (
+                          <tr key={payment._id} className="hover:bg-gray-50/70">
+                            <td className="px-4 py-3 text-gray-700">
+                              {formatDate(payment.createdAt)}
+                            </td>
+                            <td className="px-4 py-3 text-gray-700">
+                              {payment.reference ||
+                                payment.saleId?.orderNumber ||
+                                "—"}
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-700">
+                              {payment.saleId?.total
+                                ? formatCurrency(payment.saleId.total, currency)
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                              {formatCurrency(payment.amount, currency)}
+                            </td>
+                            <td className="px-4 py-3 text-right text-gray-600">
+                              {formatCurrency(payment.balanceBefore, currency)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-800">
+                              {formatCurrency(payment.balanceAfter, currency)}
+                            </td>
+                            <td className="px-4 py-3 text-gray-700">
+                              {formatPaymentMethodLabel(payment.method)}
+                            </td>
+                            <td className="px-4 py-3 text-gray-700">
+                              {payment.recordedByName || "—"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
+              <p className="text-sm text-gray-500">
+                Page {historyPage} of {historyTotalPages}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() =>
+                    historyCustomer &&
+                    fetchPaymentHistory(
+                      historyCustomer._id,
+                      Math.max(1, historyPage - 1),
+                    )
+                  }
+                  disabled={historyPage <= 1 || historyLoading}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() =>
+                    historyCustomer &&
+                    fetchPaymentHistory(
+                      historyCustomer._id,
+                      Math.min(historyTotalPages, historyPage + 1),
+                    )
+                  }
+                  disabled={historyPage >= historyTotalPages || historyLoading}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -15,6 +15,13 @@ export interface ITenantSettings {
   country?: string;
   phoneNumber?: string;
   emailAddress?: string;
+  operatingHoursWeekdays?: string;
+  operatingHoursWeekends?: string;
+  operatingHoursNotes?: string;
+  loyaltyProgramEnabled?: boolean;
+  loyaltyPointsRate?: number;
+  promotionsEnabled?: boolean;
+  promotionMessage?: string;
   // General
   dateFormat?: string;
   timeFormat?: string;
@@ -30,6 +37,23 @@ export interface ITenantSettings {
   hideFinancials?: boolean;
   // Inventory
   enableBarcodeScanning?: boolean;
+  barcodeDefaultFormat?: string;
+  barcodeAutoGenerateOnProductCreate?: boolean;
+  barcodeUseSkuAsDefaultValue?: boolean;
+  barcodeAllowManualOverride?: boolean;
+  barcodePrefix?: string;
+  barcodeDefaultLabelSize?: string;
+  barcodeDefaultPaperSize?: string;
+  barcodeDefaultPrinterType?: string;
+  barcodeShowPriceOnLabelsByDefault?: boolean;
+  barcodeScanSound?: boolean;
+  barcodeFailedScanAlert?: boolean;
+  barcodeDefaultFontSize?: string;
+  barcodeDefaultHeightMm?: number;
+  barcodeMarginTopMm?: number;
+  barcodeMarginRightMm?: number;
+  barcodeMarginBottomMm?: number;
+  barcodeMarginLeftMm?: number;
   allowNegativeStock?: boolean;
   maxNegativeStockQty?: number;
   autoReorderOnNegative?: boolean;
@@ -178,6 +202,13 @@ const TenantSchema = new Schema<ITenant>(
       country: { type: String, default: "Uganda" },
       phoneNumber: { type: String },
       emailAddress: { type: String },
+      operatingHoursWeekdays: { type: String, default: "08:00 - 20:00" },
+      operatingHoursWeekends: { type: String, default: "09:00 - 18:00" },
+      operatingHoursNotes: { type: String },
+      loyaltyProgramEnabled: { type: Boolean, default: false },
+      loyaltyPointsRate: { type: Number, default: 1 },
+      promotionsEnabled: { type: Boolean, default: false },
+      promotionMessage: { type: String },
       dateFormat: { type: String, default: "DD/MM/YYYY" },
       timeFormat: { type: String, default: "24h" },
       language: { type: String, default: "en" },
@@ -189,6 +220,23 @@ const TenantSchema = new Schema<ITenant>(
       enableAutoPriceMemory: { type: Boolean, default: false },
       hideFinancials: { type: Boolean, default: false },
       enableBarcodeScanning: { type: Boolean, default: false },
+      barcodeDefaultFormat: { type: String, default: "Code 128" },
+      barcodeAutoGenerateOnProductCreate: { type: Boolean, default: true },
+      barcodeUseSkuAsDefaultValue: { type: Boolean, default: true },
+      barcodeAllowManualOverride: { type: Boolean, default: true },
+      barcodePrefix: { type: String, default: "" },
+      barcodeDefaultLabelSize: { type: String, default: "40x25" },
+      barcodeDefaultPaperSize: { type: String, default: "A4" },
+      barcodeDefaultPrinterType: { type: String, default: "thermal" },
+      barcodeShowPriceOnLabelsByDefault: { type: Boolean, default: false },
+      barcodeScanSound: { type: Boolean, default: true },
+      barcodeFailedScanAlert: { type: Boolean, default: true },
+      barcodeDefaultFontSize: { type: String, default: "medium" },
+      barcodeDefaultHeightMm: { type: Number, default: 26 },
+      barcodeMarginTopMm: { type: Number, default: 8 },
+      barcodeMarginRightMm: { type: Number, default: 8 },
+      barcodeMarginBottomMm: { type: Number, default: 8 },
+      barcodeMarginLeftMm: { type: Number, default: 8 },
       allowNegativeStock: { type: Boolean, default: false },
       maxNegativeStockQty: { type: Number, default: 0 },
       autoReorderOnNegative: { type: Boolean, default: false },

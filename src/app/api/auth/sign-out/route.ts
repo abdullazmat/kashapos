@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
+import { apiSuccess } from "@/lib/api-helpers";
 import { clearSession } from "@/lib/auth";
 
 export async function POST() {
   await clearSession();
-  return NextResponse.json({ message: "Signed out" });
+  return apiSuccess({ message: "Signed out" });
 }

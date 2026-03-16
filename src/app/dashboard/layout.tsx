@@ -40,6 +40,8 @@ import {
   RotateCcw,
   Truck,
   Layers,
+  Barcode,
+  Printer,
   Moon,
   Sun,
   Building2,
@@ -51,14 +53,12 @@ import {
   PieChart,
   Sparkles,
   Brain,
-  PanelRight,
   Maximize2,
   Minimize2,
   Send,
   Loader2,
   SlidersHorizontal,
   Plus,
-  Shield,
   Globe,
   Mail,
   WifiOff,
@@ -70,6 +70,8 @@ import {
   setCurrencyDisplayConfig,
   setPrintBrandingConfig,
 } from "@/lib/utils";
+import { apiRequest } from "@/lib/api-client";
+import { getAiContextLabel, getAiQuickPrompts } from "@/lib/ai";
 import { getDefaultPermissionsForRole } from "@/lib/roles";
 
 interface UserData {
@@ -97,6 +99,17 @@ interface TenantData {
     lowStockThreshold?: number;
     theme?: string;
     sidebarDefaultCollapsed?: boolean;
+    enableBarcodeScanning?: boolean;
+    barcodeScanSound?: boolean;
+    barcodeFailedScanAlert?: boolean;
+    barcodeShowPriceOnLabelsByDefault?: boolean;
+    barcodeDefaultFormat?: string;
+    barcodeDefaultLabelSize?: string;
+    barcodeDefaultPaperSize?: string;
+    barcodeDefaultPrinterType?: string;
+    barcodeDefaultHeightMm?: number;
+    barcodePrefix?: string;
+    barcodeAutoGenerateOnProductCreate?: boolean;
     rolePermissions?: Record<string, string[]>;
     aiAssistantEnabled?: boolean;
     sessionTimeout?: number;
@@ -130,11 +143,32 @@ interface AIAssistantAction {
   href: string;
 }
 
+interface AIAssistantHighlight {
+  label: string;
+  value: string;
+}
+
+interface AIAssistantTable {
+  title: string;
+  columns: string[];
+  rows: string[][];
+}
+
+interface AIAssistantHistoryItem {
+  id: string;
+  prompt: string;
+  reply: string;
+  createdAt: string;
+  contextLabel: string;
+}
+
 interface AIAssistantMessage {
   id: string;
   role: "assistant" | "user";
   content: string;
   action?: AIAssistantAction;
+  highlights?: AIAssistantHighlight[];
+  table?: AIAssistantTable;
 }
 
 const SessionContext = createContext<SessionContextType>({
@@ -151,11 +185,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  children?: {
-    name: string;
-    href: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }[];
+  children?: NavItem[];
 }
 
 interface NavSection {
@@ -210,8 +240,16 @@ const navigation: NavSection[] = [
   {
     label: "FINANCE",
     items: [
-      { name: "Expenses", href: "/dashboard/expenses", icon: TrendingDown },
-      { name: "Invoices", href: "/dashboard/invoices", icon: FileText },
+      {
+        name: "Expenses",
+        href: "/dashboard/expenses",
+        icon: TrendingDown,
+      },
+      {
+        name: "Invoices",
+        href: "/dashboard/invoices",
+        icon: FileText,
+      },
       {
         name: "Cash Flow",
         href: "/dashboard/cashflow",
@@ -236,28 +274,36 @@ const navigation: NavSection[] = [
       },
       {
         name: "Fiscal Year Management",
-        href: "/dashboard/settings?section=fiscal&tab=config",
+        href: "/dashboard/fiscal-years?tab=config",
         icon: Calendar,
         children: [
           {
             name: "Configuration",
-            href: "/dashboard/settings?section=fiscal&tab=config",
+            href: "/dashboard/fiscal-years?tab=config",
             icon: Settings,
           },
           {
-            name: "Branch Financials",
-            href: "/dashboard/fiscal-years",
+            name: "Financial Summary",
+            href: "/dashboard/fiscal-years?tab=summary",
             icon: BarChart3,
           },
           {
-            name: "Archive Management",
-            href: "/dashboard/archive-management",
+            name: "Archive",
+            href: "/dashboard/fiscal-years?tab=archive",
             icon: History,
           },
         ],
       },
-      { name: "Taxes", href: "/dashboard/taxes", icon: Receipt },
-      { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
+      {
+        name: "Taxes",
+        href: "/dashboard/taxes",
+        icon: Receipt,
+      },
+      {
+        name: "Reports",
+        href: "/dashboard/reports",
+        icon: BarChart3,
+      },
     ],
   },
   {
@@ -361,7 +407,7 @@ const navigation: NavSection[] = [
           },
           {
             name: "Till & Cash Register",
-            href: "/dashboard/store-management?tab=till-summary",
+            href: "/dashboard/store-management?tab=till-open-close",
             icon: FileText,
           },
           {
@@ -399,7 +445,33 @@ const navigation: NavSection[] = [
         ],
       },
       { name: "Stock", href: "/dashboard/stock", icon: Warehouse },
-      { name: "Barcode Generator", href: "/dashboard/barcodes", icon: Search },
+      {
+        name: "Barcode Manager",
+        href: "/dashboard/barcodes?tab=generate",
+        icon: Barcode,
+        children: [
+          {
+            name: "Generate Barcodes",
+            href: "/dashboard/barcodes?tab=generate",
+            icon: Barcode,
+          },
+          {
+            name: "Print Labels",
+            href: "/dashboard/barcodes?tab=print",
+            icon: Printer,
+          },
+          {
+            name: "Barcode Settings",
+            href: "/dashboard/barcodes?tab=settings",
+            icon: Settings,
+          },
+          {
+            name: "Scan History",
+            href: "/dashboard/barcodes?tab=history",
+            icon: History,
+          },
+        ],
+      },
       { name: "Batches", href: "/dashboard/batches", icon: Layers },
       { name: "Returns", href: "/dashboard/returns", icon: RotateCcw },
       { name: "Integrations", href: "/dashboard/integrations", icon: Plug },
@@ -432,6 +504,26 @@ const navigation: NavSection[] = [
   },
 ];
 
+const pathPermissionMap: Record<string, string> = {
+  "/dashboard": "dashboard",
+  "/dashboard/pos": "pos",
+  "/dashboard/inventory": "inventory",
+  "/dashboard/sales": "sales",
+  "/dashboard/purchases": "purchases",
+  "/dashboard/customers": "customers",
+  "/dashboard/vendors": "suppliers",
+  "/dashboard/expenses": "expenses",
+  "/dashboard/invoices": "invoices",
+  "/dashboard/cashflow": "cashflow",
+  "/dashboard/taxes": "taxes",
+  "/dashboard/reports": "reports",
+  "/dashboard/ai": "ai",
+  "/dashboard/barcodes": "inventory",
+  "/dashboard/warehouses": "warehouses",
+  "/dashboard/settings": "settings",
+  "/dashboard/fiscal-years": "reports",
+};
+
 export default function DashboardLayout({
   children,
 }: {
@@ -448,6 +540,7 @@ export default function DashboardLayout({
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAiAssistant, setShowAiAssistant] = useState(false);
+  const [showAiHistory, setShowAiHistory] = useState(false);
   const [aiExpanded, setAiExpanded] = useState(false);
   const [aiMessageInput, setAiMessageInput] = useState("");
   const [aiSending, setAiSending] = useState(false);
@@ -459,6 +552,7 @@ export default function DashboardLayout({
     "What should I restock this week?",
     "Which invoices are at risk?",
   ]);
+  const [aiHistory, setAiHistory] = useState<AIAssistantHistoryItem[]>([]);
   const [aiMessages, setAiMessages] = useState<AIAssistantMessage[]>([
     {
       id: "welcome",
@@ -477,6 +571,9 @@ export default function DashboardLayout({
   const notifRef = useRef<HTMLDivElement>(null);
   const aiPanelRef = useRef<HTMLDivElement>(null);
   const aiMessagesRef = useRef<HTMLDivElement>(null);
+  const aiHistoryStorageKey = user?.id
+    ? `meka-ai-panel-history-${user.id}`
+    : "meka-ai-panel-history";
 
   const applyThemePreference = useCallback((theme: string | undefined) => {
     const useDark = theme === "dark";
@@ -487,9 +584,11 @@ export default function DashboardLayout({
     } catch {}
   }, []);
 
-  const toggleMenu = (name: string) => {
+  const toggleMenu = (menuKey: string) => {
     setExpandedMenus((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+      prev.includes(menuKey)
+        ? prev.filter((n) => n !== menuKey)
+        : [...prev, menuKey],
     );
   };
 
@@ -603,72 +702,177 @@ export default function DashboardLayout({
     [pathname, activeQueryString],
   );
 
-  // Auto-expand menus whose children match the current path
+  const hasItemMatch = useCallback(
+    (item: NavItem): boolean => {
+      if (matchesHref(item.href)) return true;
+      if (!item.children || item.children.length === 0) return false;
+      return item.children.some((child) => hasItemMatch(child));
+    },
+    [matchesHref],
+  );
+
+  // Auto-expand menus whose descendants match the current path
   useEffect(() => {
     const expanded: string[] = [];
-    for (const section of navigation) {
-      for (const item of section.items) {
-        if (
-          item.children &&
-          (matchesHref(item.href) ||
-            item.children.some((child) => matchesHref(child.href)))
-        ) {
-          expanded.push(item.name);
+
+    const visit = (items: NavItem[], parentKey: string) => {
+      for (const item of items) {
+        const itemKey = parentKey ? `${parentKey}/${item.name}` : item.name;
+        if (item.children && item.children.length > 0) {
+          if (
+            matchesHref(item.href) ||
+            item.children.some((child) => hasItemMatch(child))
+          ) {
+            expanded.push(itemKey);
+          }
+          visit(item.children, itemKey);
         }
       }
+    };
+
+    for (const section of navigation) {
+      visit(section.items, section.label);
     }
+
     setExpandedMenus((prev) => {
       const combined = new Set([...prev, ...expanded]);
       return Array.from(combined);
     });
-  }, [matchesHref]);
-
-  // All navigation items flattened for search
-  const pathPermissionMap: Record<string, string> = {
-    "/dashboard": "dashboard",
-    "/dashboard/pos": "pos",
-    "/dashboard/inventory": "inventory",
-    "/dashboard/sales": "sales",
-    "/dashboard/purchases": "purchases",
-    "/dashboard/customers": "customers",
-    "/dashboard/vendors": "suppliers",
-    "/dashboard/expenses": "expenses",
-    "/dashboard/invoices": "invoices",
-    "/dashboard/cashflow": "cashflow",
-    "/dashboard/taxes": "taxes",
-    "/dashboard/reports": "reports",
-    "/dashboard/ai": "ai",
-    "/dashboard/warehouses": "warehouses",
-    "/dashboard/settings": "settings",
-  };
+  }, [matchesHref, hasItemMatch]);
 
   const rolePermissions =
     tenant?.settings?.rolePermissions?.[user?.role || ""] ||
     getDefaultPermissionsForRole(user?.role || "cashier");
 
-  const canAccessPath = (href: string) => {
-    if (user?.role === "admin") return true;
-    const basePath = href.split("?")[0];
-    const permission = pathPermissionMap[basePath];
-    if (!permission) return true;
-    return rolePermissions.includes(permission);
-  };
+  const canAccessPath = useCallback(
+    (href: string) => {
+      if (user?.role === "admin") return true;
+      const basePath = href.split("?")[0];
+      const permission = pathPermissionMap[basePath];
+      if (!permission) return true;
+      return rolePermissions.includes(permission);
+    },
+    [rolePermissions, user?.role],
+  );
+
+  const filterNavItem = useCallback(
+    (item: NavItem): NavItem | null => {
+      const visibleChildren = (item.children || [])
+        .map((child) => filterNavItem(child))
+        .filter((child): child is NavItem => Boolean(child));
+
+      if (!canAccessPath(item.href) && visibleChildren.length === 0) {
+        return null;
+      }
+
+      return {
+        ...item,
+        children: visibleChildren.length > 0 ? visibleChildren : undefined,
+      };
+    },
+    [canAccessPath],
+  );
 
   const visibleNavigation = navigation
     .map((section) => ({
       ...section,
       items: section.items
-        .filter((item) => canAccessPath(item.href))
-        .map((item) => ({
-          ...item,
-          children: item.children?.filter((child) => canAccessPath(child.href)),
-        })),
+        .map((item) => filterNavItem(item))
+        .filter((item): item is NavItem => Boolean(item)),
     }))
     .filter((section) => section.items.length > 0);
 
-  const allNavItems = visibleNavigation.flatMap((s) =>
-    s.items.flatMap((item) => [item, ...(item.children || [])]),
+  const flattenNavItems = (items: NavItem[]): NavItem[] =>
+    items.flatMap((item) => [item, ...flattenNavItems(item.children || [])]);
+
+  const allNavItems = visibleNavigation.flatMap((section) =>
+    flattenNavItems(section.items),
   );
+
+  const renderNavigationItem = (
+    item: NavItem,
+    sectionKey: string,
+    depth = 0,
+    parentKey = "",
+  ): React.ReactNode => {
+    const itemKey = parentKey
+      ? `${parentKey}/${item.name}`
+      : `${sectionKey}/${item.name}`;
+    const hasChildren = Boolean(item.children && item.children.length > 0);
+    const isActive = hasItemMatch(item);
+    const isExpanded = expandedMenus.includes(itemKey);
+    const childIndentClass = depth === 0 ? "ml-5" : "ml-4";
+
+    if (hasChildren) {
+      return (
+        <div key={itemKey}>
+          <Link
+            href={item.href}
+            onClick={() => {
+              if (!expandedMenus.includes(itemKey)) {
+                toggleMenu(itemKey);
+              }
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all duration-200 ${depth === 0 ? "text-[13px]" : "text-[12px]"} ${
+              isActive
+                ? "bg-linear-to-r from-orange-500/20 to-amber-500/10 text-orange-400 shadow-sm shadow-orange-500/5"
+                : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+            }`}
+            title={sidebarCollapsed ? item.name : undefined}
+          >
+            <item.icon
+              className={`${depth === 0 ? "w-4.5 h-4.5" : "w-4 h-4"} shrink-0 ${isActive ? "text-orange-400" : ""}`}
+            />
+            {!sidebarCollapsed && (
+              <>
+                <span className="flex-1 text-left">{item.name}</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleMenu(itemKey);
+                  }}
+                />
+              </>
+            )}
+          </Link>
+          {isExpanded && !sidebarCollapsed && (
+            <div
+              className={`${childIndentClass} mt-0.5 space-y-0.5 border-l border-white/10 pl-3`}
+            >
+              {item.children!.map((child) =>
+                renderNavigationItem(child, sectionKey, depth + 1, itemKey),
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <Link
+        key={itemKey}
+        href={item.href}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all duration-200 ${depth === 0 ? "text-[13px]" : "text-[12px]"} ${
+          isActive
+            ? "bg-linear-to-r from-orange-500/20 to-amber-500/10 text-orange-400 shadow-sm shadow-orange-500/5"
+            : depth > 0
+              ? "text-gray-500 hover:bg-white/5 hover:text-gray-300"
+              : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+        }`}
+        title={sidebarCollapsed ? item.name : undefined}
+      >
+        <item.icon
+          className={`${depth === 0 ? "w-4.5 h-4.5" : "w-3.5 h-3.5"} shrink-0 ${isActive ? "text-orange-400" : ""}`}
+        />
+        {!sidebarCollapsed && item.name}
+        {isActive && !sidebarCollapsed && depth === 0 && (
+          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-400" />
+        )}
+      </Link>
+    );
+  };
   const searchResults = searchQuery.trim()
     ? allNavItems.filter((item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -696,17 +900,11 @@ export default function DashboardLayout({
 
     setNotificationsLoading(true);
     try {
-      const res = await fetch("/api/notifications?limit=10", {
+      const data = await apiRequest<{
+        notifications?: HeaderNotification[];
+      }>("/api/notifications?limit=10", {
         cache: "no-store",
       });
-
-      if (!res.ok) {
-        throw new Error("Failed to load notifications");
-      }
-
-      const data = (await res.json()) as {
-        notifications?: HeaderNotification[];
-      };
       setNotifications(data.notifications || []);
     } catch {
       setNotifications([]);
@@ -728,15 +926,11 @@ export default function DashboardLayout({
       );
 
       try {
-        const res = await fetch("/api/notifications", {
+        await apiRequest<{ updated: number }>("/api/notifications", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ids }),
         });
-
-        if (!res.ok) {
-          throw new Error("Failed to save notification state");
-        }
       } catch {
         fetchNotifications();
       }
@@ -804,19 +998,38 @@ export default function DashboardLayout({
         const data = (await res.json()) as {
           reply?: string;
           suggestedAction?: AIAssistantAction;
+          highlights?: AIAssistantHighlight[];
+          table?: AIAssistantTable;
         };
+
+        const reply =
+          data.reply ||
+          "I could not generate a response right now. Please try again.";
 
         setAiMessages((prev) => [
           ...prev,
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            content:
-              data.reply ||
-              "I could not generate a response right now. Please try again.",
+            content: reply,
             action: data.suggestedAction,
+            highlights: data.highlights,
+            table: data.table,
           },
         ]);
+
+        setAiHistory((prev) =>
+          [
+            {
+              id: `history-${Date.now()}`,
+              prompt: message,
+              reply,
+              createdAt: new Date().toISOString(),
+              contextLabel: getAiContextLabel(pathname),
+            },
+            ...prev,
+          ].slice(0, 10),
+        );
       } catch {
         setAiMessages((prev) => [
           ...prev,
@@ -896,12 +1109,10 @@ export default function DashboardLayout({
 
   const fetchSession = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me");
-      if (!res.ok) {
-        router.push("/sign-in");
-        return;
-      }
-      const data = await res.json();
+      const data = await apiRequest<{
+        user: UserData;
+        tenant: TenantData;
+      }>("/api/auth/me");
       setUser(data.user);
       setTenant(data.tenant);
 
@@ -1024,22 +1235,32 @@ export default function DashboardLayout({
         // ignore invalid stored history
       }
     }
-
-    const loadQuickPrompts = async () => {
-      try {
-        const res = await fetch("/api/ai/chat", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { quickPrompts?: string[] };
-        if (Array.isArray(data.quickPrompts) && data.quickPrompts.length > 0) {
-          setAiQuickPrompts(data.quickPrompts.slice(0, 4));
-        }
-      } catch {
-        // keep defaults when prompt endpoint fails
-      }
-    };
-
-    void loadQuickPrompts();
   }, []);
+
+  useEffect(() => {
+    setAiQuickPrompts(getAiQuickPrompts(pathname).slice(0, 4));
+  }, [pathname]);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(aiHistoryStorageKey);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as AIAssistantHistoryItem[];
+      if (Array.isArray(parsed)) {
+        setAiHistory(parsed);
+      }
+    } catch {
+      // ignore invalid session history
+    }
+  }, [aiHistoryStorageKey]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(aiHistoryStorageKey, JSON.stringify(aiHistory));
+    } catch {
+      // ignore storage failures
+    }
+  }, [aiHistory, aiHistoryStorageKey]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -1070,13 +1291,13 @@ export default function DashboardLayout({
       <div className="min-h-screen flex bg-[hsl(220,20%,97%)] dark:bg-gray-950">
         {/* Sidebar */}
         <aside
-          className={`fixed top-0 left-0 h-full bg-gradient-to-b from-[hsl(222,47%,11%)] to-[hsl(224,50%,15%)] text-gray-300 flex flex-col transition-all duration-300 z-40 ${
-            sidebarCollapsed ? "w-[68px]" : "w-60"
+          className={`fixed top-0 left-0 h-full bg-linear-to-b from-[hsl(222,47%,11%)] to-[hsl(224,50%,15%)] text-gray-300 flex flex-col transition-all duration-300 z-40 ${
+            sidebarCollapsed ? "w-17" : "w-60"
           }`}
         >
           {/* Logo */}
           <div className="h-16 flex items-center px-4 border-b border-white/5">
-            <div className="w-9 h-9 bg-gradient-to-br from-orange-400 to-amber-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-500/20">
+            <div className="w-9 h-9 bg-linear-to-br from-orange-400 to-amber-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
               <ShoppingCart className="w-5 h-5 text-white" />
             </div>
             {!sidebarCollapsed && (
@@ -1104,97 +1325,9 @@ export default function DashboardLayout({
                   </div>
                 )}
                 <div className="space-y-0.5">
-                  {section.items.map((item) => {
-                    const basePath = item.href.split("?")[0];
-                    const hasChildren =
-                      item.children && item.children.length > 0;
-                    const isActive = hasChildren
-                      ? matchesHref(item.href) ||
-                        item.children!.some((child) => matchesHref(child.href))
-                      : matchesHref(item.href);
-                    const isExpanded = expandedMenus.includes(item.name);
-
-                    if (hasChildren) {
-                      return (
-                        <div key={item.name}>
-                          <Link
-                            href={item.href}
-                            onClick={() => {
-                              if (!expandedMenus.includes(item.name))
-                                toggleMenu(item.name);
-                            }}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 ${
-                              isActive
-                                ? "bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-orange-400 shadow-sm shadow-orange-500/5"
-                                : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-                            }`}
-                            title={sidebarCollapsed ? item.name : undefined}
-                          >
-                            <item.icon
-                              className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-orange-400" : ""}`}
-                            />
-                            {!sidebarCollapsed && (
-                              <>
-                                <span className="flex-1 text-left">
-                                  {item.name}
-                                </span>
-                                <ChevronDown
-                                  className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    toggleMenu(item.name);
-                                  }}
-                                />
-                              </>
-                            )}
-                          </Link>
-                          {isExpanded && !sidebarCollapsed && (
-                            <div className="ml-5 mt-0.5 space-y-0.5 border-l border-white/10 pl-3">
-                              {item.children!.map((child) => {
-                                const isChildActive = matchesHref(child.href);
-                                return (
-                                  <Link
-                                    key={child.name}
-                                    href={child.href}
-                                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all duration-200 ${
-                                      isChildActive
-                                        ? "bg-orange-500/15 text-orange-400"
-                                        : "text-gray-500 hover:bg-white/5 hover:text-gray-300"
-                                    }`}
-                                  >
-                                    <child.icon className="w-3.5 h-3.5 flex-shrink-0" />
-                                    {child.name}
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 ${
-                          isActive
-                            ? "bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-orange-400 shadow-sm shadow-orange-500/5"
-                            : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-                        }`}
-                        title={sidebarCollapsed ? item.name : undefined}
-                      >
-                        <item.icon
-                          className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-orange-400" : ""}`}
-                        />
-                        {!sidebarCollapsed && item.name}
-                        {isActive && !sidebarCollapsed && (
-                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-400" />
-                        )}
-                      </Link>
-                    );
-                  })}
+                  {section.items.map((item) =>
+                    renderNavigationItem(item, section.label),
+                  )}
                 </div>
               </div>
             ))}
@@ -1204,7 +1337,7 @@ export default function DashboardLayout({
           {!sidebarCollapsed && (
             <div className="p-3 mx-2 mb-3 rounded-xl bg-white/5 border border-white/5">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center text-white text-xs font-bold">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-br from-orange-400 to-amber-600 flex items-center justify-center text-white text-xs font-bold">
                   {user?.name ? getInitials(user.name) : "?"}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1222,7 +1355,7 @@ export default function DashboardLayout({
 
         {/* Main Content */}
         <div
-          className={`content-area flex-1 transition-all duration-300 ${sidebarCollapsed ? "ml-[68px]" : "ml-60"}`}
+          className={`content-area flex-1 transition-all duration-300 ${sidebarCollapsed ? "ml-17" : "ml-60"}`}
         >
           {/* Top bar */}
           <header className="h-16 bg-orange-500 border-b border-orange-600/80 flex items-center justify-between px-6 sticky top-0 z-30">
@@ -1321,7 +1454,7 @@ export default function DashboardLayout({
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                   {tenant?.name}
                 </span>
-                <span className="text-[10px] bg-gradient-to-r from-orange-500 to-amber-500 text-white px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+                <span className="text-[10px] bg-linear-to-r from-orange-500 to-amber-500 text-white px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
                   {tenant?.plan}
                 </span>
               </div>
@@ -1335,9 +1468,9 @@ export default function DashboardLayout({
                 }
               >
                 {darkMode ? (
-                  <Sun className="w-[18px] h-[18px]" />
+                  <Sun className="w-4.5 h-4.5" />
                 ) : (
-                  <Moon className="w-[18px] h-[18px]" />
+                  <Moon className="w-4.5 h-4.5" />
                 )}
               </button>
 
@@ -1348,7 +1481,7 @@ export default function DashboardLayout({
                   className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   title="Settings"
                 >
-                  <Settings className="w-[18px] h-[18px]" />
+                  <Settings className="w-4.5 h-4.5" />
                 </Link>
               )}
 
@@ -1356,17 +1489,18 @@ export default function DashboardLayout({
                 <button
                   onClick={() => {
                     setShowAiAssistant((prev) => !prev);
+                    setShowAiHistory(false);
                     setShowNotifications(false);
                     setShowUserMenu(false);
                   }}
                   className={`relative h-9 px-3 rounded-xl flex items-center gap-2 transition-colors ${
                     showAiAssistant
                       ? "bg-orange-100 text-orange-700"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                      : "bg-white/75 text-orange-700 hover:bg-white hover:text-orange-800"
                   }`}
-                  title="AI Assistant"
+                  title="Ask Meka AI"
                 >
-                  <Sparkles className="w-[16px] h-[16px]" />
+                  <Brain className="w-4 h-4" />
                   <span className="hidden lg:inline text-xs font-semibold tracking-wide">
                     AI
                   </span>
@@ -1385,7 +1519,7 @@ export default function DashboardLayout({
                   }}
                   className="relative w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                 >
-                  <Bell className="w-[18px] h-[18px]" />
+                  <Bell className="w-4.5 h-4.5" />
                   {unreadCount > 0 && (
                     <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full ring-2 ring-white text-[9px] font-bold text-white flex items-center justify-center">
                       {unreadCount}
@@ -1499,7 +1633,7 @@ export default function DashboardLayout({
                   }}
                   className="flex items-center gap-2 hover:bg-gray-50 pl-1 pr-2 py-1 rounded-xl transition-colors"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-600 rounded-xl flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                  <div className="w-8 h-8 bg-linear-to-br from-orange-400 to-amber-600 rounded-xl flex items-center justify-center text-white text-xs font-bold shadow-sm">
                     {user?.name ? getInitials(user.name) : "?"}
                   </div>
                   <ChevronDown
@@ -1564,8 +1698,8 @@ export default function DashboardLayout({
                 ref={aiPanelRef}
                 className={`fixed right-0 z-50 border-l border-gray-200 bg-white shadow-2xl transition-all duration-300 dark:bg-gray-900 dark:border-gray-700 ${
                   aiExpanded
-                    ? "top-0 h-screen w-full md:w-[88vw]"
-                    : "top-16 h-[calc(100vh-4rem)] w-full sm:w-105"
+                    ? "top-0 h-screen w-full md:w-[92vw]"
+                    : "top-16 h-[calc(100vh-4rem)] w-full sm:w-100"
                 }`}
               >
                 <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
@@ -1578,11 +1712,18 @@ export default function DashboardLayout({
                         AI Assistant
                       </p>
                       <p className="text-[11px] text-gray-500">
-                        Context: {pathname}
+                        Context: {getAiContextLabel(pathname)}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setShowAiHistory((prev) => !prev)}
+                      className="h-8 w-8 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      title="Previous Chats"
+                    >
+                      <History className="mx-auto h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => setAiExpanded((prev) => !prev)}
                       className="h-8 w-8 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -1621,6 +1762,47 @@ export default function DashboardLayout({
                   </div>
                 </div>
 
+                {showAiHistory && (
+                  <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-gray-400">
+                      Previous Chats
+                    </p>
+                    <div className="space-y-2 max-h-44 overflow-y-auto">
+                      {aiHistory.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-500">
+                          No previous chats in this session yet.
+                        </div>
+                      ) : (
+                        aiHistory.map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              setAiMessageInput(item.prompt);
+                              setShowAiHistory(false);
+                            }}
+                            className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-left hover:border-orange-200 hover:bg-orange-50"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-orange-600">
+                                {item.contextLabel}
+                              </span>
+                              <span className="text-[10px] text-gray-400">
+                                {formatRelativeTime(item.createdAt)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs font-medium text-gray-800 line-clamp-1">
+                              {item.prompt}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500 line-clamp-2">
+                              {item.reply}
+                            </p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div
                   ref={aiMessagesRef}
                   className="h-[calc(100%-12rem)] overflow-y-auto px-4 py-4 pb-24 space-y-3"
@@ -1628,47 +1810,110 @@ export default function DashboardLayout({
                   {aiMessages.map((msg) => (
                     <div
                       key={msg.id}
-                      className={`rounded-xl px-3 py-2 text-sm ${
+                      className={`flex ${
                         msg.role === "assistant"
-                          ? "bg-orange-50 text-orange-900 dark:bg-orange-500/10 dark:text-orange-100"
-                          : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
+                          ? "justify-start"
+                          : "justify-end"
                       }`}
                     >
-                      <p className="whitespace-pre-wrap wrap-break-word leading-6">
-                        {msg.content}
-                      </p>
-                      {msg.action && (
-                        <div className="mt-2 rounded-lg border border-orange-200 bg-white px-2 py-2 text-xs text-gray-700">
-                          <p className="font-medium text-gray-900">
-                            {msg.action.label}
-                          </p>
-                          <p className="mt-0.5 text-gray-500">
-                            {msg.action.description}
-                          </p>
-                          <div className="mt-2 flex gap-2">
-                            <button
-                              onClick={() => void confirmAiAction(msg.id)}
-                              className="rounded-md bg-orange-500 px-2.5 py-1 text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70"
-                              disabled={
-                                aiSending && aiActionPendingId === msg.id
-                              }
-                            >
-                              {aiSending && aiActionPendingId === msg.id
-                                ? "Confirming..."
-                                : "Confirm"}
-                            </button>
-                            <button
-                              onClick={() => {
-                                router.push(msg.action!.href);
-                                setShowAiAssistant(false);
-                              }}
-                              className="rounded-md border border-gray-200 px-2.5 py-1 text-gray-600 hover:border-orange-200 hover:text-orange-700"
-                            >
-                              Open
-                            </button>
+                      <div
+                        className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
+                          msg.role === "assistant"
+                            ? "bg-gray-100 text-slate-900 dark:bg-gray-800 dark:text-gray-100"
+                            : "bg-orange-500 text-white"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap wrap-break-word leading-6">
+                          {msg.content}
+                        </p>
+                        {msg.highlights && msg.highlights.length > 0 && (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {msg.highlights.map((highlight) => (
+                              <div
+                                key={`${msg.id}-${highlight.label}`}
+                                className="rounded-xl bg-white/90 px-2.5 py-2 text-xs text-slate-900"
+                              >
+                                <p className="font-semibold uppercase tracking-wide text-orange-600">
+                                  {highlight.label}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-900">
+                                  {highlight.value}
+                                </p>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      )}
+                        )}
+                        {msg.table && msg.table.rows.length > 0 && (
+                          <div className="mt-3 overflow-x-auto rounded-xl bg-white p-2 text-slate-800">
+                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-600">
+                              {msg.table.title}
+                            </p>
+                            <table className="w-full min-w-65 text-xs">
+                              <thead className="bg-orange-500 text-white">
+                                <tr>
+                                  {msg.table.columns.map((column) => (
+                                    <th
+                                      key={column}
+                                      className="px-2 py-1.5 text-left font-semibold"
+                                    >
+                                      {column}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {msg.table.rows.map((row, rowIndex) => (
+                                  <tr
+                                    key={`${msg.id}-row-${rowIndex}`}
+                                    className="border-t border-slate-100"
+                                  >
+                                    {row.map((cell, cellIndex) => (
+                                      <td
+                                        key={`${msg.id}-${rowIndex}-${cellIndex}`}
+                                        className="px-2 py-1.5 text-slate-600"
+                                      >
+                                        {cell}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {msg.action && (
+                          <div className="mt-2 rounded-lg border border-orange-200 bg-white px-2 py-2 text-xs text-gray-700">
+                            <p className="font-medium text-gray-900">
+                              {msg.action.label}
+                            </p>
+                            <p className="mt-0.5 text-gray-500">
+                              {msg.action.description}
+                            </p>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                onClick={() => void confirmAiAction(msg.id)}
+                                className="rounded-md bg-orange-500 px-2.5 py-1 text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70"
+                                disabled={
+                                  aiSending && aiActionPendingId === msg.id
+                                }
+                              >
+                                {aiSending && aiActionPendingId === msg.id
+                                  ? "Confirming..."
+                                  : "Confirm"}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  router.push(msg.action!.href);
+                                  setShowAiAssistant(false);
+                                }}
+                                className="rounded-md border border-gray-200 px-2.5 py-1 text-gray-600 hover:border-orange-200 hover:text-orange-700"
+                              >
+                                Open
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                   {aiSending && (
@@ -1690,7 +1935,7 @@ export default function DashboardLayout({
                           void sendAiMessage();
                         }
                       }}
-                      placeholder="Ask AI assistant"
+                      placeholder="Ask anything about your business..."
                       className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-orange-300 focus:outline-none dark:bg-gray-800 dark:border-gray-700"
                     />
                     <button

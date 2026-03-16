@@ -83,3 +83,7 @@ Designed for deployment on **Render** (or any Node.js hosting):
 1. Set environment variables in your hosting dashboard
 2. Build command: `npm run build`
 3. Start command: `npm start`
+
+## Technical Design Docs
+
+- Phase 2 System Architecture & Technical Design: `SYSTEM_ARCHITECTURE_PHASE2.md`

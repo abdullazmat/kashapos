@@ -9,9 +9,7 @@ import {
   Banknote,
   CreditCard,
   Smartphone,
-  ArrowUpRight,
   ShoppingCart,
-  Filter,
   ChevronLeft,
   ChevronRight,
   Receipt,
@@ -48,7 +46,7 @@ interface SaleItem {
 interface Sale {
   _id: string;
   orderNumber: string;
-  customerId?: { _id: string; name: string; phone: string };
+  customerId?: { _id: string; name: string; phone: string; email?: string };
   walkInName?: string;
   walkInPhone?: string;
   cashierId?: { name: string };
@@ -104,6 +102,14 @@ interface OrderItem {
   total: number;
 }
 
+type SplitMethod = "cash" | "card" | "mobile_money" | "bank_transfer";
+
+interface SplitPaymentInput {
+  method: SplitMethod;
+  amount: string;
+  reference: string;
+}
+
 const inputClass =
   "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
@@ -133,6 +139,8 @@ export default function SalesPage() {
   const [viewSale, setViewSale] = useState<Sale | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("completed");
   const [actionLoading, setActionLoading] = useState(false);
+  const [sendingReceipt, setSendingReceipt] = useState(false);
+  const [actionSuccess, setActionSuccess] = useState("");
   const [actionError, setActionError] = useState("");
   const [pageError, setPageError] = useState("");
 
@@ -147,6 +155,15 @@ export default function SalesPage() {
   const [orderPaymentMethod, setOrderPaymentMethod] = useState("cash");
   const [orderAmountPaid, setOrderAmountPaid] = useState("");
   const [orderDueDate, setOrderDueDate] = useState("");
+  const [orderBankName, setOrderBankName] = useState("");
+  const [orderBankAccountNumber, setOrderBankAccountNumber] = useState("");
+  const [orderBankReference, setOrderBankReference] = useState("");
+  const [orderSplitPayments, setOrderSplitPayments] = useState<
+    SplitPaymentInput[]
+  >([
+    { method: "cash", amount: "", reference: "" },
+    { method: "card", amount: "", reference: "" },
+  ]);
   const [orderNotes, setOrderNotes] = useState("");
   const [orderStatus, setOrderStatus] = useState<"completed" | "pending">(
     "completed",
@@ -199,8 +216,33 @@ export default function SalesPage() {
   useEffect(() => {
     if (!viewSale) return;
     setSelectedStatus(viewSale.status);
+    setActionSuccess("");
     setActionError("");
   }, [viewSale]);
+
+  async function sendReceiptEmail() {
+    if (!viewSale || sendingReceipt) return;
+    setSendingReceipt(true);
+    setActionSuccess("");
+    setActionError("");
+    try {
+      const res = await fetch(`/api/sales/${viewSale._id}/receipt/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        setActionError(payload.error || "Failed to send receipt email");
+        return;
+      }
+      setActionSuccess("Receipt email sent successfully.");
+      await fetchSales();
+    } catch {
+      setActionError("Failed to send receipt email");
+    } finally {
+      setSendingReceipt(false);
+    }
+  }
 
   const fetchFormData = useCallback(async () => {
     try {
@@ -233,6 +275,13 @@ export default function SalesPage() {
     setOrderPaymentMethod("cash");
     setOrderAmountPaid("");
     setOrderDueDate("");
+    setOrderBankName("");
+    setOrderBankAccountNumber("");
+    setOrderBankReference("");
+    setOrderSplitPayments([
+      { method: "cash", amount: "", reference: "" },
+      { method: "card", amount: "", reference: "" },
+    ]);
     setOrderNotes("");
     setOrderStatus("completed");
     setOrderWalkInName("");
@@ -349,6 +398,32 @@ export default function SalesPage() {
   );
   const orderTotal = orderSubtotal + orderTax;
 
+  const normalizedSplitPayments = useMemo(
+    () =>
+      orderSplitPayments
+        .map((row) => ({
+          method: row.method,
+          amount: Number.parseFloat(row.amount),
+          reference: row.reference.trim(),
+        }))
+        .filter((row) => Number.isFinite(row.amount) && row.amount > 0),
+    [orderSplitPayments],
+  );
+
+  const splitTotal = useMemo(
+    () => normalizedSplitPayments.reduce((sum, row) => sum + row.amount, 0),
+    [normalizedSplitPayments],
+  );
+
+  const parsedInputAmount = Number.parseFloat(orderAmountPaid);
+  const defaultAmountPaid = orderPaymentMethod === "credit" ? 0 : orderTotal;
+  const requestedAmountPaid = Number.isFinite(parsedInputAmount)
+    ? Math.max(0, parsedInputAmount)
+    : defaultAmountPaid;
+  const effectiveAmountPaid =
+    orderPaymentMethod === "split" ? splitTotal : requestedAmountPaid;
+  const remainingBalancePreview = Math.max(0, orderTotal - effectiveAmountPaid);
+
   const saveOrder = async () => {
     const validateOrder = () => {
       const errors: string[] = [];
@@ -368,10 +443,6 @@ export default function SalesPage() {
         errors.push("Credit sales require a saved customer profile");
       }
 
-      // Issue #3: Backdated due date block
-      if (orderPaymentMethod === "credit" && !orderDueDate) {
-        errors.push("Select a due date for credit sales");
-      }
       if (orderDueDate) {
         const selected = new Date(orderDueDate);
         const today = new Date();
@@ -387,6 +458,27 @@ export default function SalesPage() {
         errors.push("Selected currency is not supported");
       }
 
+      if (orderPaymentMethod === "split") {
+        if (normalizedSplitPayments.length < 2) {
+          errors.push("Split payments need at least two methods");
+        }
+        if (Math.abs(splitTotal - orderTotal) > 0.01) {
+          errors.push("Split amounts must equal order total");
+        }
+      }
+
+      if (orderPaymentMethod === "bank_transfer") {
+        if (!orderBankName.trim()) {
+          errors.push("Bank name is required for bank transfer");
+        }
+        if (!orderBankAccountNumber.trim()) {
+          errors.push("Account number is required for bank transfer");
+        }
+        if (!orderBankReference.trim()) {
+          errors.push("Transfer reference is required for bank transfer");
+        }
+      }
+
       if (errors.length > 0) {
         setOrderError(errors.join(" "));
         return false;
@@ -397,13 +489,7 @@ export default function SalesPage() {
 
     if (!validateOrder()) return;
 
-    const parsedInputAmount = Number.parseFloat(orderAmountPaid);
-    const parsedAmountPaid = Number.isFinite(parsedInputAmount)
-      ? Math.max(0, parsedInputAmount)
-      : orderPaymentMethod === "credit"
-        ? 0
-        : orderTotal;
-
+    const parsedAmountPaid = effectiveAmountPaid;
     const remainingBalance = Math.max(0, orderTotal - parsedAmountPaid);
 
     if (remainingBalance > 0 && !orderCustomer) {
@@ -416,6 +502,23 @@ export default function SalesPage() {
     setSavingOrder(true);
     setOrderError("");
     try {
+      const paymentDetails =
+        orderPaymentMethod === "bank_transfer"
+          ? {
+              bankName: orderBankName.trim(),
+              bankAccountNumber: orderBankAccountNumber.trim(),
+              bankReference: orderBankReference.trim(),
+            }
+          : orderPaymentMethod === "split"
+            ? {
+                splitPayments: normalizedSplitPayments.map((row) => ({
+                  method: row.method,
+                  amount: row.amount,
+                  ...(row.reference ? { reference: row.reference } : {}),
+                })),
+              }
+            : undefined;
+
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -434,6 +537,7 @@ export default function SalesPage() {
           })),
           paymentMethod: orderPaymentMethod,
           amountPaid: parsedAmountPaid,
+          ...(paymentDetails ? { paymentDetails } : {}),
           status:
             orderPaymentMethod === "credit" || remainingBalance > 0
               ? "pending"
@@ -1075,6 +1179,11 @@ export default function SalesPage() {
                   {actionError}
                 </div>
               )}
+              {actionSuccess && (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {actionSuccess}
+                </div>
+              )}
               <div className="mb-5 grid grid-cols-3 gap-3">
                 <div className="rounded-xl bg-gray-50 p-3">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
@@ -1187,6 +1296,16 @@ export default function SalesPage() {
                   </select>
                 </div>
                 <div className="flex gap-2">
+                  {viewSale.customerId?.email && (
+                    <button
+                      onClick={sendReceiptEmail}
+                      disabled={sendingReceipt}
+                      className="inline-flex items-center gap-2 rounded-xl border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      <Receipt className="h-4 w-4" />
+                      {sendingReceipt ? "Sending..." : "Send Receipt"}
+                    </button>
+                  )}
                   <button
                     onClick={deleteSale}
                     disabled={actionLoading}
@@ -1271,6 +1390,7 @@ export default function SalesPage() {
                           setOrderWalkInPhone("");
                         } else if (orderPaymentMethod === "credit") {
                           setOrderPaymentMethod("cash");
+                          setOrderAmountPaid("");
                           setOrderDueDate("");
                           setOrderStatus("completed");
                         }
@@ -1312,16 +1432,26 @@ export default function SalesPage() {
                         />
                       </div>
                     )}
-                    {selectedOrderCustomer &&
-                      (selectedOrderCustomer.outstandingBalance || 0) > 0 && (
-                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+                    {selectedOrderCustomer && (
+                      <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+                        <p>
                           Existing credit due:{" "}
                           {formatCurrency(
                             selectedOrderCustomer.outstandingBalance || 0,
                             currency,
                           )}
-                        </div>
-                      )}
+                        </p>
+                        <p className="mt-1">
+                          Credit limit:{" "}
+                          {selectedOrderCustomer.creditLimit
+                            ? formatCurrency(
+                                selectedOrderCustomer.creditLimit,
+                                currency,
+                              )
+                            : "Not set"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
@@ -1479,7 +1609,10 @@ export default function SalesPage() {
                           const nextMethod = e.target.value;
                           setOrderPaymentMethod(nextMethod);
                           if (nextMethod === "credit") {
+                            setOrderAmountPaid("0");
                             setOrderStatus("pending");
+                          } else {
+                            setOrderAmountPaid("");
                           }
                         }}
                         className="mt-1 w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30"
@@ -1492,6 +1625,12 @@ export default function SalesPage() {
                         </option>
                         <option value="mobile_money" className="text-gray-900">
                           Mobile Money
+                        </option>
+                        <option value="split" className="text-gray-900">
+                          Split Payment
+                        </option>
+                        <option value="bank_transfer" className="text-gray-900">
+                          Bank Transfer
                         </option>
                         {!isWalkInOrder && (
                           <option value="credit" className="text-gray-900">
@@ -1507,7 +1646,7 @@ export default function SalesPage() {
                     </div>
                     <div>
                       <label className="text-[11px] font-semibold text-gray-400">
-                        Due Date
+                        Due Date (optional)
                       </label>
                       <input
                         type="date"
@@ -1530,6 +1669,161 @@ export default function SalesPage() {
                       />
                     </div>
                   </div>
+                  {orderPaymentMethod === "split" && (
+                    <div className="col-span-3 rounded-lg border border-white/20 bg-white/5 p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-300">
+                          Split Allocation
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOrderSplitPayments((prev) => [
+                              ...prev,
+                              {
+                                method: "mobile_money",
+                                amount: "",
+                                reference: "",
+                              },
+                            ])
+                          }
+                          className="rounded-md border border-white/20 px-2 py-1 text-[11px] font-semibold text-white/80 hover:bg-white/10"
+                        >
+                          Add split line
+                        </button>
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {orderSplitPayments.map((row, idx) => (
+                          <div key={idx} className="grid grid-cols-12 gap-2">
+                            <select
+                              value={row.method}
+                              onChange={(e) =>
+                                setOrderSplitPayments((prev) =>
+                                  prev.map((item, itemIdx) =>
+                                    itemIdx === idx
+                                      ? {
+                                          ...item,
+                                          method: e.target.value as SplitMethod,
+                                        }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              className="col-span-4 rounded-lg border border-white/20 bg-white/10 px-2.5 py-2 text-xs text-white focus:outline-none"
+                            >
+                              <option value="cash" className="text-gray-900">
+                                Cash
+                              </option>
+                              <option value="card" className="text-gray-900">
+                                Card
+                              </option>
+                              <option
+                                value="mobile_money"
+                                className="text-gray-900"
+                              >
+                                Mobile
+                              </option>
+                              <option
+                                value="bank_transfer"
+                                className="text-gray-900"
+                              >
+                                Bank
+                              </option>
+                            </select>
+                            <input
+                              type="number"
+                              value={row.amount}
+                              onChange={(e) =>
+                                setOrderSplitPayments((prev) =>
+                                  prev.map((item, itemIdx) =>
+                                    itemIdx === idx
+                                      ? { ...item, amount: e.target.value }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              placeholder="Amount"
+                              className="col-span-4 rounded-lg border border-white/20 bg-white/10 px-2.5 py-2 text-xs text-white placeholder-white/40 focus:outline-none"
+                            />
+                            <input
+                              value={row.reference}
+                              onChange={(e) =>
+                                setOrderSplitPayments((prev) =>
+                                  prev.map((item, itemIdx) =>
+                                    itemIdx === idx
+                                      ? {
+                                          ...item,
+                                          reference: e.target.value,
+                                        }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              placeholder="Reference (optional)"
+                              className="col-span-3 rounded-lg border border-white/20 bg-white/10 px-2.5 py-2 text-xs text-white placeholder-white/40 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              disabled={orderSplitPayments.length <= 2}
+                              onClick={() =>
+                                setOrderSplitPayments((prev) =>
+                                  prev.filter((_, itemIdx) => itemIdx !== idx),
+                                )
+                              }
+                              className="col-span-1 rounded-lg border border-red-300/30 bg-red-500/10 text-xs font-semibold text-red-200 disabled:opacity-40"
+                            >
+                              X
+                            </button>
+                          </div>
+                        ))}
+                        <p className="text-[11px] text-gray-300">
+                          Split total: {formatCurrency(splitTotal, currency)} /{" "}
+                          {formatCurrency(orderTotal, currency)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {orderPaymentMethod === "bank_transfer" && (
+                    <div className="col-span-3 grid grid-cols-3 gap-2 rounded-lg border border-white/20 bg-white/5 p-3">
+                      <input
+                        value={orderBankName}
+                        onChange={(e) => setOrderBankName(e.target.value)}
+                        placeholder="Bank name"
+                        className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-2 text-xs text-white placeholder-white/40 focus:outline-none"
+                      />
+                      <input
+                        value={orderBankAccountNumber}
+                        onChange={(e) =>
+                          setOrderBankAccountNumber(e.target.value)
+                        }
+                        placeholder="Account number"
+                        className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-2 text-xs text-white placeholder-white/40 focus:outline-none"
+                      />
+                      <input
+                        value={orderBankReference}
+                        onChange={(e) => setOrderBankReference(e.target.value)}
+                        placeholder="Transfer reference"
+                        className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-2 text-xs text-white placeholder-white/40 focus:outline-none"
+                      />
+                    </div>
+                  )}
+                  {orderPaymentMethod === "credit" && selectedOrderCustomer && (
+                    <div className="col-span-3 rounded-lg border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                      Credit profile: outstanding{" "}
+                      {formatCurrency(
+                        selectedOrderCustomer.outstandingBalance || 0,
+                        currency,
+                      )}
+                      {" • "}
+                      limit{" "}
+                      {selectedOrderCustomer.creditLimit
+                        ? formatCurrency(
+                            selectedOrderCustomer.creditLimit,
+                            currency,
+                          )
+                        : "Not set"}
+                    </div>
+                  )}
                 </div>
 
                 {/* Notes */}
@@ -1580,6 +1874,20 @@ export default function SalesPage() {
                         {formatCurrency(orderTotal, currency)}
                       </span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Amount paid</span>
+                      <span className="font-medium text-gray-700">
+                        {formatCurrency(effectiveAmountPaid, currency)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Remaining balance</span>
+                      <span
+                        className={`font-semibold ${remainingBalancePreview > 0 ? "text-red-600" : "text-emerald-600"}`}
+                      >
+                        {formatCurrency(remainingBalancePreview, currency)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1614,15 +1922,22 @@ export default function SalesPage() {
                     <p className="text-[12px] text-gray-400">
                       {selectedOrderCustomer?.phone || ""}
                     </p>
-                    {(selectedOrderCustomer?.outstandingBalance || 0) > 0 && (
-                      <p className="mt-2 text-[12px] font-semibold text-amber-700">
-                        Outstanding:{" "}
-                        {formatCurrency(
-                          selectedOrderCustomer?.outstandingBalance || 0,
-                          currency,
-                        )}
-                      </p>
-                    )}
+                    <p className="mt-2 text-[12px] font-semibold text-amber-700">
+                      Outstanding:{" "}
+                      {formatCurrency(
+                        selectedOrderCustomer?.outstandingBalance || 0,
+                        currency,
+                      )}
+                    </p>
+                    <p className="mt-1 text-[12px] text-gray-500">
+                      Credit limit:{" "}
+                      {selectedOrderCustomer?.creditLimit
+                        ? formatCurrency(
+                            selectedOrderCustomer.creditLimit,
+                            currency,
+                          )
+                        : "Not set"}
+                    </p>
                   </div>
                 )}
                 {!orderCustomer && (orderWalkInName || orderWalkInPhone) && (

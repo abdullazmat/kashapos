@@ -74,6 +74,8 @@ export default function InvoicesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showPayment, setShowPayment] = useState<Invoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailStatus, setEmailStatus] = useState("");
 
   const [newInvoice, setNewInvoice] = useState({
     customerId: "",
@@ -224,6 +226,37 @@ export default function InvoicesPage() {
       body: JSON.stringify({ _id: id, status }),
     });
     if (res.ok) fetchInvoices();
+  };
+
+  const sendInvoiceEmail = async (invoice: Invoice) => {
+    if (!invoice.customerId?.email || emailSending) return;
+    setEmailSending(true);
+    setEmailStatus("");
+    try {
+      const res = await fetch(`/api/invoices/${invoice._id}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        setEmailStatus(payload.error || "Failed to send invoice email");
+        return;
+      }
+      setEmailStatus("Invoice email sent successfully.");
+      fetchInvoices();
+      setViewInvoice((current) =>
+        current
+          ? {
+              ...current,
+              status: payload.invoice?.status || current.status,
+            }
+          : current,
+      );
+    } catch {
+      setEmailStatus("Failed to send invoice email");
+    } finally {
+      setEmailSending(false);
+    }
   };
 
   const invoiceSubtotal =
@@ -510,7 +543,10 @@ export default function InvoicesPage() {
       {viewInvoice && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setViewInvoice(null)}
+          onClick={() => {
+            setViewInvoice(null);
+            setEmailStatus("");
+          }}
         >
           <div
             className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
@@ -531,13 +567,23 @@ export default function InvoicesPage() {
                 </div>
               </div>
               <button
-                onClick={() => setViewInvoice(null)}
+                onClick={() => {
+                  setViewInvoice(null);
+                  setEmailStatus("");
+                }}
                 className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="px-6 py-4">
+              {emailStatus && (
+                <div
+                  className={`mb-4 rounded-xl border px-3 py-2 text-sm ${emailStatus.includes("successfully") ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}
+                >
+                  {emailStatus}
+                </div>
+              )}
               <div className="mb-5 grid grid-cols-3 gap-3">
                 <div className="rounded-xl bg-gray-50 p-3">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
@@ -658,22 +704,12 @@ export default function InvoicesPage() {
                 </button>
                 {viewInvoice.customerId?.email && (
                   <button
-                    onClick={() => {
-                      const subject = encodeURIComponent(
-                        `Invoice ${viewInvoice.invoiceNumber}`,
-                      );
-                      const body = encodeURIComponent(
-                        `Dear ${viewInvoice.customerId?.name},\n\nPlease find your invoice ${viewInvoice.invoiceNumber} for ${formatCurrency(viewInvoice.total, currency)}.\n\nDue: ${viewInvoice.dueDate ? formatDate(viewInvoice.dueDate) : "On receipt"}\nBalance: ${formatCurrency(viewInvoice.balance || 0, currency)}\n\nThank you for your business!`,
-                      );
-                      window.open(
-                        `mailto:${viewInvoice.customerId?.email}?subject=${subject}&body=${body}`,
-                        "_blank",
-                      );
-                    }}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                    onClick={() => sendInvoiceEmail(viewInvoice)}
+                    disabled={emailSending}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
                   >
                     <Send className="h-3.5 w-3.5" />
-                    Email
+                    {emailSending ? "Sending..." : "Email"}
                   </button>
                 )}
                 {viewInvoice.customerId?.phone && (

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
+  Barcode as BarcodeIcon,
   RotateCcw,
   Plus,
   Search,
@@ -15,6 +16,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { findBarcodeMatch, logBarcodeScanEvent } from "@/lib/barcode-client";
 import { useSession } from "../layout";
 
 interface ToastMessage {
@@ -55,6 +57,7 @@ interface Product {
   _id: string;
   name: string;
   sku: string;
+  barcode?: string;
   price: number;
   costPrice?: number;
 }
@@ -72,6 +75,7 @@ export default function ReturnsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [returnBarcodeInput, setReturnBarcodeInput] = useState("");
 
   // New return form
   const [returnType, setReturnType] = useState<
@@ -190,6 +194,74 @@ export default function ReturnsPage() {
 
   const removeItem = (index: number) => {
     setReturnItems(returnItems.filter((_, i) => i !== index));
+  };
+
+  const handleReturnBarcodeScan = async () => {
+    const value = returnBarcodeInput.trim();
+    if (!value) return;
+
+    const match = findBarcodeMatch(products, value);
+    if (!match) {
+      pushToast("error", "Barcode not found", `No product matches ${value}.`);
+      void logBarcodeScanEvent({
+        value,
+        context: "returns",
+        source: "scanner",
+        module: "stock",
+        scanAction: "not_found",
+        result: "not_found",
+      }).catch(() => {
+        /* ignore */
+      });
+      return;
+    }
+
+    setReturnItems((prev) => {
+      const nextItems = [...prev];
+      const emptyIndex = nextItems.findIndex((item) => !item.productId);
+      const targetIndex = emptyIndex >= 0 ? emptyIndex : nextItems.length;
+      const nextItem = {
+        productId: match.product._id,
+        productName: match.product.name,
+        sku: match.product.sku,
+        quantity:
+          targetIndex < nextItems.length
+            ? nextItems[targetIndex].quantity || 1
+            : 1,
+        unitPrice:
+          returnType === "sales_return"
+            ? match.product.price
+            : match.product.costPrice || match.product.price,
+        reason:
+          targetIndex < nextItems.length
+            ? nextItems[targetIndex].reason || ""
+            : "",
+      };
+
+      if (targetIndex < nextItems.length) nextItems[targetIndex] = nextItem;
+      else nextItems.push(nextItem);
+      return nextItems;
+    });
+
+    setReturnBarcodeInput("");
+    pushToast(
+      "success",
+      "Item selected",
+      `${match.product.name} added to the return form.`,
+    );
+    void logBarcodeScanEvent({
+      value,
+      context: "returns",
+      source: "scanner",
+      module: "stock",
+      scanAction: "return_lookup",
+      result: "found",
+      productId: match.product._id,
+      productName: match.product.name,
+      productSku: match.product.sku,
+    }).catch(() => {
+      /* ignore */
+    });
   };
 
   const handleSubmit = async () => {
@@ -678,6 +750,31 @@ export default function ReturnsPage() {
                     className="text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors"
                   >
                     + Add Item
+                  </button>
+                </div>
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 p-3">
+                  <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2">
+                    <BarcodeIcon className="h-4 w-4 text-orange-500" />
+                    <input
+                      value={returnBarcodeInput}
+                      onChange={(event) =>
+                        setReturnBarcodeInput(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleReturnBarcodeScan();
+                        }
+                      }}
+                      placeholder="Scan barcode to identify return item"
+                      className="flex-1 bg-transparent text-sm outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => void handleReturnBarcodeScan()}
+                    className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-600"
+                  >
+                    Find Item
                   </button>
                 </div>
                 {productLoadError && (

@@ -43,6 +43,70 @@ declare global {
   }
 }
 
+const STOCK_SYNC_EVENT = "meka:stock-sync";
+const STOCK_SYNC_STORAGE_KEY = "meka:stock-sync:last";
+let stockSyncChannel: BroadcastChannel | null = null;
+
+function getStockSyncChannel() {
+  if (typeof window === "undefined" || !("BroadcastChannel" in window)) {
+    return null;
+  }
+
+  if (!stockSyncChannel) {
+    stockSyncChannel = new BroadcastChannel(STOCK_SYNC_EVENT);
+  }
+
+  return stockSyncChannel;
+}
+
+export function emitStockSync(payload?: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+
+  const detail = {
+    ...(payload || {}),
+    timestamp: Date.now(),
+  };
+
+  window.dispatchEvent(new CustomEvent(STOCK_SYNC_EVENT, { detail }));
+
+  try {
+    window.localStorage.setItem(STOCK_SYNC_STORAGE_KEY, JSON.stringify(detail));
+  } catch {
+    /* ignore */
+  }
+
+  getStockSyncChannel()?.postMessage(detail);
+}
+
+export function subscribeToStockSync(callback: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const handleWindowEvent = () => callback();
+  const handleStorageEvent = (event: StorageEvent) => {
+    if (event.key === STOCK_SYNC_STORAGE_KEY && event.newValue) {
+      callback();
+    }
+  };
+
+  const channel = getStockSyncChannel();
+  const handleChannelMessage = () => callback();
+
+  window.addEventListener(STOCK_SYNC_EVENT, handleWindowEvent as EventListener);
+  window.addEventListener("storage", handleStorageEvent);
+  channel?.addEventListener("message", handleChannelMessage);
+
+  return () => {
+    window.removeEventListener(
+      STOCK_SYNC_EVENT,
+      handleWindowEvent as EventListener,
+    );
+    window.removeEventListener("storage", handleStorageEvent);
+    channel?.removeEventListener("message", handleChannelMessage);
+  };
+}
+
 const DEFAULT_LEDGER_CURRENCY = "UGX";
 
 function normalizeCurrencyCode(currency?: string) {

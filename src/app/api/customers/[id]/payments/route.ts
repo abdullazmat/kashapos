@@ -31,6 +31,7 @@ export async function GET(
 
     const [payments, total] = await Promise.all([
       CustomerPayment.find(query)
+        .populate("saleId", "orderNumber total amountPaid")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)

@@ -1,7 +1,10 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useRef } from "react";
 import type { ComponentType } from "react";
+import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowLeft,
   Search,
   ShoppingCart,
@@ -32,7 +35,18 @@ import {
   escapeHtml,
   getPrintBrandingMarkup,
   getPrintFooterMarkup,
+  subscribeToStockSync,
 } from "@/lib/utils";
+import {
+  apiRequest,
+  getApiErrorMessage,
+  unwrapApiResponse,
+} from "@/lib/api-client";
+import {
+  findBarcodeMatch,
+  logBarcodeScanEvent,
+  playBarcodeTone,
+} from "@/lib/barcode-client";
 import { useSession } from "../layout";
 
 type SortOption =
@@ -47,6 +61,8 @@ interface Product {
   _id: string;
   name: string;
   sku: string;
+  barcode?: string;
+  barcodeFormat?: string;
   price: number;
   image?: string;
   category?: { _id: string; name: string };
@@ -56,6 +72,7 @@ interface Product {
   variants?: {
     name: string;
     sku: string;
+    barcode?: string;
     price: number;
     stock: number;
     imei?: string;
@@ -66,8 +83,11 @@ interface Customer {
   name: string;
   email: string;
   phone: string;
+  totalPurchases?: number;
   outstandingBalance?: number;
   creditLimit?: number;
+  paymentStatus?: "cleared" | "partial" | "overdue";
+  lastPaymentDate?: string;
 }
 interface CartItem extends Product {
   quantity: number;
@@ -105,8 +125,108 @@ type SplitEntry = {
   reference: string;
 };
 
+type ProductVariant = {
+  name?: string;
+  sku?: string;
+  barcode?: string;
+  price?: number;
+  stock?: number;
+  imei?: string;
+};
+
+type VariantAttributeKey = "color" | "size" | "material" | "storage";
+
+const COLOR_TOKENS = [
+  "black",
+  "white",
+  "blue",
+  "red",
+  "green",
+  "yellow",
+  "pink",
+  "purple",
+  "gray",
+  "grey",
+  "brown",
+  "orange",
+  "navy",
+  "beige",
+  "cream",
+  "maroon",
+  "gold",
+  "silver",
+  "lilac",
+  "iceblue",
+  "ice",
+];
+
+const MATERIAL_TOKENS = [
+  "cotton",
+  "linen",
+  "wool",
+  "polyester",
+  "denim",
+  "silk",
+  "leather",
+  "nylon",
+  "rayon",
+  "spandex",
+  "fleece",
+  "satin",
+  "jersey",
+];
+
+const SIZE_TOKENS = [
+  "xxxs",
+  "xxs",
+  "xs",
+  "s",
+  "m",
+  "l",
+  "xl",
+  "xxl",
+  "xxxl",
+  "3xl",
+  "4xl",
+  "5xl",
+];
+
+function toTitleCase(value: string) {
+  if (!value) return value;
+  if (/^[0-9]+(gb|tb)$/i.test(value)) return value.toUpperCase();
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function parseVariantAttributes(name: string) {
+  const tokens = name
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter(Boolean);
+  const attributes: Partial<Record<VariantAttributeKey, string>> = {};
+
+  const size = tokens.find(
+    (token) => SIZE_TOKENS.includes(token) || /^\d{2,3}$/.test(token),
+  );
+  if (size) attributes.size = size;
+
+  const color = tokens.find((token) => COLOR_TOKENS.includes(token));
+  if (color) attributes.color = color;
+
+  const material = tokens.find((token) => MATERIAL_TOKENS.includes(token));
+  if (material) attributes.material = material;
+
+  const storage = tokens.find((token) => /^\d+(gb|tb)$/i.test(token));
+  if (storage) attributes.storage = storage.toLowerCase();
+
+  return attributes;
+}
+
 export default function POSTerminalPage() {
-  const { tenant } = useSession();
+  const { tenant, user } = useSession();
   const currency = tenant?.settings?.currency || "UGX";
   const supportedCurrencies = new Set([
     "UGX",
@@ -138,9 +258,14 @@ export default function POSTerminalPage() {
   const [walkInName, setWalkInName] = useState("");
   const [walkInPhone, setWalkInPhone] = useState("");
   const [expandedProductId, setExpandedProductId] = useState("");
+  const [variantPickerProductId, setVariantPickerProductId] = useState("");
+  const [variantSelections, setVariantSelections] = useState<
+    Partial<Record<VariantAttributeKey, string>>
+  >({});
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [amountPaid, setAmountPaid] = useState("");
   const [creditDueDate, setCreditDueDate] = useState("");
+  const [creditNote, setCreditNote] = useState("");
   const [bankReference, setBankReference] = useState("");
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
@@ -177,6 +302,14 @@ export default function POSTerminalPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [saleError, setSaleError] = useState("");
+  const [scannerAlert, setScannerAlert] = useState<{
+    tone: "success" | "error";
+    message: string;
+    value: string;
+  } | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const scanIntervalsRef = useRef<number[]>([]);
+  const lastScannerKeyAtRef = useRef<number>(0);
 
   const isWalkInCustomer = !selectedCustomer;
   const isCreditWithoutCustomer =
@@ -208,22 +341,15 @@ export default function POSTerminalPage() {
     return selected < today;
   }
 
-  useEffect(() => {
-    fetchData();
-    const intervalId = window.setInterval(fetchData, 45000);
-    return () => window.clearInterval(intervalId);
-  }, []);
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     try {
-      const [pRes, catRes, custRes] = await Promise.all([
-        fetch("/api/products"),
-        fetch("/api/categories"),
-        fetch("/api/customers"),
+      const [pData, catData, custData] = await Promise.all([
+        apiRequest<{ products: Product[] }>("/api/products"),
+        apiRequest<{ categories: { _id: string; name: string }[] }>(
+          "/api/categories",
+        ),
+        apiRequest<{ customers: Customer[] }>("/api/customers"),
       ]);
-      const pData = await pRes.json();
-      const catData = await catRes.json();
-      const custData = await custRes.json();
       setProducts(pData.products || []);
       setCategories(catData.categories || []);
       setCustomers(custData.customers || []);
@@ -232,7 +358,53 @@ export default function POSTerminalPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+
+    const intervalId = window.setInterval(fetchData, 10000);
+    const handleWindowFocus = () => {
+      fetchData();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchData();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const unsubscribeStockSync = subscribeToStockSync(() => {
+      fetchData();
+    });
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      unsubscribeStockSync();
+    };
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (showPayment || showComplete || showCreateCustomerModal) return;
+    const timer = window.setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [
+    showPayment,
+    showComplete,
+    showCreateCustomerModal,
+    variantPickerProductId,
+  ]);
+
+  useEffect(() => {
+    if (!scannerAlert) return;
+    const timer = window.setTimeout(() => setScannerAlert(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [scannerAlert]);
 
   const filteredProducts = useMemo(() => {
     const query = search.toLowerCase();
@@ -306,25 +478,49 @@ export default function POSTerminalPage() {
     );
   }, [customerSearch, customers]);
 
-  function addToCart(
-    product: Product,
-    variant?: {
-      name: string;
-      sku: string;
-      price: number;
-      stock: number;
-      imei?: string;
-    },
-  ) {
-    const lineKey = `${product._id}:${variant?.sku || "base"}`;
+  function getStockCapForLine(product: Product, variant?: ProductVariant) {
+    if (variant && typeof variant.stock === "number") return variant.stock;
+    if (!variant && typeof product.stock === "number") return product.stock;
+    return undefined;
+  }
+
+  function getStockCapForCartItem(item: CartItem) {
+    const source = products.find((product) => product._id === item._id);
+    if (!source) return undefined;
+    if (item.variantSku) {
+      const sourceVariant = source.variants?.find(
+        (variant) => variant.sku === item.variantSku,
+      );
+      return typeof sourceVariant?.stock === "number"
+        ? sourceVariant.stock
+        : undefined;
+    }
+    return typeof source.stock === "number" ? source.stock : undefined;
+  }
+
+  function addToCart(product: Product, variant?: ProductVariant) {
+    const variantSku = variant?.sku?.trim();
+    const lineKey = `${product._id}:${variantSku || "base"}`;
     const displayName = variant
-      ? `${product.name} - ${variant.name}`
+      ? `${product.name} - ${variant.name || "Variant"}`
       : product.name;
     const linePrice = variant?.price ?? product.price;
-    const lineSku = variant?.sku || product.sku;
+    const lineSku = variantSku || product.sku;
+    const stockCap = getStockCapForLine(product, variant);
+    let stockError = "";
 
     setCart((prev) => {
       const existing = prev.find((i) => i.lineKey === lineKey);
+      const existingQty = existing?.quantity || 0;
+
+      if (typeof stockCap === "number" && existingQty >= stockCap) {
+        stockError =
+          stockCap <= 0
+            ? `"${displayName}" is out of stock.`
+            : `Only ${stockCap} in stock for "${displayName}".`;
+        return prev;
+      }
+
       if (existing)
         return prev.map((i) =>
           i.lineKey === lineKey ? { ...i, quantity: i.quantity + 1 } : i,
@@ -338,22 +534,136 @@ export default function POSTerminalPage() {
           price: linePrice,
           quantity: 1,
           lineKey,
-          variantName: variant?.name,
-          variantSku: variant?.sku,
+          variantName: variant?.name || undefined,
+          variantSku: variantSku || undefined,
         },
       ];
     });
+
+    if (stockError) {
+      setSaleError(stockError);
+      return;
+    }
+
+    setSaleError("");
     setExpandedProductId("");
   }
 
+  function resetScannerTiming() {
+    scanIntervalsRef.current = [];
+    lastScannerKeyAtRef.current = 0;
+  }
+
+  function clearSearchInput() {
+    setSearch("");
+    if (searchInputRef.current) {
+      searchInputRef.current.value = "";
+      searchInputRef.current.focus();
+    }
+  }
+
+  function isLikelyScannerInput(value: string, intervals: number[]) {
+    const trimmedValue = value.trim();
+    if (trimmedValue.length < 4) return false;
+
+    const expectedSamples = Math.min(trimmedValue.length - 1, 6);
+    const recentIntervals = intervals.slice(-expectedSamples);
+    if (recentIntervals.length < Math.min(trimmedValue.length - 1, 3)) {
+      return false;
+    }
+
+    const averageGap =
+      recentIntervals.reduce((sum, gap) => sum + gap, 0) /
+      recentIntervals.length;
+    const maxGap = Math.max(...recentIntervals);
+
+    return averageGap < 35 && maxGap < 80;
+  }
+
+  async function handleBarcodeScan(rawValue: string) {
+    const value = rawValue.trim();
+    if (!value) return;
+
+    const match = findBarcodeMatch(products, value);
+
+    if (match) {
+      addToCart(match.product, match.variant);
+      clearSearchInput();
+      setScannerAlert({
+        tone: "success",
+        value,
+        message: `Added ${match.variant?.name || match.product.name} to the sale.`,
+      });
+      if (tenant?.settings?.barcodeScanSound !== false) {
+        playBarcodeTone("success");
+      }
+      void logBarcodeScanEvent({
+        value,
+        context: "pos",
+        source: "scanner",
+        module: "sales",
+        scanAction: "added_to_sale",
+        result: "found",
+        productId: match.product._id,
+        productName: match.variant?.name
+          ? `${match.product.name} - ${match.variant.name}`
+          : match.product.name,
+        productSku: match.variant?.sku || match.product.sku,
+        locationId: user?.branchId,
+      }).catch(() => {
+        /* ignore */
+      });
+      return;
+    }
+
+    clearSearchInput();
+    setScannerAlert({
+      tone: "error",
+      value,
+      message: `Product not found for barcode ${value}.`,
+    });
+    if (tenant?.settings?.barcodeFailedScanAlert !== false) {
+      playBarcodeTone("error");
+    }
+    void logBarcodeScanEvent({
+      value,
+      context: "pos",
+      source: "scanner",
+      module: "sales",
+      scanAction: "not_found",
+      result: "not_found",
+      locationId: user?.branchId,
+    }).catch(() => {
+      /* ignore */
+    });
+  }
+
   function updateQty(lineKey: string, delta: number) {
+    let stockError = "";
     setCart((prev) =>
       prev
-        .map((i) =>
-          i.lineKey === lineKey ? { ...i, quantity: i.quantity + delta } : i,
-        )
+        .map((i) => {
+          if (i.lineKey !== lineKey) return i;
+          const nextQty = i.quantity + delta;
+          const stockCap = getStockCapForCartItem(i);
+          if (delta > 0 && typeof stockCap === "number" && nextQty > stockCap) {
+            stockError =
+              stockCap <= 0
+                ? `"${i.name}" is out of stock.`
+                : `Only ${stockCap} in stock for "${i.name}".`;
+            return i;
+          }
+          return { ...i, quantity: nextQty };
+        })
         .filter((i) => i.quantity > 0),
     );
+
+    if (stockError) {
+      setSaleError(stockError);
+      return;
+    }
+
+    if (delta > 0) setSaleError("");
   }
 
   function removeItem(lineKey: string) {
@@ -364,24 +674,24 @@ export default function POSTerminalPage() {
     if (!newCustomerName.trim() || creatingCustomer) return;
     setCreatingCustomer(true);
     try {
-      const res = await fetch("/api/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newCustomerName.trim(),
-          phone: newCustomerPhone.trim(),
-          email: newCustomerEmail.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setSaleError(data.error || "Failed to create customer");
-        return;
-      }
+      const created = await apiRequest<Customer | { customer: Customer }>(
+        "/api/customers",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newCustomerName.trim(),
+            phone: newCustomerPhone.trim(),
+            email: newCustomerEmail.trim(),
+          }),
+        },
+      );
 
-      const created = data.customer || data;
-      setCustomers((prev) => [created, ...prev]);
-      setSelectedCustomer(created._id);
+      const customer =
+        "customer" in created ? created.customer : (created as Customer);
+
+      setCustomers((prev) => [customer, ...prev]);
+      setSelectedCustomer(customer._id);
       setWalkInName("");
       setWalkInPhone("");
       setShowCreateCustomerModal(false);
@@ -399,8 +709,12 @@ export default function POSTerminalPage() {
   function openPayment() {
     if (cart.length === 0) return;
     setSaleError("");
-    setAmountPaid(cartTotal.toFixed(2));
+    if (isWalkInCustomer && paymentMethod === "credit") {
+      setPaymentMethod("cash");
+    }
+    setAmountPaid(orderGrandTotal.toFixed(2));
     setCreditDueDate("");
+    setCreditNote("");
     setBankReference("");
     setCardNumber("");
     setCardExpiry("");
@@ -421,6 +735,65 @@ export default function POSTerminalPage() {
     setShowPayment(true);
   }
 
+  const variantPickerProduct = useMemo(
+    () => products.find((product) => product._id === variantPickerProductId),
+    [products, variantPickerProductId],
+  );
+
+  const variantOptionsByAttribute = useMemo(() => {
+    const source = variantPickerProduct?.variants || [];
+    const options: Record<VariantAttributeKey, Set<string>> = {
+      color: new Set<string>(),
+      size: new Set<string>(),
+      material: new Set<string>(),
+      storage: new Set<string>(),
+    };
+
+    for (const variant of source) {
+      const attrs = parseVariantAttributes(variant.name || "");
+      for (const key of Object.keys(attrs) as VariantAttributeKey[]) {
+        const value = attrs[key];
+        if (value) options[key].add(value);
+      }
+    }
+
+    return {
+      color: Array.from(options.color),
+      size: Array.from(options.size),
+      material: Array.from(options.material),
+      storage: Array.from(options.storage),
+    };
+  }, [variantPickerProduct]);
+
+  const resolvedVariantForPicker = useMemo(() => {
+    if (!variantPickerProduct?.variants?.length) return null;
+
+    const matches = variantPickerProduct.variants.filter((variant) => {
+      const attrs = parseVariantAttributes(variant.name || "");
+      return (Object.keys(variantSelections) as VariantAttributeKey[]).every(
+        (key) =>
+          !variantSelections[key] || attrs[key] === variantSelections[key],
+      );
+    });
+
+    return matches[0] || variantPickerProduct.variants[0];
+  }, [variantPickerProduct, variantSelections]);
+
+  useEffect(() => {
+    if (!variantPickerProduct?.variants?.length) {
+      setVariantSelections({});
+      return;
+    }
+
+    const firstVariantAttrs = parseVariantAttributes(
+      variantPickerProduct.variants[0].name || "",
+    );
+    setVariantSelections((previous) => ({
+      ...firstVariantAttrs,
+      ...previous,
+    }));
+  }, [variantPickerProduct]);
+
   async function completeSale() {
     if (processing) return;
 
@@ -432,6 +805,12 @@ export default function POSTerminalPage() {
         errors.push("Credit sales require a saved customer profile");
       }
 
+      if (creditLimitExceeded) {
+        errors.push(
+          `This credit sale exceeds the customer's limit by ${formatCurrency(creditLimitOverage, currency)}`,
+        );
+      }
+
       // Issue #3: Backdated due-date block
       if (paymentMethod === "credit" && isBackdated(creditDueDate)) {
         errors.push("Due date cannot be in the past");
@@ -440,6 +819,17 @@ export default function POSTerminalPage() {
       // Issue #2: Currency support guard
       if (!supportedCurrencies.has(String(currency).toUpperCase())) {
         errors.push("Selected currency is not supported");
+      }
+
+      for (const item of cart) {
+        const stockCap = getStockCapForCartItem(item);
+        if (typeof stockCap === "number" && item.quantity > stockCap) {
+          errors.push(
+            stockCap <= 0
+              ? `${item.name} is now out of stock`
+              : `${item.name} has only ${stockCap} in stock`,
+          );
+        }
       }
 
       if (paymentMethod === "card") {
@@ -475,7 +865,7 @@ export default function POSTerminalPage() {
         if (validSplitEntries.length < 2) {
           errors.push("Split payment requires at least two payment methods");
         }
-        if (Math.abs(splitTotal - cartTotal) > 0.01) {
+        if (Math.abs(splitTotal - orderGrandTotal) > 0.01) {
           errors.push(
             "Split payment amounts must add up to the total amount due",
           );
@@ -500,7 +890,7 @@ export default function POSTerminalPage() {
           ? splitTotal
           : Number.isFinite(parsedAmountPaid)
             ? parsedAmountPaid
-            : cartTotal;
+            : orderGrandTotal;
 
     const splitPaymentPayload = splitPayments
       .filter((row) => (parseFloat(row.amount) || 0) > 0)
@@ -529,9 +919,9 @@ export default function POSTerminalPage() {
           walkInName: selectedCustomer ? undefined : walkInName.trim(),
           walkInPhone: selectedCustomer ? undefined : walkInPhone.trim(),
           paymentMethod,
-          subtotal: cartTotal,
-          totalTax: 0,
-          total: cartTotal,
+          subtotal: orderSubtotal,
+          totalTax: orderTax,
+          total: orderGrandTotal,
           amountPaid: resolvedAmountPaid,
           ...(paymentMethod === "mobile_money" && {
             mobileMoneyProvider:
@@ -567,16 +957,21 @@ export default function POSTerminalPage() {
           status: paymentMethod === "credit" ? "pending" : "completed",
           ...(paymentMethod === "credit" &&
             creditDueDate && { dueDate: creditDueDate }),
+          ...(paymentMethod === "credit" &&
+            creditNote.trim() && { creditNote: creditNote.trim() }),
           ...(paymentMethod === "bank_transfer" &&
             bankReference && { reference: bankReference }),
         }),
       });
-      const data = await res.json();
+      const payload = (await res.json()) as unknown;
+      const data = unwrapApiResponse<{ sale?: { orderNumber?: string } }>(
+        payload,
+      );
       if (res.ok) {
         await fetchData();
         setLastSale({
           saleNumber: data.sale?.orderNumber || "N/A",
-          total: cartTotal,
+          total: orderGrandTotal,
           items: cart.map((item) => ({
             name: item.name,
             quantity: item.quantity,
@@ -598,7 +993,7 @@ export default function POSTerminalPage() {
         setAmountPaid("");
         setSaleError("");
       } else {
-        setSaleError(data.error || "Failed to complete sale");
+        setSaleError(getApiErrorMessage(payload, "Failed to complete sale"));
       }
     } catch {
       setSaleError("Failed to complete sale. Please try again.");
@@ -669,12 +1064,26 @@ export default function POSTerminalPage() {
     );
   }
 
-  const change = parseFloat(amountPaid) - cartTotal;
+  const change = parseFloat(amountPaid) - orderGrandTotal;
   const selectedCustomerRecord = customers.find(
     (customer) => customer._id === selectedCustomer,
   );
   const selectedCustomerOutstanding =
     selectedCustomerRecord?.outstandingBalance || 0;
+  const selectedCustomerCreditLimit = selectedCustomerRecord?.creditLimit || 0;
+  const projectedCreditBalance =
+    paymentMethod === "credit"
+      ? selectedCustomerOutstanding +
+        Math.max(0, orderGrandTotal - (parseFloat(amountPaid) || 0))
+      : selectedCustomerOutstanding;
+  const creditLimitExceeded =
+    paymentMethod === "credit" &&
+    selectedCustomerCreditLimit > 0 &&
+    projectedCreditBalance > selectedCustomerCreditLimit;
+  const creditLimitOverage = Math.max(
+    0,
+    projectedCreditBalance - selectedCustomerCreditLimit,
+  );
   const availablePaymentOptions = useMemo(
     () =>
       isWalkInCustomer
@@ -685,7 +1094,7 @@ export default function POSTerminalPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[calc(100vh-7rem)] items-center justify-center rounded-[28px] border border-gray-200/70 bg-gradient-to-br from-gray-50 to-gray-100 shadow-sm">
+      <div className="flex min-h-[calc(100vh-7rem)] items-center justify-center rounded-[28px] border border-gray-200/70 bg-linear-to-br from-gray-50 to-gray-100 shadow-sm">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
           <p className="text-sm font-medium text-gray-500">
@@ -697,18 +1106,93 @@ export default function POSTerminalPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-[28px] border border-gray-200/70 bg-gradient-to-br from-gray-50 to-gray-100/80 shadow-sm">
+    <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-[28px] border border-gray-200/70 bg-linear-to-br from-gray-50 to-gray-100/80 shadow-sm">
       {/* ── Left: Products ── */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {scannerAlert && (
+          <div
+            className={`mx-4 mt-4 flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${scannerAlert.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}
+          >
+            <div className="flex items-start gap-3">
+              {scannerAlert.tone === "success" ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4" />
+              )}
+              <div>
+                <p className="font-semibold">{scannerAlert.message}</p>
+                <p className="mt-1 text-xs opacity-80">
+                  Scanner input is auto-detected when characters arrive in under
+                  50ms each.
+                </p>
+              </div>
+            </div>
+            {scannerAlert.tone === "error" && (
+              <Link
+                href={`/dashboard/inventory?search=${encodeURIComponent(scannerAlert.value)}`}
+                className="rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+              >
+                Add To Inventory
+              </Link>
+            )}
+          </div>
+        )}
+
         {/* Top Bar */}
-        <div className="flex items-center gap-3 border-b border-gray-200/80 bg-white/80 px-5 py-3 backdrop-blur-sm">
+        <div className="relative z-30 flex items-center gap-3 border-b border-gray-200/80 bg-white/80 px-5 py-3 backdrop-blur-sm">
           <div className="flex h-10 flex-1 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/80 px-3 transition-colors focus-within:border-orange-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/20">
             <Search className="h-4 w-4 text-gray-400" />
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Search products by name or SKU…"
+              placeholder="Search products by name, SKU, or scan barcode…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  const currentValue = event.currentTarget.value.trim();
+                  const isScannerInput = isLikelyScannerInput(
+                    currentValue,
+                    scanIntervalsRef.current,
+                  );
+
+                  if (isScannerInput) {
+                    event.preventDefault();
+                    void handleBarcodeScan(currentValue);
+                    resetScannerTiming();
+                    return;
+                  }
+
+                  resetScannerTiming();
+                  return;
+                }
+
+                if (
+                  event.key.length === 1 &&
+                  !event.altKey &&
+                  !event.ctrlKey &&
+                  !event.metaKey
+                ) {
+                  const now = performance.now();
+                  if (lastScannerKeyAtRef.current > 0) {
+                    scanIntervalsRef.current = [
+                      ...scanIntervalsRef.current.slice(-18),
+                      now - lastScannerKeyAtRef.current,
+                    ];
+                  }
+                  lastScannerKeyAtRef.current = now;
+                  return;
+                }
+
+                if (event.key === "Backspace" || event.key === "Escape") {
+                  resetScannerTiming();
+                }
+              }}
+              onBlur={() => {
+                if (showPayment || showComplete || showCreateCustomerModal)
+                  return;
+                window.setTimeout(() => searchInputRef.current?.focus(), 40);
+              }}
               className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
             />
             {search && (
@@ -722,7 +1206,7 @@ export default function POSTerminalPage() {
           </div>
 
           {/* Sort dropdown */}
-          <div className="relative">
+          <div className="relative z-40">
             <button
               onClick={() => setShowSort(!showSort)}
               className="flex h-10 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 transition-colors hover:bg-gray-50"
@@ -731,7 +1215,7 @@ export default function POSTerminalPage() {
               Sort
             </button>
             {showSort && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-xl border border-gray-200 bg-white py-1 shadow-xl">
+              <div className="absolute right-0 top-full z-90 mt-1 w-44 rounded-xl border border-gray-200 bg-white py-1 shadow-xl">
                 {(
                   [
                     { key: "name-asc", label: "Name A→Z" },
@@ -757,10 +1241,16 @@ export default function POSTerminalPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-3.5 py-2 text-white shadow-md shadow-orange-500/20">
+          <div className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-3.5 py-2 text-white shadow-md shadow-orange-500/20">
             <ShoppingCart className="h-4 w-4" />
             <span className="text-sm font-bold">{cartCount}</span>
           </div>
+        </div>
+
+        <div className="border-b border-gray-100 bg-white/70 px-5 py-2 text-xs text-gray-500">
+          USB HID, Bluetooth HID, and serial scanners can stay on the product
+          search field. Repeated scans increment quantity instead of creating
+          duplicate lines.
         </div>
 
         {/* Category Pills */}
@@ -769,7 +1259,7 @@ export default function POSTerminalPage() {
             onClick={() => setSelectedCategory("all")}
             className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
               selectedCategory === "all"
-                ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-md shadow-orange-500/20"
+                ? "bg-linear-to-r from-orange-500 to-amber-600 text-white shadow-md shadow-orange-500/20"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
@@ -782,7 +1272,7 @@ export default function POSTerminalPage() {
               onClick={() => setSelectedCategory(c._id)}
               className={`shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 selectedCategory === c._id
-                  ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-md shadow-orange-500/20"
+                  ? "bg-linear-to-r from-orange-500 to-amber-600 text-white shadow-md shadow-orange-500/20"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
@@ -809,26 +1299,57 @@ export default function POSTerminalPage() {
                 const inCartQty = cart
                   .filter((i) => i._id === p._id)
                   .reduce((sum, item) => sum + item.quantity, 0);
+                const hasVariants = (p.variants?.length || 0) > 0;
+                const baseLineKey = `${p._id}:base`;
+                const baseInCartQty =
+                  cart.find((item) => item.lineKey === baseLineKey)?.quantity ||
+                  0;
+                const baseStockRemaining =
+                  typeof p.stock === "number"
+                    ? p.stock - baseInCartQty
+                    : undefined;
+                const sellableVariantCount = hasVariants
+                  ? (p.variants || []).filter((variant) => {
+                      const variantLineKey = `${p._id}:${variant.sku}`;
+                      const variantInCartQty =
+                        cart.find((item) => item.lineKey === variantLineKey)
+                          ?.quantity || 0;
+                      return variant.stock - variantInCartQty > 0;
+                    }).length
+                  : 0;
+                const isOutOfStock = hasVariants
+                  ? sellableVariantCount === 0
+                  : typeof baseStockRemaining === "number" &&
+                    baseStockRemaining <= 0;
                 return (
                   <button
                     key={p._id}
+                    disabled={isOutOfStock}
                     onClick={() => {
-                      if (p.hasVariants && (p.variants?.length || 0) > 0) {
+                      if (hasVariants) {
                         setExpandedProductId((current) =>
+                          current === p._id ? "" : p._id,
+                        );
+                        setVariantPickerProductId((current) =>
                           current === p._id ? "" : p._id,
                         );
                         return;
                       }
+                      setVariantPickerProductId("");
                       addToCart(p);
                     }}
-                    className={`group relative flex flex-col rounded-2xl border bg-white p-3 text-left transition-all hover:shadow-lg hover:shadow-gray-200/60 ${
+                    className={`group relative flex flex-col rounded-2xl border bg-white p-3 text-left transition-all ${
+                      isOutOfStock
+                        ? "cursor-not-allowed border-red-200 bg-red-50/20 opacity-75"
+                        : "hover:shadow-lg hover:shadow-gray-200/60"
+                    } ${
                       inCartQty > 0
                         ? "border-orange-300 ring-2 ring-orange-500/20"
                         : "border-gray-100 hover:border-gray-200"
                     }`}
                   >
                     {/* Product Image */}
-                    <div className="mb-2.5 flex h-20 items-center justify-center rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+                    <div className="mb-2.5 flex h-20 items-center justify-center rounded-xl bg-linear-to-br from-gray-50 to-gray-100 overflow-hidden">
                       {p.image ? (
                         <img
                           src={p.image}
@@ -844,7 +1365,7 @@ export default function POSTerminalPage() {
                       {p.name}
                     </p>
                     <p className="mt-0.5 text-[11px] text-gray-400">{p.sku}</p>
-                    {p.hasVariants && (p.variants?.length || 0) > 0 && (
+                    {hasVariants && (
                       <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-500">
                         {p.variants?.length} variants - tap to expand
                       </p>
@@ -854,37 +1375,63 @@ export default function POSTerminalPage() {
                       <span className="text-[15px] font-bold text-orange-600">
                         {formatCurrency(p.price, currency)}
                       </span>
-                      {typeof p.stock === "number" && (
+                      {isOutOfStock ? (
+                        <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">
+                          Out
+                        </span>
+                      ) : hasVariants ? (
+                        <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">
+                          {sellableVariantCount} in stock
+                        </span>
+                      ) : typeof baseStockRemaining === "number" ? (
                         <span
                           className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                            p.stock <= 5
+                            baseStockRemaining <= 5
                               ? "bg-red-50 text-red-600"
                               : "bg-gray-50 text-gray-400"
                           }`}
                         >
-                          {p.stock}
+                          {baseStockRemaining}
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
+                    {isOutOfStock && (
+                      <div className="mt-1 rounded-md bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-600">
+                        Out of stock
+                      </div>
+                    )}
+
                     {inCartQty > 0 && (
-                      <div className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-[11px] font-bold text-white shadow-md shadow-orange-500/30">
+                      <div className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-linear-to-br from-orange-500 to-amber-600 text-[11px] font-bold text-white shadow-md shadow-orange-500/30">
                         {inCartQty}
                       </div>
                     )}
 
-                    {expandedProductId === p._id &&
-                      p.hasVariants &&
-                      (p.variants?.length || 0) > 0 && (
-                        <div className="mt-2 space-y-1 rounded-xl border border-blue-100 bg-blue-50/40 p-2">
-                          {p.variants?.map((variant) => (
+                    {expandedProductId === p._id && hasVariants && (
+                      <div className="mt-2 space-y-1 rounded-xl border border-blue-100 bg-blue-50/40 p-2">
+                        {p.variants?.map((variant) => {
+                          const variantLineKey = `${p._id}:${variant.sku}`;
+                          const variantInCartQty =
+                            cart.find((item) => item.lineKey === variantLineKey)
+                              ?.quantity || 0;
+                          const variantRemaining =
+                            variant.stock - variantInCartQty;
+                          const variantOutOfStock = variantRemaining <= 0;
+
+                          return (
                             <button
                               key={`${p._id}-${variant.sku}`}
+                              disabled={variantOutOfStock}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 addToCart(p, variant);
                               }}
-                              className="flex w-full items-center justify-between rounded-lg border border-blue-100 bg-white px-2 py-1.5 text-left hover:border-orange-300 hover:bg-orange-50/30"
+                              className={`flex w-full items-center justify-between rounded-lg border px-2 py-1.5 text-left ${
+                                variantOutOfStock
+                                  ? "cursor-not-allowed border-red-100 bg-red-50/40 text-red-400"
+                                  : "border-blue-100 bg-white hover:border-orange-300 hover:bg-orange-50/30"
+                              }`}
                             >
                               <span className="text-[11px] font-semibold text-gray-700">
                                 {variant.name}
@@ -892,26 +1439,130 @@ export default function POSTerminalPage() {
                               </span>
                               <span className="text-[11px] text-gray-500">
                                 {formatCurrency(variant.price, currency)} -{" "}
-                                {variant.stock}
+                                {variantOutOfStock ? "Out" : variantRemaining}
                               </span>
                             </button>
-                          ))}
-                        </div>
-                      )}
+                          );
+                        })}
+                      </div>
+                    )}
                   </button>
                 );
               })}
             </div>
           )}
+
+          {variantPickerProduct &&
+            (variantPickerProduct.variants?.length || 0) > 0 && (
+              <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800">
+                      {variantPickerProduct.name} - choose variant
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Select available color, size, material, or storage.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVariantPickerProductId("")}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-500 hover:bg-gray-50"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {(
+                  Object.keys(
+                    variantOptionsByAttribute,
+                  ) as VariantAttributeKey[]
+                )
+                  .filter((key) => variantOptionsByAttribute[key].length > 0)
+                  .map((key) => (
+                    <div key={key} className="mb-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                        {key}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {variantOptionsByAttribute[key].map((option) => (
+                          <button
+                            key={`${key}-${option}`}
+                            type="button"
+                            onClick={() =>
+                              setVariantSelections((previous) => ({
+                                ...previous,
+                                [key]: option,
+                              }))
+                            }
+                            className={`rounded-xl border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                              variantSelections[key] === option
+                                ? "border-orange-400 bg-orange-50 text-orange-700"
+                                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                            }`}
+                          >
+                            {toTitleCase(option)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                {resolvedVariantForPicker && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2.5">
+                    <span className="text-sm font-semibold text-blue-800">
+                      {resolvedVariantForPicker.name}
+                    </span>
+                    <span className="text-xs font-medium text-blue-700">
+                      SKU: {resolvedVariantForPicker.sku}
+                    </span>
+                    <span className="text-xs font-medium text-blue-700">
+                      Stock:{" "}
+                      {(() => {
+                        const lineKey = `${variantPickerProduct._id}:${resolvedVariantForPicker.sku}`;
+                        const inCartQty =
+                          cart.find((item) => item.lineKey === lineKey)
+                            ?.quantity || 0;
+                        const remaining =
+                          resolvedVariantForPicker.stock - inCartQty;
+                        return remaining <= 0 ? "Out" : remaining;
+                      })()}
+                    </span>
+                    <span className="text-sm font-bold text-orange-700">
+                      {formatCurrency(resolvedVariantForPicker.price, currency)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        addToCart(
+                          variantPickerProduct,
+                          resolvedVariantForPicker,
+                        )
+                      }
+                      disabled={(() => {
+                        const lineKey = `${variantPickerProduct._id}:${resolvedVariantForPicker.sku}`;
+                        const inCartQty =
+                          cart.find((item) => item.lineKey === lineKey)
+                            ?.quantity || 0;
+                        return resolvedVariantForPicker.stock - inCartQty <= 0;
+                      })()}
+                      className="ml-auto rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2 text-sm font-bold text-white shadow-md shadow-orange-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Add Variant
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
         </div>
       </div>
 
       {/* ── Right: Cart Sidebar ── */}
-      <div className="flex w-[360px] flex-col border-l border-gray-200/80 bg-white">
+      <div className="flex w-90 flex-col border-l border-gray-200/80 bg-white">
         {/* Cart Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 shadow-md shadow-orange-500/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-orange-500 to-amber-600 shadow-md shadow-orange-500/20">
               <Receipt className="h-4 w-4 text-white" />
             </div>
             <div>
@@ -1086,7 +1737,7 @@ export default function POSTerminalPage() {
                   className="group flex items-start gap-3 py-3"
                 >
                   {/* Item icon */}
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-50 to-amber-50">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-orange-50 to-amber-50">
                     <Package className="h-4 w-4 text-orange-600" />
                   </div>
 
@@ -1141,16 +1792,16 @@ export default function POSTerminalPage() {
           <div className="mb-3 space-y-1.5">
             <div className="flex justify-between text-sm text-gray-500">
               <span>Subtotal</span>
-              <span>{formatCurrency(cartTotal, currency)}</span>
+              <span>{formatCurrency(orderSubtotal, currency)}</span>
             </div>
             <div className="flex justify-between text-sm text-gray-500">
               <span>Tax</span>
-              <span>{formatCurrency(0, currency)}</span>
+              <span>{formatCurrency(orderTax, currency)}</span>
             </div>
             <div className="flex justify-between border-t border-gray-200 pt-2">
               <span className="text-[15px] font-bold text-gray-800">Total</span>
               <span className="text-[15px] font-bold text-orange-600">
-                {formatCurrency(cartTotal, currency)}
+                {formatCurrency(orderGrandTotal, currency)}
               </span>
             </div>
           </div>
@@ -1158,10 +1809,10 @@ export default function POSTerminalPage() {
           <button
             onClick={openPayment}
             disabled={cart.length === 0}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-xl hover:shadow-orange-500/30 disabled:opacity-40 disabled:shadow-none"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-xl hover:shadow-orange-500/30 disabled:opacity-40 disabled:shadow-none"
           >
             <Banknote className="h-4 w-4" />
-            Charge {formatCurrency(cartTotal, currency)}
+            Charge {formatCurrency(orderGrandTotal, currency)}
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
@@ -1169,7 +1820,7 @@ export default function POSTerminalPage() {
 
       {showCreateCustomerModal && (
         <div
-          className="fixed inset-0 z-[65] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-65 flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={() => setShowCreateCustomerModal(false)}
         >
           <div
@@ -1210,7 +1861,7 @@ export default function POSTerminalPage() {
               <button
                 onClick={quickCreateCustomer}
                 disabled={!newCustomerName.trim() || creatingCustomer}
-                className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                className="flex-1 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
               >
                 {creatingCustomer ? "Saving..." : "Save Customer"}
               </button>
@@ -1221,12 +1872,12 @@ export default function POSTerminalPage() {
 
       {/* ── Payment Modal ── */}
       {showPayment && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
                   <Banknote className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -1252,12 +1903,12 @@ export default function POSTerminalPage() {
               )}
 
               {/* Total Display */}
-              <div className="rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 p-5 text-center text-white shadow-lg shadow-orange-500/20">
+              <div className="rounded-xl bg-linear-to-br from-orange-500 to-amber-600 p-5 text-center text-white shadow-lg shadow-orange-500/20">
                 <p className="mb-1 text-xs font-medium uppercase tracking-wider text-orange-100">
                   Amount Due
                 </p>
                 <p className="text-3xl font-extrabold">
-                  {formatCurrency(cartTotal, currency)}
+                  {formatCurrency(orderGrandTotal, currency)}
                 </p>
               </div>
 
@@ -1304,10 +1955,19 @@ export default function POSTerminalPage() {
                       <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-blue-800">
                         <div>
                           Outstanding:{" "}
-                          {formatCurrency(
-                            selectedCustomerRecord.outstandingBalance || 0,
-                            currency,
-                          )}
+                          <span
+                            className={
+                              (selectedCustomerRecord.outstandingBalance || 0) >
+                              0
+                                ? "font-semibold text-red-600"
+                                : "font-semibold"
+                            }
+                          >
+                            {formatCurrency(
+                              selectedCustomerRecord.outstandingBalance || 0,
+                              currency,
+                            )}
+                          </span>
                         </div>
                         <div>
                           Credit Limit:{" "}
@@ -1318,12 +1978,49 @@ export default function POSTerminalPage() {
                               )
                             : "Not set"}
                         </div>
+                        <div>
+                          Total Purchases:{" "}
+                          {selectedCustomerRecord.totalPurchases || 0}
+                        </div>
+                        <div>
+                          Last Payment:{" "}
+                          {selectedCustomerRecord.lastPaymentDate
+                            ? new Date(
+                                selectedCustomerRecord.lastPaymentDate,
+                              ).toLocaleDateString("en-UG")
+                            : "—"}
+                        </div>
+                        <div className="col-span-2">
+                          Payment Status:{" "}
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                              selectedCustomerRecord.paymentStatus === "overdue"
+                                ? "bg-red-100 text-red-700"
+                                : selectedCustomerRecord.paymentStatus ===
+                                    "partial"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {selectedCustomerRecord.paymentStatus || "cleared"}
+                          </span>
+                        </div>
                       </div>
+                    </div>
+                  )}
+                  {creditLimitExceeded && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      This credit sale would exceed the customer's credit limit
+                      by{" "}
+                      <span className="font-semibold">
+                        {formatCurrency(creditLimitOverage, currency)}
+                      </span>
+                      .
                     </div>
                   )}
                   <div>
                     <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                      Due Date
+                      Due Date (Optional)
                     </label>
                     <input
                       type="date"
@@ -1337,6 +2034,18 @@ export default function POSTerminalPage() {
                         Due date cannot be in the past.
                       </p>
                     )}
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      Credit Note (Optional)
+                    </label>
+                    <textarea
+                      value={creditNote}
+                      onChange={(e) => setCreditNote(e.target.value)}
+                      rows={2}
+                      placeholder="Reason or reference for credit"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                    />
                   </div>
                 </div>
               )}
@@ -1601,7 +2310,7 @@ export default function POSTerminalPage() {
                   </button>
                   <div className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
                     Split total: {formatCurrency(splitTotal, currency)} /{" "}
-                    {formatCurrency(cartTotal, currency)}
+                    {formatCurrency(orderGrandTotal, currency)}
                   </div>
                 </div>
               )}
@@ -1644,7 +2353,7 @@ export default function POSTerminalPage() {
                         {formatCurrency(
                           Math.max(
                             0,
-                            cartTotal - (parseFloat(amountPaid) || 0),
+                            orderGrandTotal - (parseFloat(amountPaid) || 0),
                           ),
                           currency,
                         )}
@@ -1670,12 +2379,12 @@ export default function POSTerminalPage() {
                   (paymentMethod === "cash" && change < 0) ||
                   (paymentMethod === "credit" &&
                     (isCreditWithoutCustomer ||
-                      !creditDueDate ||
+                      creditLimitExceeded ||
                       isBackdated(creditDueDate))) ||
                   (paymentMethod === "split" &&
-                    Math.abs(splitTotal - cartTotal) > 0.01)
+                    Math.abs(splitTotal - orderGrandTotal) > 0.01)
                 }
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
               >
                 {processing ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -1692,7 +2401,7 @@ export default function POSTerminalPage() {
       {/* ── Sale Complete Modal ── */}
       {showComplete && lastSale && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               closeCompleteModal();
@@ -1709,7 +2418,7 @@ export default function POSTerminalPage() {
             </button>
 
             {/* Success Icon */}
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-green-500 shadow-xl shadow-emerald-500/30">
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-emerald-400 to-green-500 shadow-xl shadow-emerald-500/30">
               <CheckCircle2 className="h-10 w-10 text-white" />
             </div>
 
@@ -1729,21 +2438,32 @@ export default function POSTerminalPage() {
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="space-y-2">
               <button
-                onClick={printReceipt}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                onClick={newSale}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
               >
-                <Printer className="h-4 w-4" />
-                Print
+                <Plus className="h-4 w-4" />
+                New Sale
               </button>
-              <button
-                onClick={closeCompleteModal}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to POS
-              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={printReceipt}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print
+                </button>
+                <button
+                  onClick={closeCompleteModal}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to POS
+                </button>
+              </div>
+
               {lastSale.customerName && (
                 <button
                   onClick={() => {
@@ -1752,19 +2472,12 @@ export default function POSTerminalPage() {
                     );
                     window.open(`https://wa.me/?text=${text}`, "_blank");
                   }}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100"
                 >
                   <MessageCircle className="h-4 w-4" />
                   WhatsApp
                 </button>
               )}
-              <button
-                onClick={newSale}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
-              >
-                <Plus className="h-4 w-4" />
-                New Sale
-              </button>
             </div>
 
             {lastSale.paymentMethod === "credit" && lastSale.creditDueDate && (

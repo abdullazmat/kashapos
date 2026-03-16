@@ -148,6 +148,28 @@ export default function CashFlowPage() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [report.transactions]);
 
+  const noExpenseData = !loading && report.totalOutflows === 0;
+
+  type DrilldownCard = {
+    label: string;
+    value: number;
+    color: string;
+    txDirection?: "inflow" | "outflow";
+  };
+  const [drilldownCard, setDrilldownCard] = useState<DrilldownCard | null>(
+    null,
+  );
+
+  const drilldownTxList = useMemo(() => {
+    if (!drilldownCard) return [];
+    if (drilldownCard.txDirection) {
+      return report.transactions.filter(
+        (tx) => tx.direction === drilldownCard.txDirection,
+      );
+    }
+    return report.transactions;
+  }, [drilldownCard, report.transactions]);
+
   const tabMeta: Record<string, { title: string; subtitle: string }> = {
     report: {
       title: "Cash Flow Report",
@@ -248,7 +270,7 @@ export default function CashFlowPage() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-lg shadow-teal-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-teal-500 to-emerald-600 shadow-lg shadow-teal-500/20">
             {activeTab === "summary" ? (
               <BarChart2 className="h-5 w-5 text-white" />
             ) : activeTab === "periods" ? (
@@ -275,6 +297,17 @@ export default function CashFlowPage() {
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {noExpenseData && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <TrendingDown className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <span>
+            <strong>No expense data found for this period.</strong> Outflows are
+            zero because no expenses have been recorded yet. Once expenses are
+            entered, cash flow figures will reflect correctly.
+          </span>
         </div>
       )}
 
@@ -358,7 +391,7 @@ export default function CashFlowPage() {
                 </p>
               </div>
 
-              <ArrowRight className="h-5 w-5 flex-shrink-0 text-gray-300" />
+              <ArrowRight className="h-5 w-5 shrink-0 text-gray-300" />
 
               {/* Net Cash Flow */}
               <div className="flex flex-col items-center gap-1.5 text-center">
@@ -388,7 +421,7 @@ export default function CashFlowPage() {
                 </p>
               </div>
 
-              <ArrowRight className="h-5 w-5 flex-shrink-0 text-gray-300" />
+              <ArrowRight className="h-5 w-5 shrink-0 text-gray-300" />
 
               {/* Closing Balance */}
               <div className="flex flex-col items-center gap-1.5 text-center">
@@ -681,24 +714,129 @@ export default function CashFlowPage() {
                   bg: "bg-blue-100 text-blue-700",
                 },
               ] as const
-            ).map(({ label, value, color, icon, bg }) => (
-              <div
-                key={label}
-                className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-[12px] font-medium text-gray-500">
-                    {label}
+            ).map(({ label, value, color, icon, bg }) => {
+              const txDir: "inflow" | "outflow" | undefined =
+                label === "Total Inflows"
+                  ? "inflow"
+                  : label === "Total Outflows"
+                    ? "outflow"
+                    : undefined;
+              const hasTransactions =
+                txDir !== undefined ||
+                label === "Net Cash Flow" ||
+                label === "Closing Balance";
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    if (!hasTransactions) return;
+                    setDrilldownCard({
+                      label,
+                      value,
+                      color,
+                      txDirection: txDir,
+                    });
+                  }}
+                  className={`flex min-h-25 flex-col justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm text-left transition-all ${hasTransactions ? "cursor-pointer hover:border-teal-300 hover:shadow-md" : "cursor-default"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-[12px] font-medium text-gray-500">
+                      {label}
+                    </p>
+                    <div className={`rounded-lg p-2 ${bg}`}>{icon}</div>
+                  </div>
+                  <p className={`mt-2 text-2xl font-bold ${color}`}>
+                    {val(value)}
                   </p>
-                  <div className={`rounded-lg p-2 ${bg}`}>{icon}</div>
-                </div>
-                <p className={`mt-2 text-2xl font-bold ${color}`}>
-                  {val(value)}
-                </p>
-              </div>
-            ))}
+                  {hasTransactions && (
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      Tap for details →
+                    </p>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </>
+      )}
+
+      {/* ── Drilldown Modal ─────────────────────────────────────────── */}
+      {drilldownCard && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-sm sm:items-center"
+          onClick={() => setDrilldownCard(null)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  {drilldownCard.label}
+                </h3>
+                <p className={`text-xl font-bold ${drilldownCard.color}`}>
+                  {val(drilldownCard.value)}
+                </p>
+              </div>
+              <button
+                onClick={() => setDrilldownCard(null)}
+                className="rounded-xl border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: "65vh" }}>
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">Description</th>
+                    <th className="px-5 py-3">Type</th>
+                    <th className="px-5 py-3 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {drilldownTxList.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-5 py-10 text-center text-gray-400"
+                      >
+                        No transactions found
+                      </td>
+                    </tr>
+                  ) : (
+                    drilldownTxList.map((tx) => (
+                      <tr key={tx.id} className="hover:bg-gray-50/60">
+                        <td className="px-5 py-3 text-gray-500">
+                          {formatDate(tx.date)}
+                        </td>
+                        <td className="px-5 py-3 font-medium text-gray-700">
+                          {tx.description}
+                        </td>
+                        <td className="px-5 py-3 capitalize text-gray-500">
+                          {tx.type}
+                        </td>
+                        <td
+                          className={`px-5 py-3 text-right font-semibold ${
+                            tx.direction === "inflow"
+                              ? "text-emerald-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {tx.direction === "inflow" ? "+" : "−"}
+                          {formatCurrency(tx.amount, currency)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

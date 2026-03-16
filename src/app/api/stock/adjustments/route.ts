@@ -53,8 +53,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (adjustmentType === "transfer_in" || adjustmentType === "transfer_out") {
-      return apiError("Use transfer endpoint for transfer adjustments", 400);
+    if (adjustmentType === "transfer_out") {
+      return apiError(
+        "Use transfer endpoint for transfer_out adjustments",
+        400,
+      );
     }
 
     const stock = await Stock.findOne({
@@ -68,6 +71,7 @@ export async function POST(request: NextRequest) {
     switch (adjustmentType) {
       case "stock_in":
       case "addition":
+      case "transfer_in":
         delta = quantity;
         break;
       case "stock_out":

@@ -17,7 +17,39 @@ export async function GET(request: NextRequest) {
       .limit(30)
       .lean();
 
-    return apiSuccess({ sessions });
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+
+    const salesQuery: Record<string, unknown> = {
+      tenantId: auth.tenantId,
+      status: "completed",
+      paymentMethod: "cash",
+      createdAt: { $gte: dayStart },
+    };
+    if (auth.branchId) salesQuery.branchId = auth.branchId;
+
+    const cashSales = await Sale.aggregate([
+      { $match: salesQuery },
+      { $group: { _id: null, total: { $sum: "$total" } } },
+    ]);
+
+    const suggestedTillNames = Array.from(
+      new Set(
+        sessions
+          .map((session) => String(session.tillName || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    return apiSuccess({
+      sessions,
+      preview: {
+        cashierName: auth.name || "Cashier",
+        todayCashSales: Number(cashSales[0]?.total || 0),
+        closingTime: new Date().toISOString(),
+        suggestedTillNames,
+      },
+    });
   } catch (error) {
     console.error("Till sessions GET error:", error);
     return apiError("Internal server error", 500);

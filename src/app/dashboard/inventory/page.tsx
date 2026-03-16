@@ -1,11 +1,24 @@
 "use client";
 
-import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
+import {
+  Fragment,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { useSearchParams } from "next/navigation";
+import Image from "next/image";
+import Barcode from "react-barcode";
 import {
   Package,
   Plus,
   Search,
   Edit,
+  Copy,
+  Download,
+  Upload,
   Trash2,
   Tag,
   X,
@@ -17,15 +30,31 @@ import {
   ImagePlus,
   RotateCcw,
   AlertTriangle,
+  Barcode as BarcodeIcon,
+  Printer,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import {
+  BARCODE_FORMATS,
+  ensureBarcodeValue,
+  normalizeBarcodeFormat,
+  toReactBarcodeFormat,
+  type BarcodeFormat,
+} from "@/lib/barcode";
 import { useSession } from "../layout";
+
+function randomNumericString(length: number) {
+  const values = new Uint32Array(length);
+  crypto.getRandomValues(values);
+  return Array.from(values, (value) => String(value % 10)).join("");
+}
 
 interface Product {
   _id: string;
   name: string;
   sku: string;
   barcode: string;
+  barcodeFormat?: string;
   price: number;
   costPrice: number;
   categoryId?: { _id: string; name: string };
@@ -189,7 +218,49 @@ function toTagTokens(value: unknown): string[] {
   return [];
 }
 
+function makeSlug(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^\w ]+/g, "")
+    .replace(/ +/g, "-");
+}
+
+function escapeCsvCell(value: unknown) {
+  const raw = String(value ?? "");
+  const escaped = raw.replace(/"/g, '""');
+  return /[",\n]/.test(raw) ? `"${escaped}"` : escaped;
+}
+
+function parseCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+
+  cells.push(current.trim());
+  return cells;
+}
+
 export default function InventoryPage() {
+  const searchParams = useSearchParams();
   const { tenant } = useSession();
   const currency = tenant?.settings?.currency || "UGX";
   const [products, setProducts] = useState<Product[]>([]);
@@ -210,6 +281,17 @@ export default function InventoryPage() {
   const [materialFilter, setMaterialFilter] = useState("all");
   const [storageFilter, setStorageFilter] = useState("all");
   const [expandedProducts, setExpandedProducts] = useState<string[]>([]);
+  const [quickBarcodeProduct, setQuickBarcodeProduct] =
+    useState<Product | null>(null);
+  const [quickBarcodeFormat, setQuickBarcodeFormat] =
+    useState<BarcodeFormat>("Code 128");
+  const [quickBarcodeValue, setQuickBarcodeValue] = useState("");
+  const [quickLabelCopies, setQuickLabelCopies] = useState(1);
+  const [quickShowName, setQuickShowName] = useState(true);
+  const [quickShowPrice, setQuickShowPrice] = useState(false);
+  const [quickShowSku, setQuickShowSku] = useState(true);
+  const [savingQuickBarcode, setSavingQuickBarcode] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -232,6 +314,14 @@ export default function InventoryPage() {
     slug: "",
     description: "",
   });
+
+  useEffect(() => {
+    const nextSearch = String(searchParams.get("search") || "").trim();
+    if (nextSearch) {
+      setSearch(nextSearch);
+      setPage(1);
+    }
+  }, [searchParams]);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -270,15 +360,20 @@ export default function InventoryPage() {
     fetchCategories();
   }, [fetchCategories]);
 
+  useEffect(() => {
+    if (!quickBarcodeProduct) return;
+    setQuickBarcodeValue((prev) =>
+      ensureBarcodeValue(quickBarcodeFormat, prev, quickBarcodeProduct.sku),
+    );
+  }, [quickBarcodeFormat, quickBarcodeProduct]);
+
   const openAdd = () => {
     setEditing(null);
-    const rand = Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, "0");
+    const rand = randomNumericString(4);
     setForm({
       name: "",
       sku: `SKU-${rand}`,
-      barcode: Math.floor(Math.random() * 9e12 + 1e12).toString(),
+      barcode: randomNumericString(13),
       price: "",
       costPrice: "",
       categoryId: "",
@@ -313,6 +408,78 @@ export default function InventoryPage() {
       categoryAttributes: p.categoryAttributes || {},
     });
     setShowModal(true);
+  };
+
+  const openCopy = (p: Product) => {
+    setEditing(null);
+    const rand = randomNumericString(4);
+    setForm({
+      name: `${p.name} Copy`,
+      sku: `${p.sku}-COPY-${rand}`,
+      barcode: randomNumericString(13),
+      price: p.price.toString(),
+      costPrice: p.costPrice.toString(),
+      categoryId: p.categoryId?._id || "",
+      description: p.description,
+      unit: p.unit,
+      taxRate: p.taxRate.toString(),
+      trackStock: p.trackStock,
+      image: p.image || "",
+      reorderLevel: "",
+      maxStockLevel: "",
+      categoryAttributes: p.categoryAttributes || {},
+    });
+    setShowModal(true);
+  };
+
+  const openQuickBarcodePanel = (product: Product) => {
+    const nextFormat = normalizeBarcodeFormat(
+      product.barcodeFormat || "Code 128",
+    );
+    setQuickBarcodeProduct(product);
+    setQuickBarcodeFormat(nextFormat);
+    setQuickBarcodeValue(
+      product.barcode || ensureBarcodeValue(nextFormat, "", product.sku),
+    );
+    setQuickLabelCopies(1);
+    setQuickShowName(true);
+    setQuickShowPrice(false);
+    setQuickShowSku(true);
+  };
+
+  const saveQuickBarcode = async () => {
+    if (!quickBarcodeProduct || !quickBarcodeValue.trim()) return;
+
+    setSavingQuickBarcode(true);
+    const normalized = ensureBarcodeValue(
+      quickBarcodeFormat,
+      quickBarcodeValue,
+      quickBarcodeProduct.sku,
+    );
+
+    try {
+      const res = await fetch(`/api/products/${quickBarcodeProduct._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          barcode: normalized,
+          barcodeFormat: quickBarcodeFormat,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || "Failed to save barcode");
+        return;
+      }
+
+      setQuickBarcodeValue(normalized);
+      await fetchProducts();
+    } catch {
+      alert("Failed to save barcode");
+    } finally {
+      setSavingQuickBarcode(false);
+    }
   };
 
   const saveProduct = async () => {
@@ -354,6 +521,218 @@ export default function InventoryPage() {
     const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
     if (res.ok) fetchProducts();
   };
+
+  const exportInventory = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        page: "1",
+        limit: "5000",
+        ...(search && { search }),
+        ...(filterCategory && { category: filterCategory }),
+      });
+
+      const res = await fetch(`/api/products?${params}`);
+      if (!res.ok) {
+        alert("Failed to export inventory");
+        return;
+      }
+
+      const data = await res.json();
+      const rows: Product[] = data.products || [];
+
+      const headers = [
+        "name",
+        "sku",
+        "barcode",
+        "category",
+        "price",
+        "costPrice",
+        "unit",
+        "taxRate",
+        "description",
+        "trackStock",
+        "isActive",
+        "image",
+      ];
+
+      const csv = [
+        headers.join(","),
+        ...rows.map((product) =>
+          [
+            product.name,
+            product.sku,
+            product.barcode,
+            product.categoryId?.name || "",
+            product.price,
+            product.costPrice,
+            product.unit,
+            product.taxRate,
+            product.description,
+            product.trackStock,
+            product.isActive,
+            product.image || "",
+          ]
+            .map(escapeCsvCell)
+            .join(","),
+        ),
+      ].join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `inventory-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error(error);
+      alert("Failed to export inventory");
+    }
+  }, [filterCategory, search]);
+
+  const downloadImportTemplate = useCallback(() => {
+    const headers = [
+      "name",
+      "sku",
+      "barcode",
+      "category",
+      "price",
+      "costPrice",
+      "unit",
+      "taxRate",
+      "description",
+      "trackStock",
+      "isActive",
+      "image",
+    ];
+    const sampleRow = [
+      "Sample Product",
+      "SKU-1001",
+      "1234567890123",
+      "General",
+      "25000",
+      "18000",
+      "pcs",
+      "18",
+      "Sample imported item",
+      "true",
+      "true",
+      "",
+    ];
+
+    const csv = [
+      headers.join(","),
+      sampleRow.map(escapeCsvCell).join(","),
+    ].join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "inventory-import-template.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleImportInventory = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      try {
+        const content = await file.text();
+        const lines = content
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+
+        if (lines.length < 2) {
+          alert("CSV is empty or missing data rows");
+          return;
+        }
+
+        const headers = parseCsvLine(lines[0]).map((header) =>
+          header.toLowerCase(),
+        );
+        const required = ["name", "sku", "price"];
+        const missing = required.filter((key) => !headers.includes(key));
+        if (missing.length > 0) {
+          alert(`CSV missing required columns: ${missing.join(", ")}`);
+          return;
+        }
+
+        const categoryMap = new Map(
+          categories.map((category) => [
+            category.name.toLowerCase(),
+            category._id,
+          ]),
+        );
+
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (const line of lines.slice(1)) {
+          const values = parseCsvLine(line);
+          const row: Record<string, string> = {};
+          headers.forEach((header, index) => {
+            row[header] = values[index] || "";
+          });
+
+          const name = row.name?.trim();
+          const sku = row.sku?.trim();
+          if (!name || !sku) {
+            failedCount += 1;
+            continue;
+          }
+
+          const categoryId = row.category
+            ? categoryMap.get(row.category.toLowerCase())
+            : undefined;
+
+          const payload = {
+            name,
+            slug: makeSlug(name),
+            sku,
+            barcode: row.barcode?.trim() || randomNumericString(13),
+            price: Number(row.price || 0),
+            costPrice: Number(row.costprice || 0),
+            unit: row.unit?.trim() || "pcs",
+            taxRate: Number(row.taxrate || 0),
+            description: row.description || "",
+            trackStock:
+              String(row.trackstock || "true").toLowerCase() !== "false",
+            isActive: String(row.isactive || "true").toLowerCase() !== "false",
+            image: row.image?.trim() || undefined,
+            categoryId,
+          };
+
+          const res = await fetch("/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          if (res.ok) successCount += 1;
+          else failedCount += 1;
+        }
+
+        await fetchProducts();
+        alert(
+          `Import complete. Created: ${successCount}. Failed: ${failedCount}.`,
+        );
+      } catch (error) {
+        console.error(error);
+        alert("Failed to import inventory CSV");
+      }
+    },
+    [categories, fetchProducts],
+  );
 
   const saveCategory = async () => {
     const slug = catForm.name
@@ -523,7 +902,7 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20">
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -534,6 +913,31 @@ export default function InventoryPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportInventory}
+          />
+          <button
+            onClick={exportInventory}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
+          >
+            <Download className="h-4 w-4" /> Export
+          </button>
+          <button
+            onClick={() => importInputRef.current?.click()}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
+          >
+            <Upload className="h-4 w-4" /> Import
+          </button>
+          <button
+            onClick={downloadImportTemplate}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
+          >
+            <Download className="h-4 w-4" /> CSV Template
+          </button>
           <button
             onClick={() => setShowCatModal(true)}
             className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
@@ -542,7 +946,7 @@ export default function InventoryPage() {
           </button>
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
+            className="flex items-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
           >
             <Plus className="h-4 w-4" /> Add Product
           </button>
@@ -551,7 +955,7 @@ export default function InventoryPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-50">
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -785,14 +1189,17 @@ export default function InventoryPage() {
                           )}
                           {p.image ? (
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden border border-gray-100">
-                              <img
+                              <Image
                                 src={p.image}
                                 alt={p.name}
+                                width={36}
+                                height={36}
                                 className="h-full w-full object-cover"
+                                unoptimized
                               />
                             </div>
                           ) : (
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gray-100 to-gray-200">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-gray-100 to-gray-200">
                               <Package className="h-4 w-4 text-gray-500" />
                             </div>
                           )}
@@ -872,6 +1279,26 @@ export default function InventoryPage() {
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openCopy(p);
+                            }}
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
+                            title="Create copy"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openQuickBarcodePanel(p);
+                            }}
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-orange-50 hover:text-orange-600"
+                            title="Generate and print barcode"
+                          >
+                            <BarcodeIcon className="h-4 w-4" />
+                          </button>
                           <button
                             onClick={(event) => {
                               event.stopPropagation();
@@ -1004,7 +1431,7 @@ export default function InventoryPage() {
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${page === p ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-sm" : "text-gray-600 hover:bg-gray-100"}`}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${page === p ? "bg-linear-to-r from-orange-500 to-amber-600 text-white shadow-sm" : "text-gray-600 hover:bg-gray-100"}`}
                 >
                   {p}
                 </button>
@@ -1021,6 +1448,191 @@ export default function InventoryPage() {
         )}
       </div>
 
+      {quickBarcodeProduct && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setQuickBarcodeProduct(null)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-amber-600 shadow-md shadow-orange-500/20">
+                  <BarcodeIcon className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-gray-900">Barcode Panel</h2>
+                  <p className="text-xs text-gray-500">
+                    {quickBarcodeProduct.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setQuickBarcodeProduct(null)}
+                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700">
+                    Format
+                  </label>
+                  <select
+                    value={quickBarcodeFormat}
+                    onChange={(event) =>
+                      setQuickBarcodeFormat(
+                        normalizeBarcodeFormat(event.target.value),
+                      )
+                    }
+                    className={inputClass}
+                  >
+                    {BARCODE_FORMATS.map((format) => (
+                      <option key={format} value={format}>
+                        {format}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700">
+                    Copies
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={quickLabelCopies}
+                    onChange={(event) =>
+                      setQuickLabelCopies(
+                        Math.max(1, Number(event.target.value) || 1),
+                      )
+                    }
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuickBarcodeValue(
+                        ensureBarcodeValue(
+                          quickBarcodeFormat,
+                          "",
+                          quickBarcodeProduct.sku,
+                        ),
+                      )
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    Generate New Value
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[12px] font-semibold text-gray-700">
+                  Barcode Value
+                </label>
+                <input
+                  value={quickBarcodeValue}
+                  onChange={(event) => setQuickBarcodeValue(event.target.value)}
+                  className={`${inputClass} font-mono`}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                <label className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={quickShowName}
+                    onChange={(event) => setQuickShowName(event.target.checked)}
+                  />
+                  Show name
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={quickShowPrice}
+                    onChange={(event) =>
+                      setQuickShowPrice(event.target.checked)
+                    }
+                  />
+                  Show price
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={quickShowSku}
+                    onChange={(event) => setQuickShowSku(event.target.checked)}
+                  />
+                  Show SKU
+                </label>
+              </div>
+
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                <div className="inline-flex rounded-lg bg-white p-3">
+                  {quickBarcodeFormat === "QR Code" ? (
+                    <p className="text-sm text-gray-500">
+                      QR preview is available in Barcode Manager. This quick
+                      panel renders 1D barcodes for fast inventory edits.
+                    </p>
+                  ) : (
+                    <Barcode
+                      value={ensureBarcodeValue(
+                        quickBarcodeFormat,
+                        quickBarcodeValue,
+                        quickBarcodeProduct.sku,
+                      )}
+                      format={toReactBarcodeFormat(quickBarcodeFormat)}
+                      width={1.3}
+                      height={70}
+                      margin={0}
+                      displayValue
+                    />
+                  )}
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  {quickShowName && <p>{quickBarcodeProduct.name}</p>}
+                  {quickShowSku && <p>SKU: {quickBarcodeProduct.sku}</p>}
+                  {quickShowPrice && (
+                    <p>{formatCurrency(quickBarcodeProduct.price, currency)}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={saveQuickBarcode}
+                  disabled={savingQuickBarcode || !quickBarcodeValue.trim()}
+                  className="rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow disabled:opacity-60"
+                >
+                  {savingQuickBarcode ? "Saving..." : "Save Barcode"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  <Printer className="h-4 w-4" /> Print Label
+                </button>
+                <a
+                  href={`/dashboard/barcodes?tab=generate&productId=${quickBarcodeProduct._id}`}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Open Full Barcode Manager
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Product Modal */}
       {showModal && (
         <div
@@ -1033,7 +1645,7 @@ export default function InventoryPage() {
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-500/20">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-500/20">
                   <Package className="h-4 w-4 text-white" />
                 </div>
                 <h2 className="font-bold text-gray-900">
@@ -1141,7 +1753,7 @@ export default function InventoryPage() {
                       <button
                         type="button"
                         onClick={() => setShowCatModal(true)}
-                        className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-orange-600 transition-colors"
+                        className="flex h-10.5 w-10.5 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 hover:text-orange-600"
                         title="Add new category"
                       >
                         <Plus className="h-4 w-4" />
@@ -1323,10 +1935,13 @@ export default function InventoryPage() {
                   <div className="mt-1.5 flex items-center gap-4">
                     {form.image ? (
                       <div className="relative h-20 w-20 rounded-xl overflow-hidden border border-gray-200">
-                        <img
+                        <Image
                           src={form.image}
                           alt="Product"
+                          width={80}
+                          height={80}
                           className="h-full w-full object-cover"
+                          unoptimized
                         />
                         <button
                           type="button"
@@ -1411,7 +2026,7 @@ export default function InventoryPage() {
               </button>
               <button
                 onClick={saveProduct}
-                className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
+                className="rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
               >
                 {editing ? "Update" : "Create"} Product
               </button>
@@ -1432,7 +2047,7 @@ export default function InventoryPage() {
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-md shadow-violet-500/20">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-violet-500 to-purple-600 shadow-md shadow-violet-500/20">
                   <Tag className="h-4 w-4 text-white" />
                 </div>
                 <h2 className="font-bold text-gray-900">Categories</h2>
@@ -1452,7 +2067,7 @@ export default function InventoryPage() {
                     className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/50 px-4 py-3"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-gradient-to-r from-orange-400 to-amber-500" />
+                      <div className="h-2 w-2 rounded-full bg-linear-to-r from-orange-400 to-amber-500" />
                       <span className="text-sm font-semibold text-gray-700">
                         {c.name}
                       </span>
@@ -1493,7 +2108,7 @@ export default function InventoryPage() {
                   <button
                     onClick={saveCategory}
                     disabled={!catForm.name}
-                    className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
+                    className="w-full rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:shadow-none"
                   >
                     Add Category
                   </button>

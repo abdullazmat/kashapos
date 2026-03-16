@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
+  Barcode as BarcodeIcon,
   CheckCircle,
   Package,
   Search,
   Warehouse,
 } from "lucide-react";
+import { findBarcodeMatch, logBarcodeScanEvent } from "@/lib/barcode-client";
 
 type WarehouseTab = "all" | "add" | "inventory" | "adjustments";
 
@@ -23,6 +25,7 @@ type LocationType =
 type AdjustmentType =
   | "stock_in"
   | "stock_out"
+  | "transfer_in"
   | "transfer_out"
   | "count_correction"
   | "return_to_supplier";
@@ -57,6 +60,7 @@ interface StockRow {
     _id: string;
     name: string;
     sku?: string;
+    barcode?: string;
     price?: number;
   };
   branchId?: {
@@ -94,6 +98,13 @@ interface AdjustmentRow {
   createdAt: string;
 }
 
+interface ProductCatalogItem {
+  _id: string;
+  name: string;
+  sku: string;
+  barcode?: string;
+}
+
 const LOCATION_TYPES: { label: string; value: LocationType }[] = [
   { label: "Warehouse", value: "warehouse" },
   { label: "Store Room", value: "store_room" },
@@ -118,12 +129,16 @@ export default function WarehousesPage() {
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [productCatalog, setProductCatalog] = useState<ProductCatalogItem[]>(
+    [],
+  );
   const [stockRows, setStockRows] = useState<StockRow[]>([]);
   const [transfers, setTransfers] = useState<TransferRow[]>([]);
   const [adjustments, setAdjustments] = useState<AdjustmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
+  const [adjustmentBarcodeInput, setAdjustmentBarcodeInput] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -165,7 +180,7 @@ export default function WarehousesPage() {
     transferDate: new Date().toISOString().slice(0, 16),
     transportedBy: "",
     receivedBy: "",
-    status: "in_transit",
+    status: "in_transit" as "pending" | "in_transit" | "received",
     notes: "",
   });
 
@@ -206,14 +221,21 @@ export default function WarehousesPage() {
     setLoading(true);
     setError("");
     try {
-      const [branchRes, userRes, stockRes, adjustmentRes, transferRes] =
-        await Promise.all([
-          fetch("/api/branches"),
-          fetch("/api/users"),
-          fetch("/api/stock"),
-          fetch("/api/stock/adjustments"),
-          fetch("/api/stock/transfers"),
-        ]);
+      const [
+        branchRes,
+        userRes,
+        productRes,
+        stockRes,
+        adjustmentRes,
+        transferRes,
+      ] = await Promise.all([
+        fetch("/api/branches"),
+        fetch("/api/users"),
+        fetch("/api/products?limit=500"),
+        fetch("/api/stock"),
+        fetch("/api/stock/adjustments"),
+        fetch("/api/stock/transfers"),
+      ]);
 
       if (branchRes.ok) {
         const d = await branchRes.json();
@@ -228,6 +250,11 @@ export default function WarehousesPage() {
         const d = await userRes.json();
         const list = Array.isArray(d) ? d : d.data || [];
         setUsers(list);
+      }
+
+      if (productRes.ok) {
+        const d = await productRes.json();
+        setProductCatalog(d.products || []);
       }
 
       if (stockRes.ok) {
@@ -250,6 +277,49 @@ export default function WarehousesPage() {
       setLoading(false);
     }
   }, [selectedLocationId]);
+
+  const handleAdjustmentBarcodeScan = async () => {
+    const value = adjustmentBarcodeInput.trim();
+    if (!value) return;
+
+    const match = findBarcodeMatch(productCatalog, value);
+    if (!match) {
+      setError(`No product matches barcode ${value}.`);
+      void logBarcodeScanEvent({
+        value,
+        context: "stock",
+        source: "scanner",
+        module: "stock",
+        scanAction: "not_found",
+        result: "not_found",
+        locationId: adjustmentForm.locationId,
+      }).catch(() => {
+        /* ignore */
+      });
+      return;
+    }
+
+    setAdjustmentForm((prev) => ({
+      ...prev,
+      productId: match.product._id,
+    }));
+    setAdjustmentBarcodeInput("");
+    setError("");
+    void logBarcodeScanEvent({
+      value,
+      context: "stock",
+      source: "scanner",
+      module: "stock",
+      scanAction: "stock_adjustment",
+      result: "found",
+      productId: match.product._id,
+      productName: match.product.name,
+      productSku: match.product.sku,
+      locationId: adjustmentForm.locationId,
+    }).catch(() => {
+      /* ignore */
+    });
+  };
 
   useEffect(() => {
     void Promise.resolve().then(fetchData);
@@ -291,7 +361,13 @@ export default function WarehousesPage() {
   }, [prefillLocation, prefillProduct]);
 
   const managerOptions = useMemo(
-    () => users.filter((u) => u.role === "admin" || u.role === "manager"),
+    () =>
+      users.filter(
+        (u) =>
+          u.role === "admin" ||
+          u.role === "manager" ||
+          u.role === "warehouse_manager",
+      ),
     [users],
   );
 
@@ -560,6 +636,7 @@ export default function WarehousesPage() {
           transferDate: transferForm.transferDate,
           transportedBy: transferForm.transportedBy,
           receivedByName: transferForm.receivedBy,
+          status: transferForm.status,
           notes: transferForm.notes,
         }),
       });
@@ -1042,7 +1119,19 @@ export default function WarehousesPage() {
                       </td>
                       <td className="px-3 py-2 text-right">{row.totalQty}</td>
                       <td className="px-3 py-2 text-right">{row.minStock}</td>
-                      <td className="px-3 py-2">{status}</td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            status === "Out of Stock"
+                              ? "bg-red-50 text-red-700"
+                              : status === "Low Stock"
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          {status}
+                        </span>
+                      </td>
                       <td className="px-3 py-2">
                         <a
                           href={`/dashboard/warehouses?tab=adjustments&location=${selectedLocationId}&product=${row.productId}`}
@@ -1066,6 +1155,31 @@ export default function WarehousesPage() {
             <h2 className="text-lg font-semibold text-gray-900">
               Stock Adjustment Form
             </h2>
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 p-3">
+              <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2">
+                <BarcodeIcon className="h-4 w-4 text-orange-500" />
+                <input
+                  value={adjustmentBarcodeInput}
+                  onChange={(event) =>
+                    setAdjustmentBarcodeInput(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void handleAdjustmentBarcodeScan();
+                    }
+                  }}
+                  placeholder="Scan barcode to select product for adjustment"
+                  className="flex-1 bg-transparent text-sm outline-none"
+                />
+              </div>
+              <button
+                onClick={() => void handleAdjustmentBarcodeScan()}
+                className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-600"
+              >
+                Find Product
+              </button>
+            </div>
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="text-xs font-semibold uppercase text-gray-400">
@@ -1137,6 +1251,7 @@ export default function WarehousesPage() {
                 >
                   <option value="stock_in">Stock In</option>
                   <option value="stock_out">Stock Out</option>
+                  <option value="transfer_in">Transfer In</option>
                   <option value="transfer_out">Transfer Out</option>
                   <option value="count_correction">Count Correction</option>
                   <option value="return_to_supplier">Return To Supplier</option>
@@ -1432,6 +1547,28 @@ export default function WarehousesPage() {
                   }
                 />
               </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-gray-400">
+                  Status
+                </label>
+                <select
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                  value={transferForm.status}
+                  onChange={(e) =>
+                    setTransferForm((p) => ({
+                      ...p,
+                      status: e.target.value as
+                        | "pending"
+                        | "in_transit"
+                        | "received",
+                    }))
+                  }
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_transit">In Transit</option>
+                  <option value="received">Received</option>
+                </select>
+              </div>
               <div className="md:col-span-2">
                 <label className="text-xs font-semibold uppercase text-gray-400">
                   Notes
@@ -1490,8 +1627,20 @@ export default function WarehousesPage() {
                       <td className="px-3 py-2 text-right">
                         {t.items[0]?.quantity || 0}
                       </td>
-                      <td className="px-3 py-2 capitalize">
-                        {t.status.replace("_", " ")}
+                      <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                            t.status === "received"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : t.status === "in_transit"
+                                ? "bg-blue-50 text-blue-700"
+                                : t.status === "cancelled"
+                                  ? "bg-red-50 text-red-700"
+                                  : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {t.status.replace("_", " ")}
+                        </span>
                       </td>
                       <td className="px-3 py-2">
                         {t.status === "in_transit" ? (

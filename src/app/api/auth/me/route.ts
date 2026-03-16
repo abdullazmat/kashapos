@@ -1,19 +1,19 @@
-import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import dbConnect from "@/lib/db";
 import Tenant from "@/models/Tenant";
+import { apiError, apiSuccess } from "@/lib/api-helpers";
 
 export async function GET() {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return apiError("Not authenticated", 401);
     }
 
     await dbConnect();
     const tenant = await Tenant.findById(session.tenantId).lean();
 
-    return NextResponse.json({
+    return apiSuccess({
       user: {
         id: session.userId,
         name: session.name,
@@ -34,9 +34,6 @@ export async function GET() {
         : null,
     });
   } catch {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError("Internal server error", 500);
   }
 }

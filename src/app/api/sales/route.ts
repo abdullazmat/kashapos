@@ -9,6 +9,7 @@ import Tenant from "@/models/Tenant";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import { generateOrderNumber } from "@/lib/utils";
 import { normalizeMoney, resolvePaymentStatus } from "@/lib/customer-balance";
+import { computeSalePaymentState } from "@/lib/sale-payment";
 import { sendTenantEmail } from "@/lib/mailer";
 
 type PaymentMethod =
@@ -111,6 +112,20 @@ function contributesToCustomer(status: string) {
 
 function commitsStock(status: string) {
   return status === "completed" || status === "pending";
+}
+
+async function hasOverdueOpenBalance(tenantId: string, customerId: string) {
+  const overdueSale = await Sale.findOne({
+    tenantId,
+    customerId,
+    status: { $nin: ["refunded", "voided"] },
+    remainingBalance: { $gt: 0 },
+    dueDate: { $lt: new Date() },
+  })
+    .select("_id")
+    .lean();
+
+  return Boolean(overdueSale);
 }
 
 function getCommittedQuantities(
@@ -231,12 +246,14 @@ async function adjustCustomerStats(
   customer.totalSpent = nextSpent;
   customer.outstandingBalance = nextOutstanding;
 
-  customer.paymentStatus =
-    nextOutstanding <= 0
-      ? "cleared"
-      : customer.paymentStatus === "overdue"
-        ? "overdue"
-        : resolvePaymentStatus(nextOutstanding, dueDate);
+  if (nextOutstanding <= 0) {
+    customer.paymentStatus = "cleared";
+  } else {
+    const overdue = await hasOverdueOpenBalance(tenantId, String(customer._id));
+    customer.paymentStatus = overdue
+      ? "overdue"
+      : resolvePaymentStatus(nextOutstanding, dueDate);
+  }
 
   if (amountPaidDelta > 0) {
     customer.lastPaymentDate = new Date();
@@ -343,11 +360,10 @@ async function normalizeSalePayload(
               : "cash";
 
   const computedTotal = Math.max(0, subtotal - totalDiscount + totalTax);
-  const amountPaid = Math.max(
+  const requestedAmountPaid = Math.max(
     0,
     asNumber(body.amountPaid, paymentMethod === "credit" ? 0 : computedTotal),
   );
-  const remainingBalance = Math.max(0, computedTotal - amountPaid);
   const dueDateValue = body.dueDate
     ? new Date(String(body.dueDate))
     : undefined;
@@ -358,15 +374,12 @@ async function normalizeSalePayload(
 
   validateDueDateNotBackdated(dueDate);
 
-  if (paymentMethod === "credit" && !dueDate) {
-    throw new Error("Due date is required for credit sales");
-  }
+  const { amountPaid, remainingBalance, paymentStatus } =
+    computeSalePaymentState(computedTotal, requestedAmountPaid, dueDate);
 
   if (remainingBalance > 0 && !body.customerId && !body.customer) {
     throw new Error("Customer is required for credit balance sales");
   }
-
-  const paymentStatus = resolvePaymentStatus(remainingBalance, dueDate);
   const paymentDetailsInput =
     typeof body.paymentDetails === "object" && body.paymentDetails
       ? (body.paymentDetails as Record<string, unknown>)
@@ -623,7 +636,7 @@ export async function GET(request: NextRequest) {
 
     const [sales, total] = await Promise.all([
       Sale.find(query)
-        .populate("customerId", "name phone")
+        .populate("customerId", "name phone email")
         .populate("cashierId", "name")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)

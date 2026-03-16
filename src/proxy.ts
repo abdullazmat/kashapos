@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
+import { SignJWT } from "jose";
+import {
+  ACCESS_TOKEN_COOKIE,
+  ACCESS_TOKEN_MAX_AGE_SECONDS,
+  LEGACY_TOKEN_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+  type JWTPayload,
+  verifyJwt,
+} from "@/lib/auth-tokens";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "kashapos-secret-key-change-in-production",
@@ -12,51 +21,193 @@ const publicPaths = [
   "/sign-up",
   "/api/auth/sign-in",
   "/api/auth/sign-up",
+  "/api/v1/auth/sign-in",
+  "/api/v1/auth/sign-up",
   "/api/seed",
+  "/api/v1/seed",
 ];
 
+function getClientIp(request: NextRequest) {
+  const xForwardedFor = request.headers.get("x-forwarded-for") || "";
+  const xRealIp = request.headers.get("x-real-ip") || "";
+  return xForwardedFor.split(",")[0]?.trim() || xRealIp || "unknown";
+}
+
+function applySecurityHeaders(response: NextResponse) {
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "same-origin");
+
+  if (process.env.NODE_ENV !== "production") {
+    // Do not enforce strict CSP/HSTS in dev; Next.js dev runtime relies on
+    // inline style injection and websocket connections for HMR.
+    return response;
+  }
+
+  response.headers.set(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains",
+  );
+  response.headers.set(
+    "Content-Security-Policy",
+    "default-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+  );
+  return response;
+}
+
+function withRequestHeaders(
+  request: NextRequest,
+  requestHeaders?: Headers,
+  rewritePathname?: string,
+) {
+  if (!rewritePathname) {
+    return applySecurityHeaders(
+      NextResponse.next({
+        request: requestHeaders ? { headers: requestHeaders } : undefined,
+      }),
+    );
+  }
+
+  const url = request.nextUrl.clone();
+  url.pathname = rewritePathname;
+
+  return applySecurityHeaders(
+    NextResponse.rewrite(url, {
+      request: requestHeaders ? { headers: requestHeaders } : undefined,
+    }),
+  );
+}
+
+async function createAccessToken(payload: JWTPayload): Promise<string> {
+  return new SignJWT({ ...payload, tokenType: "access" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("15m")
+    .setIssuedAt()
+    .sign(JWT_SECRET);
+}
+
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const originalPathname = request.nextUrl.pathname;
+  const isV1Route = originalPathname.startsWith("/api/v1/");
+  const pathname = originalPathname.startsWith("/api/v1/")
+    ? originalPathname.replace("/api/v1", "/api")
+    : originalPathname;
+  const rewritePathname = originalPathname === pathname ? undefined : pathname;
+
+  const ip = getClientIp(request);
+  const baseRequestHeaders = new Headers(request.headers);
+  baseRequestHeaders.set("x-request-method", request.method);
+  baseRequestHeaders.set("x-request-path", pathname);
+  baseRequestHeaders.set("x-client-ip", ip);
+  baseRequestHeaders.set("x-api-version", isV1Route ? "1" : "0");
+
+  if (pathname === "/api/auth/sign-in") {
+    const loginLimit = checkRateLimit({
+      key: `login:${ip}`,
+      limit: 5,
+      windowMs: 60 * 1000,
+    });
+    if (!loginLimit.allowed) {
+      return applySecurityHeaders(
+        NextResponse.json(
+          { error: "Too many login attempts. Try again shortly." },
+          {
+            status: 429,
+            headers: { "Retry-After": String(loginLimit.retryAfterSeconds) },
+          },
+        ),
+      );
+    }
+  }
 
   // Allow public paths and static assets
   if (
-    publicPaths.some((p) => pathname === p) ||
-    pathname.startsWith("/_next") ||
+    publicPaths.some((p) => originalPathname === p || pathname === p) ||
+    originalPathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
-    pathname.includes(".")
+    originalPathname.includes(".")
   ) {
-    return NextResponse.next();
+    return withRequestHeaders(request, baseRequestHeaders, rewritePathname);
   }
 
-  const token = request.cookies.get("token")?.value;
-  if (!token) {
+  const accessToken =
+    request.cookies.get(ACCESS_TOKEN_COOKIE)?.value ||
+    request.cookies.get(LEGACY_TOKEN_COOKIE)?.value;
+  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
+
+  const accessPayload = accessToken ? await verifyJwt(accessToken) : null;
+  let authPayload = accessPayload;
+  let rotatedAccessToken: string | null = null;
+
+  if (!authPayload && refreshToken) {
+    const refreshPayload = await verifyJwt(refreshToken);
+    if (refreshPayload) {
+      authPayload = refreshPayload;
+      rotatedAccessToken = await createAccessToken(refreshPayload);
+    }
+  }
+
+  if (!authPayload) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return applySecurityHeaders(
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      );
     }
-    return NextResponse.redirect(new URL("/sign-in", request.url));
+    return applySecurityHeaders(
+      NextResponse.redirect(new URL("/sign-in", request.url)),
+    );
   }
 
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-user-id", payload.userId as string);
-    requestHeaders.set("x-tenant-id", payload.tenantId as string);
-    requestHeaders.set("x-user-role", payload.role as string);
-    requestHeaders.set("x-user-email", payload.email as string);
-    requestHeaders.set("x-user-name", payload.name as string);
-    if (payload.branchId) {
-      requestHeaders.set("x-branch-id", payload.branchId as string);
-    }
-
-    return NextResponse.next({ request: { headers: requestHeaders } });
-  } catch {
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-    const response = NextResponse.redirect(new URL("/sign-in", request.url));
-    response.cookies.delete("token");
-    return response;
+  const requestHeaders = new Headers(baseRequestHeaders);
+  requestHeaders.set("x-user-id", authPayload.userId);
+  requestHeaders.set("x-tenant-id", authPayload.tenantId);
+  requestHeaders.set("x-user-role", authPayload.role);
+  requestHeaders.set("x-user-email", authPayload.email);
+  requestHeaders.set("x-user-name", authPayload.name);
+  if (authPayload.branchId) {
+    requestHeaders.set("x-branch-id", authPayload.branchId);
   }
+
+  if (pathname.startsWith("/api/")) {
+    const tenantLimit = checkRateLimit({
+      key: `api:${authPayload.tenantId}`,
+      limit: 100,
+      windowMs: 60 * 1000,
+    });
+
+    if (!tenantLimit.allowed) {
+      return applySecurityHeaders(
+        NextResponse.json(
+          { error: "Rate limit exceeded" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(tenantLimit.retryAfterSeconds) },
+          },
+        ),
+      );
+    }
+  }
+
+  const response = withRequestHeaders(request, requestHeaders, rewritePathname);
+
+  if (rotatedAccessToken) {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, rotatedAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
+      path: "/",
+    });
+    response.cookies.set(LEGACY_TOKEN_COOKIE, rotatedAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
+      path: "/",
+    });
+  }
+
+  return response;
 }
 
 export const config = {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
+  Barcode as BarcodeIcon,
   ShoppingBag,
   Plus,
   Eye,
@@ -17,6 +18,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { formatCurrency, formatDate, slugify } from "@/lib/utils";
+import { findBarcodeMatch, logBarcodeScanEvent } from "@/lib/barcode-client";
 import { useSession } from "../layout";
 
 interface PurchaseOrder {
@@ -49,6 +51,8 @@ interface Vendor {
 interface Product {
   _id: string;
   name: string;
+  sku: string;
+  barcode?: string;
   costPrice: number;
   unit?: string;
 }
@@ -76,6 +80,7 @@ export default function PurchasesPage() {
   const [savingCatalogItemIndex, setSavingCatalogItemIndex] = useState<
     number | null
   >(null);
+  const [purchaseBarcodeInput, setPurchaseBarcodeInput] = useState("");
   const [formError, setFormError] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
 
@@ -156,6 +161,71 @@ export default function PurchasesPage() {
           total: 0,
         },
       ],
+    });
+  };
+
+  const handlePurchaseBarcodeScan = async () => {
+    const value = purchaseBarcodeInput.trim();
+    if (!value) return;
+
+    const match = findBarcodeMatch(products, value);
+    if (!match) {
+      setFormError(`No catalog item matches barcode ${value}.`);
+      void logBarcodeScanEvent({
+        value,
+        context: "receiving",
+        source: "scanner",
+        module: "purchases",
+        scanAction: "not_found",
+        result: "not_found",
+      }).catch(() => {
+        /* ignore */
+      });
+      return;
+    }
+
+    setNewOrder((prev) => {
+      const nextItems = [...prev.items];
+      const emptyIndex = nextItems.findIndex(
+        (item) => !item.productId && !item.productName.trim(),
+      );
+      const targetIndex = emptyIndex >= 0 ? emptyIndex : nextItems.length;
+      const nextItem = {
+        productId: match.product._id,
+        productName: match.product.name,
+        unit: match.product.unit || "piece",
+        quantity:
+          targetIndex < nextItems.length
+            ? nextItems[targetIndex].quantity || 1
+            : 1,
+        unitCost: match.product.costPrice,
+        total:
+          (targetIndex < nextItems.length
+            ? nextItems[targetIndex].quantity || 1
+            : 1) * match.product.costPrice,
+      };
+
+      if (targetIndex < nextItems.length) nextItems[targetIndex] = nextItem;
+      else nextItems.push(nextItem);
+
+      return { ...prev, items: nextItems };
+    });
+
+    setPurchaseBarcodeInput("");
+    setFormError("");
+    void logBarcodeScanEvent({
+      value,
+      context: "receiving",
+      source: "scanner",
+      module: "purchases",
+      scanAction: "goods_receiving",
+      result: "found",
+      productId: match.product._id,
+      productName: match.product.name,
+      productSku: match.product.sku,
+      locationId: newOrder.branchId,
+    }).catch(() => {
+      /* ignore */
     });
   };
 
@@ -858,6 +928,32 @@ export default function PurchasesPage() {
                         className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
                       >
                         <Plus className="h-3.5 w-3.5" /> Add Item
+                      </button>
+                    </div>
+
+                    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 p-3">
+                      <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2">
+                        <BarcodeIcon className="h-4 w-4 text-orange-500" />
+                        <input
+                          value={purchaseBarcodeInput}
+                          onChange={(event) =>
+                            setPurchaseBarcodeInput(event.target.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              void handlePurchaseBarcodeScan();
+                            }
+                          }}
+                          placeholder="Scan barcode to add item"
+                          className="flex-1 bg-transparent text-sm outline-none"
+                        />
+                      </div>
+                      <button
+                        onClick={() => void handlePurchaseBarcodeScan()}
+                        className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-600"
+                      >
+                        Add By Barcode
                       </button>
                     </div>
 

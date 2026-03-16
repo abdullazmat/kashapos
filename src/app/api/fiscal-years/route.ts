@@ -1,191 +1,21 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import FiscalYear from "@/models/FiscalYear";
-import Sale from "@/models/Sale";
-import Expense from "@/models/Expense";
-import Invoice from "@/models/Invoice";
 import { apiError, apiSuccess, getAuthContext } from "@/lib/api-helpers";
-
-function buildDateRange(startDate: Date, endDate: Date) {
-  return { $gte: startDate, $lte: endDate };
-}
+import { getFiscalYearSummaryData } from "@/lib/fiscal-year-summary";
 
 export async function GET(request: NextRequest) {
   try {
     await dbConnect();
     const auth = getAuthContext(request);
     const { searchParams } = new URL(request.url);
-    const selectedFiscalYearId = searchParams.get("fiscalYearId");
-    const branchId = searchParams.get("branchId") || "";
-
-    const fiscalYears = await FiscalYear.find({ tenantId: auth.tenantId })
-      .sort({ startDate: -1 })
-      .lean();
-
-    if (fiscalYears.length === 0) {
-      return apiSuccess({
-        fiscalYears: [],
-        selectedFiscalYearId: null,
-        summary: null,
-      });
-    }
-
-    const selectedFiscalYear =
-      (selectedFiscalYearId
-        ? fiscalYears.find((row) => String(row._id) === selectedFiscalYearId)
-        : undefined) ||
-      fiscalYears.find((row) => row.status === "active") ||
-      fiscalYears[0];
-
-    const range = buildDateRange(
-      new Date(selectedFiscalYear.startDate),
-      new Date(selectedFiscalYear.endDate),
-    );
-
-    const salesMatch: Record<string, unknown> = {
+    const data = await getFiscalYearSummaryData({
       tenantId: auth.tenantId,
-      status: { $in: ["completed", "pending"] },
-      createdAt: range,
-    };
-    const expenseMatch: Record<string, unknown> = {
-      tenantId: auth.tenantId,
-      date: range,
-    };
-
-    if (branchId) {
-      salesMatch.branchId = branchId;
-      expenseMatch.branchId = branchId;
-    }
-
-    const [
-      salesAgg,
-      expensesAgg,
-      monthlySalesRows,
-      monthlyExpenseRows,
-      outstandingInvoiceAgg,
-      vatCollectedAgg,
-      topCategories,
-    ] = await Promise.all([
-      Sale.aggregate([
-        {
-          $match: salesMatch,
-        },
-        {
-          $group: {
-            _id: null,
-            revenue: { $sum: "$total" },
-            tax: { $sum: "$totalTax" },
-          },
-        },
-      ]),
-      Expense.aggregate([
-        {
-          $match: expenseMatch,
-        },
-        {
-          $group: {
-            _id: null,
-            expenses: { $sum: "$amount" },
-          },
-        },
-      ]),
-      Sale.aggregate([
-        {
-          $match: salesMatch,
-        },
-        {
-          $group: {
-            _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
-            revenue: { $sum: "$total" },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
-      Expense.aggregate([
-        {
-          $match: expenseMatch,
-        },
-        {
-          $group: {
-            _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
-            expenses: { $sum: "$amount" },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
-      Invoice.aggregate([
-        {
-          $match: {
-            tenantId: auth.tenantId,
-            status: { $nin: ["paid", "cancelled"] },
-            balance: { $gt: 0 },
-            createdAt: range,
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            count: { $sum: 1 },
-            total: { $sum: "$balance" },
-          },
-        },
-      ]),
-      Sale.aggregate([
-        {
-          $match: salesMatch,
-        },
-        { $group: { _id: null, totalVat: { $sum: "$totalTax" } } },
-      ]),
-      Sale.aggregate([
-        {
-          $match: salesMatch,
-        },
-        { $unwind: "$items" },
-        {
-          $group: {
-            _id: "$items.productName",
-            revenue: { $sum: "$items.total" },
-          },
-        },
-        { $sort: { revenue: -1 } },
-        { $limit: 8 },
-      ]),
-    ]);
-
-    const totalRevenue = salesAgg[0]?.revenue || 0;
-    const totalExpenses = expensesAgg[0]?.expenses || 0;
-    const grossProfit = totalRevenue - totalExpenses;
-    const netProfit = grossProfit;
-
-    return apiSuccess({
-      fiscalYears,
-      selectedFiscalYearId: String(selectedFiscalYear._id),
-      summary: {
-        totalRevenue,
-        totalExpenses,
-        grossProfit,
-        netProfit,
-        vatCollected: vatCollectedAgg[0]?.totalVat || 0,
-        outstandingInvoices: {
-          count: outstandingInvoiceAgg[0]?.count || 0,
-          total: outstandingInvoiceAgg[0]?.total || 0,
-        },
-        monthlyRevenueVsExpenses: monthlySalesRows.map((row) => {
-          const expenseRow = monthlyExpenseRows.find(
-            (exp) => exp._id === row._id,
-          );
-          return {
-            month: row._id,
-            revenue: row.revenue,
-            expenses: expenseRow?.expenses || 0,
-          };
-        }),
-        topProductCategories: topCategories.map((row) => ({
-          category: row._id,
-          revenue: row.revenue,
-        })),
-      },
+      fiscalYearId: searchParams.get("fiscalYearId"),
+      branchId: searchParams.get("branchId"),
     });
+
+    return apiSuccess(data);
   } catch (error) {
     console.error("Fiscal years GET error:", error);
     return apiError("Internal server error", 500);

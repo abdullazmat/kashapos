@@ -1,0 +1,2 @@
+login=OK
+cashflow=200

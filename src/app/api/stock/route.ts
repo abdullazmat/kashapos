@@ -2,7 +2,29 @@ import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Stock from "@/models/Stock";
 import StockAdjustment from "@/models/StockAdjustment";
+import Product from "@/models/Product";
+import Branch from "@/models/Branch";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+
+async function resolveDefaultBranch(
+  tenantId: string,
+  preferredBranchId?: string,
+) {
+  if (preferredBranchId) {
+    const preferredBranch = await Branch.findOne({
+      _id: preferredBranchId,
+      tenantId,
+    })
+      .select("name")
+      .lean();
+    if (preferredBranch) return preferredBranch;
+  }
+
+  return Branch.findOne({ tenantId, isActive: true })
+    .sort({ isMain: -1, createdAt: 1 })
+    .select("name")
+    .lean();
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,6 +49,57 @@ export async function GET(request: NextRequest) {
         .populate("productId", "name sku barcode price")
         .populate("branchId", "name")
         .lean();
+    }
+
+    const defaultBranch = await resolveDefaultBranch(
+      auth.tenantId,
+      branchId || auth.branchId,
+    );
+
+    if (defaultBranch) {
+      const existingProductIds = new Set(
+        stockItems
+          .map((item) => item.productId?._id?.toString())
+          .filter(Boolean),
+      );
+
+      const missingProducts = await Product.find({
+        tenantId: auth.tenantId,
+        trackStock: true,
+        _id: {
+          $nin: Array.from(existingProductIds),
+        },
+      })
+        .select("name sku barcode price createdAt")
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const syntheticStockItems = missingProducts.map((product) => ({
+        _id: `synthetic:${product._id.toString()}:${defaultBranch._id.toString()}`,
+        tenantId: auth.tenantId,
+        productId: {
+          _id: product._id,
+          name: product.name,
+          sku: product.sku,
+          barcode: product.barcode,
+          price: product.price,
+        },
+        branchId: {
+          _id: defaultBranch._id,
+          name: defaultBranch.name,
+        },
+        quantity: 0,
+        reservedQuantity: 0,
+        reorderLevel: 10,
+      }));
+
+      stockItems = [...stockItems, ...syntheticStockItems];
+
+      if (lowStock) {
+        stockItems = stockItems.filter(
+          (item) => item.quantity <= item.reorderLevel,
+        );
+      }
     }
 
     return apiSuccess(stockItems);

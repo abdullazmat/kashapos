@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Product from "@/models/Product";
+import Tenant from "@/models/Tenant";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+import { getDefaultPermissionsForRole } from "@/lib/roles";
 
 export async function GET(
   request: NextRequest,
@@ -29,8 +31,18 @@ export async function PUT(
   try {
     await dbConnect();
     const auth = getAuthContext(request);
-    if (auth.role === "cashier")
+
+    const tenant = await Tenant.findById(auth.tenantId)
+      .select("settings.rolePermissions")
+      .lean();
+    const rolePermissions =
+      (tenant?.settings as { rolePermissions?: Record<string, string[]> })
+        ?.rolePermissions?.[auth.role] || getDefaultPermissionsForRole(auth.role);
+
+    if (auth.role !== "admin" && !rolePermissions.includes("inventory")) {
       return apiError("Insufficient permissions", 403);
+    }
+
     const { id } = await params;
     const body = await request.json();
     const product = await Product.findOneAndUpdate(

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
+import { apiError, apiSuccess } from "@/lib/api-helpers";
 import Tenant from "@/models/Tenant";
 import User from "@/models/User";
 import Branch from "@/models/Branch";
@@ -35,7 +35,7 @@ export async function POST() {
     // Check if seed data already exists
     const existingTenant = await Tenant.findOne({ slug: "corner-cafe" });
     if (existingTenant) {
-      return NextResponse.json({ message: "Seed data already exists" });
+      return apiSuccess({ message: "Seed data already exists" });
     }
 
     // Create demo tenants for each plan
@@ -340,13 +340,10 @@ export async function POST() {
       },
     ]);
 
-    return NextResponse.json(
-      { message: "Seed data created successfully" },
-      { status: 201 },
-    );
+    return apiSuccess({ message: "Seed data created successfully" }, 201);
   } catch (error) {
     console.error("Seed error:", error);
-    return NextResponse.json({ error: "Failed to seed data" }, { status: 500 });
+    return apiError("Failed to seed data", 500);
   }
 }
 
@@ -1171,18 +1168,15 @@ export async function PUT() {
       });
     }
 
-    return NextResponse.json(
+    return apiSuccess(
       {
         message:
           "Full reseed completed with 22 products, 8 customers, 4 vendors, 80 sales (10 today), 12 invoices, 8 purchase orders",
       },
-      { status: 201 },
+      201,
     );
   } catch (error) {
     console.error("Full reseed error:", error);
-    return NextResponse.json(
-      { error: "Failed to reseed: " + (error as Error).message },
-      { status: 500 },
-    );
+    return apiError("Failed to reseed: " + (error as Error).message, 500);
   }
 }

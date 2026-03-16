@@ -10,15 +10,8 @@ import PurchaseOrder from "@/models/PurchaseOrder";
 import ReturnEntry from "@/models/Return";
 import Tenant from "@/models/Tenant";
 import { getAuthContext, apiError, apiSuccess } from "@/lib/api-helpers";
-
-const quickPrompts = [
-  "How are sales performing today?",
-  "What should I restock this week?",
-  "Which invoices are at risk?",
-  "Give me a weekly executive summary.",
-  "How can I improve POS performance this month?",
-  "Can you help with a non-POS question?",
-];
+import { getAiContextLabel, getAiQuickPrompts } from "@/lib/ai";
+import { generateExternalAiReply } from "@/lib/ai-provider";
 
 function isSalesIntent(text: string) {
   return /(sales|revenue|order|today|week)/i.test(text);
@@ -124,22 +117,6 @@ function getGeneralAnswer(text: string) {
   return "I can answer basic general questions, but I do not use external web browsing here. For detailed answers, ask a narrower question or switch to POS analytics questions.";
 }
 
-function formatAssistantContextLabel(contextPath?: string) {
-  const path = (contextPath || "").toLowerCase();
-
-  if (path.includes("/dashboard/ai")) return "AI Assistant workspace";
-  if (path.includes("/dashboard/invoices")) return "Invoices workspace";
-  if (path.includes("/dashboard/inventory")) return "Inventory workspace";
-  if (path.includes("/dashboard/sales")) return "Sales workspace";
-  if (path.includes("/dashboard/customers")) return "Customers workspace";
-  if (path.includes("/dashboard/purchases")) return "Purchases workspace";
-  if (path.includes("/dashboard/expenses")) return "Expenses workspace";
-  if (path.includes("/dashboard/settings")) return "Settings workspace";
-  if (path.includes("/dashboard")) return "Dashboard workspace";
-
-  return "business workspace";
-}
-
 function toTone(
   text: string,
   tone: "professional" | "friendly" | "concise" | "brief",
@@ -162,8 +139,21 @@ type SuggestedAction = {
   href: string;
 };
 
-export async function GET() {
-  return apiSuccess({ quickPrompts });
+type AssistantHighlight = {
+  label: string;
+  value: string;
+};
+
+type AssistantTable = {
+  title: string;
+  columns: string[];
+  rows: string[][];
+};
+
+export async function GET(request: NextRequest) {
+  const contextPath =
+    new URL(request.url).searchParams.get("contextPath") || undefined;
+  return apiSuccess({ quickPrompts: getAiQuickPrompts(contextPath) });
 }
 
 export async function POST(request: NextRequest) {
@@ -201,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     const tenant = await Tenant.findById(auth.tenantId)
       .select(
-        "name settings.aiAssistantEnabled settings.aiLanguage settings.aiTone settings.aiCreditAlertThreshold",
+        "name settings.aiAssistantEnabled settings.aiLanguage settings.aiTone settings.aiCreditAlertThreshold settings.aiDataUsageAccepted settings.aiDataPreference settings.aiModelPreference",
       )
       .lean();
 
@@ -227,8 +217,8 @@ export async function POST(request: NextRequest) {
       lowStockSample,
       overdueInvoices,
       overdueInvoiceBalance,
+      overdueInvoiceSample,
       overdueCustomers,
-      activeCustomers30d,
       purchaseAgg,
       pendingPurchases,
       expensesAgg,
@@ -339,16 +329,15 @@ export async function POST(request: NextRequest) {
         },
         { $group: { _id: null, total: { $sum: "$balance" } } },
       ]),
+      Invoice.find({ tenantId: auth.tenantId, status: "overdue" })
+        .select("invoiceNumber balance dueDate")
+        .sort({ balance: -1 })
+        .limit(5)
+        .lean(),
       Customer.countDocuments({
         tenantId: auth.tenantId,
         paymentStatus: "overdue",
         isActive: true,
-      }),
-      Sale.distinct("customerId", {
-        tenantId: auth.tenantId,
-        status: "completed",
-        customerId: { $exists: true, $ne: null },
-        createdAt: { $gte: thirtyDaysAgo, $lte: now },
       }),
       PurchaseOrder.aggregate([
         {
@@ -451,22 +440,34 @@ export async function POST(request: NextRequest) {
     const luganda = isLugandaText(message);
     const configuredLang = tenant?.settings?.aiLanguage || "en";
     const effectiveLuganda = luganda || configuredLang === "lg";
+    const responseLanguage = effectiveLuganda
+      ? "lg"
+      : configuredLang === "sw"
+        ? "sw"
+        : "en";
     const tone = (tenant?.settings?.aiTone || "professional") as
       | "professional"
       | "friendly"
       | "concise"
       | "brief";
+    const modelPreference = (tenant?.settings?.aiModelPreference ||
+      "standard") as "standard" | "advanced" | "balanced" | "fast" | "accurate";
+    const dataPreference = (tenant?.settings?.aiDataPreference ||
+      "assisted") as "strict" | "assisted";
 
-    const contextLabel = formatAssistantContextLabel(body.contextPath);
+    const contextLabel = getAiContextLabel(body.contextPath);
     const header = effectiveLuganda
       ? `[AI-generated] Ndi mu ${contextLabel}.`
       : `[AI-generated] Assistant context: ${contextLabel}.`;
 
     let reply = header;
     let suggestedAction: SuggestedAction | undefined;
+    const highlights: AssistantHighlight[] = [];
+    let table: AssistantTable | undefined;
 
     const looksDomainRelated =
-      isPOSDomainQuestion(message) || contextLabel.startsWith("/dashboard");
+      isPOSDomainQuestion(message) ||
+      Boolean(body.contextPath?.startsWith("/dashboard"));
     const wantsSales = isSalesIntent(message);
     const wantsStock = isStockIntent(message);
     const wantsInvoices = isInvoiceIntent(message);
@@ -545,6 +546,17 @@ export async function POST(request: NextRequest) {
         detailLines.push(
           `Cash vs credit: cash ${formatAmount(cashAmount)}, credit ${formatAmount(creditAmount)}.`,
         );
+        highlights.push(
+          {
+            label: effectiveLuganda ? "Leero" : "Today",
+            value: formatAmount(todaySales),
+          },
+          {
+            label: effectiveLuganda ? "Wiiki eno" : "This Week",
+            value: formatAmount(weeklySales),
+          },
+          { label: "AOV", value: formatAmount(aovWeek) },
+        );
       }
 
       if (wantsSales || wantsSummary) {
@@ -552,12 +564,51 @@ export async function POST(request: NextRequest) {
           `Sales today: ${todayOrders} orders, revenue ${formatAmount(todaySales)}.`,
         );
         detailLines.push(`Top product this week: ${topProductLabel}.`);
+        if (!table) {
+          table = {
+            title: effectiveLuganda
+              ? "Top products this week"
+              : "Top products this week",
+            columns: ["Product", "Revenue", "Qty"],
+            rows: topProducts
+              .slice(0, 5)
+              .map((product) => [
+                String(product._id || product.name || "Unknown"),
+                formatAmount(Number(product.revenue || 0)),
+                Number(product.qty || 0).toLocaleString(),
+              ]),
+          };
+        }
       }
 
       if (wantsStock || wantsSummary) {
         detailLines.push(
           `Low-stock records: ${lowStockCount}. Priority items: ${sampleText}.`,
         );
+        if (!table || wantsStock) {
+          table = {
+            title: effectiveLuganda
+              ? "Low stock watchlist"
+              : "Low stock watchlist",
+            columns: ["Product", "Qty", "Reorder"],
+            rows: lowStockSample
+              .slice(0, 5)
+              .map((row) => [
+                String(
+                  (row.productId as { name?: string } | null)?.name ||
+                    "Unknown",
+                ),
+                formatAmount(Number(row.quantity || 0)),
+                formatAmount(Number(row.reorderLevel || 0)),
+              ]),
+          };
+        }
+        if (!highlights.some((item) => item.label === "Low Stock")) {
+          highlights.push(
+            { label: "Low Stock", value: String(lowStockCount) },
+            { label: "Open POs", value: String(pendingPurchases) },
+          );
+        }
       }
 
       if (wantsInvoices || wantsCustomers || wantsSummary) {
@@ -569,6 +620,23 @@ export async function POST(request: NextRequest) {
           `Overdue customers: ${overdueCustomers}, active customers: ${activeCustomerCount}, outstanding customer balance ${formatAmount(outstandingCustomerBalance)}.`,
         );
         detailLines.push(`Credit alert threshold: ${formatAmount(threshold)}.`);
+        if (wantsInvoices || wantsCustomers) {
+          table = {
+            title: effectiveLuganda ? "Overdue invoices" : "Overdue invoices",
+            columns: ["Invoice", "Balance", "Due"],
+            rows: overdueInvoiceSample.map((invoice) => [
+              String(invoice.invoiceNumber || "Invoice"),
+              formatAmount(Number(invoice.balance || 0)),
+              invoice.dueDate
+                ? new Date(invoice.dueDate).toLocaleDateString("en-UG")
+                : "-",
+            ]),
+          };
+        }
+        highlights.push(
+          { label: "Overdue", value: String(overdueInvoices) },
+          { label: "Balance", value: formatAmount(overdueBalance) },
+        );
       }
 
       if (wantsPurchases || wantsSummary) {
@@ -629,7 +697,85 @@ export async function POST(request: NextRequest) {
 
     reply = toTone(reply, tone);
 
-    return apiSuccess({ reply, suggestedAction });
+    if (tenant?.settings?.aiDataUsageAccepted !== false) {
+      try {
+        const externalReply = await generateExternalAiReply({
+          question: message,
+          language: responseLanguage,
+          tone,
+          modelPreference,
+          businessContext: {
+            contextLabel,
+            language: responseLanguage,
+            tone,
+            dataPreference,
+            tenant: {
+              name: dataPreference === "assisted" ? tenant?.name : undefined,
+            },
+            metrics: {
+              todaySales,
+              todayOrders,
+              weeklySales,
+              weeklyOrders,
+              monthlySales,
+              lowStockCount,
+              overdueInvoices,
+              overdueBalance,
+              overdueCustomers,
+              pendingPurchases,
+              purchaseTotal30d,
+              purchaseCount30d,
+              expensesTotal30d,
+              expensesCount30d,
+              returnsTotal30d,
+              returnsCount30d,
+              outstandingCustomerBalance,
+              activeCustomerCount,
+              cashAmount,
+              creditAmount,
+              averageOrderValue: aovWeek,
+              grossMarginProxy,
+            },
+            topProducts: topProducts.slice(0, 5).map((product) => ({
+              name: String(product._id || product.name || "Unknown"),
+              revenue: Number(product.revenue || 0),
+              quantity: Number(product.qty || 0),
+            })),
+            lowStockItems: lowStockSample.slice(0, 5).map((row) => ({
+              name: String(
+                (row.productId as { name?: string } | null)?.name || "Unknown",
+              ),
+              quantity: Number(row.quantity || 0),
+              reorderLevel: Number(row.reorderLevel || 0),
+            })),
+            overdueInvoices: overdueInvoiceSample
+              .slice(0, 5)
+              .map((invoice) => ({
+                balance: Number(invoice.balance || 0),
+                dueDate: invoice.dueDate
+                  ? new Date(invoice.dueDate).toISOString()
+                  : null,
+              })),
+          },
+        });
+
+        if (externalReply) {
+          reply = toTone(`${header}\n${externalReply}`, tone);
+        }
+      } catch (error) {
+        console.warn(
+          "External AI provider unavailable, using fallback:",
+          error,
+        );
+      }
+    }
+
+    return apiSuccess({
+      reply,
+      suggestedAction,
+      highlights: highlights.slice(0, 4),
+      table,
+    });
   } catch (error) {
     console.error("AI chat POST error:", error);
     return apiError("Internal server error", 500);

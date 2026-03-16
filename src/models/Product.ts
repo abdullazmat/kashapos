@@ -18,6 +18,7 @@ export interface IProduct extends Document {
   categoryAttributes?: Record<string, unknown>;
   sku: string;
   barcode: string;
+  barcodeFormat?: string;
   categoryId: mongoose.Types.ObjectId;
   price: number;
   costPrice: number;
@@ -56,6 +57,7 @@ const ProductSchema = new Schema<IProduct>(
     categoryAttributes: { type: Schema.Types.Mixed, default: {} },
     sku: { type: String, required: true },
     barcode: { type: String, default: "" },
+    barcodeFormat: { type: String, default: "Code 128" },
     categoryId: { type: Schema.Types.ObjectId, ref: "Category" },
     price: { type: Number, required: true },
     costPrice: { type: Number, default: 0 },

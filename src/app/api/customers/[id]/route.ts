@@ -2,8 +2,14 @@ import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Customer from "@/models/Customer";
 import CustomerPayment from "@/models/CustomerPayment";
+import Sale from "@/models/Sale";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
-import { normalizeMoney } from "@/lib/customer-balance";
+import {
+  calculateUpdatedCustomerBalance,
+  normalizeMoney,
+  resolvePaymentStatus,
+} from "@/lib/customer-balance";
+import { allocateCustomerPaymentOldestFirst } from "@/lib/customer-payment-allocation";
 
 export async function GET(
   request: NextRequest,
@@ -72,10 +78,49 @@ export async function PUT(
       }
 
       const balanceBefore = normalizeMoney(customer.outstandingBalance);
-      const balanceAfter = Math.max(0, balanceBefore - amount);
+      const openSales = await Sale.find({
+        tenantId: auth.tenantId,
+        customerId: customer._id,
+        status: { $nin: ["refunded", "voided"] },
+        remainingBalance: { $gt: 0 },
+      }).sort({ createdAt: 1 });
+
+      const { updatedSales, allocatedAmount, unappliedAmount } =
+        allocateCustomerPaymentOldestFirst(openSales, amount);
+
+      for (let index = 0; index < openSales.length; index += 1) {
+        const existingSale = openSales[index];
+        const updatedSale = updatedSales[index];
+        if (!updatedSale || updatedSale.amountApplied <= 0) continue;
+
+        existingSale.amountPaid = updatedSale.amountPaid;
+        existingSale.remainingBalance = updatedSale.remainingBalance;
+        existingSale.paymentStatus = updatedSale.paymentStatus;
+        await existingSale.save();
+      }
+
+      const balanceAfter = calculateUpdatedCustomerBalance(
+        balanceBefore,
+        allocatedAmount,
+      );
+
+      const overdueSale = await Sale.findOne({
+        tenantId: auth.tenantId,
+        customerId: customer._id,
+        status: { $nin: ["refunded", "voided"] },
+        remainingBalance: { $gt: 0 },
+        dueDate: { $lt: new Date() },
+      })
+        .select("dueDate")
+        .lean();
 
       customer.outstandingBalance = balanceAfter;
-      customer.paymentStatus = balanceAfter > 0 ? "partial" : "cleared";
+      customer.paymentStatus =
+        balanceAfter <= 0
+          ? "cleared"
+          : overdueSale
+            ? "overdue"
+            : resolvePaymentStatus(balanceAfter);
       customer.lastPaymentDate = new Date();
 
       await customer.save();
@@ -91,7 +136,14 @@ export async function PUT(
             ? payment.method
             : "cash",
         reference: payment.reference ? String(payment.reference) : "",
-        notes: payment.notes ? String(payment.notes) : "",
+        notes: [
+          payment.notes ? String(payment.notes) : "",
+          unappliedAmount > 0
+            ? `Unapplied amount retained outside sale allocation: ${unappliedAmount}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" | "),
         balanceBefore,
         balanceAfter,
         recordedBy: auth.userId || undefined,

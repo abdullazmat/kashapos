@@ -15,7 +15,7 @@ import {
   ArrowRightLeft,
   ClipboardList,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { emitStockSync, formatCurrency } from "@/lib/utils";
 import { useSession } from "../layout";
 
 type StockTab = "overview" | "transfer" | "adjustment";
@@ -135,7 +135,12 @@ export default function StockPage() {
         setAdjustModal(null);
         setAdjustQty("");
         setAdjustReason("");
-        fetchStock();
+        await fetchStock();
+        emitStockSync({
+          source: "stock-adjustment",
+          productId: adjustModal.productId._id,
+          branchId: adjustModal.branchId._id,
+        });
       }
     } catch (err) {
       console.error(err);
@@ -165,7 +170,7 @@ export default function StockPage() {
         }),
       });
       if (res.ok) {
-        await fetch("/api/stock", {
+        const transferInRes = await fetch("/api/stock", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -176,13 +181,21 @@ export default function StockPage() {
             reason: `Stock transfer from ${branches.find((b) => b._id === transferFrom)?.name || "branch"}: ${transferNotes || "N/A"}`,
           }),
         });
+        if (!transferInRes.ok) {
+          throw new Error("Failed to complete destination stock transfer");
+        }
         setShowTransferModal(false);
         setTransferFrom("");
         setTransferTo("");
         setTransferProduct("");
         setTransferQty("");
         setTransferNotes("");
-        fetchStock();
+        await fetchStock();
+        emitStockSync({
+          source: "stock-transfer",
+          productId: transferProduct,
+          branchId: transferTo,
+        });
       }
     } catch (err) {
       console.error(err);

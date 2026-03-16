@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import User from "@/models/User";
 import Tenant from "@/models/Tenant";
-import { verifyPassword, createToken, setSession } from "@/lib/auth";
+import ActivityLog from "@/models/ActivityLog";
+import { verifyPassword, setSession } from "@/lib/auth";
+import { apiError, apiSuccess } from "@/lib/api-helpers";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,10 +12,7 @@ export async function POST(request: NextRequest) {
     const { email, phone, password } = await request.json();
 
     if ((!email && !phone) || !password) {
-      return NextResponse.json(
-        { error: "Email or phone number and password are required" },
-        { status: 400 },
-      );
+      return apiError("Email or phone number and password are required", 400);
     }
 
     const query = email
@@ -21,51 +20,49 @@ export async function POST(request: NextRequest) {
       : { phone: phone.replace(/\s+/g, "") };
     const user = await User.findOne(query);
     if (!user) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 },
-      );
+      return apiError("Invalid credentials", 401);
     }
 
     const isValid = await verifyPassword(password, user.password);
     if (!isValid) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 },
-      );
+      return apiError("Invalid credentials", 401);
     }
 
     if (!user.isActive) {
-      return NextResponse.json(
-        { error: "Account is disabled" },
-        { status: 403 },
-      );
+      return apiError("Account is disabled", 403);
     }
 
     const tenant = await Tenant.findById(user.tenantId);
     if (!tenant || !tenant.isActive) {
-      return NextResponse.json(
-        { error: "Business account is inactive" },
-        { status: 403 },
-      );
+      return apiError("Business account is inactive", 403);
     }
 
-    const token = await createToken({
+    const payload = {
       userId: user._id.toString(),
       tenantId: user.tenantId.toString(),
       email: user.email,
       role: user.role,
       branchId: user.branchId?.toString(),
       name: user.name,
-    });
+    };
 
-    await setSession(token);
+    await setSession(payload);
 
     // Update last login
     user.lastLogin = new Date();
     await user.save();
 
-    return NextResponse.json({
+    await ActivityLog.create({
+      tenantId: user.tenantId,
+      userId: user._id,
+      userName: user.name,
+      action: "login",
+      module: "auth",
+      description: "User signed in",
+      metadata: { ipAddress: request.headers.get("x-forwarded-for") || "" },
+    });
+
+    return apiSuccess({
       user: {
         id: user._id,
         name: user.name,
@@ -84,9 +81,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Sign in error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError("Internal server error", 500);
   }
 }

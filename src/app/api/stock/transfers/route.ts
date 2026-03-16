@@ -50,6 +50,11 @@ export async function POST(request: NextRequest) {
     const transportedBy = String(body.transportedBy || "").trim();
     const receivedByName = String(body.receivedByName || "").trim();
     const notes = String(body.notes || "").trim();
+    const requestedStatus = String(body.status || "in_transit").trim();
+    const allowedStatuses = ["pending", "in_transit", "received", "cancelled"];
+    const transferStatus = allowedStatuses.includes(requestedStatus)
+      ? (requestedStatus as "pending" | "in_transit" | "received" | "cancelled")
+      : ("in_transit" as const);
 
     if (!fromBranchId || !toBranchId || !productId || quantity <= 0) {
       return apiError(
@@ -120,7 +125,7 @@ export async function POST(request: NextRequest) {
           receivedQuantity: 0,
         },
       ],
-      status: "in_transit",
+      status: transferStatus,
       transferDate,
       transportedBy,
       receivedByName,

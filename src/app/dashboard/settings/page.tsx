@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import Image from "next/image";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Settings,
   Users,
@@ -29,8 +30,6 @@ import {
   Archive,
   Layers,
   RotateCcw,
-  Eye,
-  EyeOff,
   Scan,
   Clock,
   Globe,
@@ -43,7 +42,9 @@ import { formatCurrency, getDefaultCurrencyRates } from "@/lib/utils";
 import {
   CORE_ROLES,
   MODULE_PERMISSIONS,
+  ROLE_DESCRIPTIONS,
   ROLE_LABELS,
+  ROLE_RESTRICTIONS,
   getDefaultPermissionsForRole,
   getRoleLabel,
 } from "@/lib/roles";
@@ -52,6 +53,7 @@ interface CurrencyRate {
   code: string;
   rate: number;
   lastUpdatedAt?: string;
+  autoFetch?: boolean;
 }
 
 interface CustomRole {
@@ -200,6 +202,7 @@ function Toggle({
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { user, tenant } = useSession();
   const [activeSection, setActiveSection] =
@@ -282,8 +285,8 @@ export default function SettingsPage() {
       CORE_ROLES.map((role) => [role, getDefaultPermissionsForRole(role)]),
     ) as Record<string, string[]>,
     customRoles: [] as CustomRole[],
-    currencyRateSource: "manual" as "manual" | "api",
-    currencyAutoRefreshMinutes: 60,
+    currencyRateSource: "manual" as "manual" | "open_exchange_rates" | "xe_com",
+    currencyAutoRefreshMinutes: 1440,
     currencyLastSyncAt: "",
     currencyRates: getDefaultCurrencyRates("UGX") as CurrencyRate[],
   });
@@ -317,9 +320,21 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    const section = searchParams.get("section") as SettingsSection | null;
+    const section = searchParams.get("section");
     const tab = searchParams.get("tab");
     if (!section) return;
+
+    if (section === "fiscal") {
+      const nextTab =
+        tab === "summary" || tab === "financial-summary"
+          ? "summary"
+          : tab === "archive" || tab === "archive-management"
+            ? "archive"
+            : "config";
+      router.replace(`/dashboard/fiscal-years?tab=${nextTab}`);
+      return;
+    }
+
     const allowed: SettingsSection[] = [
       "general",
       "email",
@@ -334,25 +349,14 @@ export default function SettingsPage() {
       "users",
       "tax",
       "branches",
-      "fiscal",
       "archive",
       "legacy",
       "stock",
     ];
-    if (allowed.includes(section)) {
-      setActiveSection(section);
+    if (allowed.includes(section as SettingsSection)) {
+      setActiveSection(section as SettingsSection);
     }
-
-    if (section === "fiscal" && tab) {
-      if (tab === "config" || tab === "configuration") {
-        setFiscalTab("config");
-      } else if (tab === "summary" || tab === "financial-summary") {
-        setFiscalTab("summary");
-      } else if (tab === "archive" || tab === "archive-management") {
-        setFiscalTab("archive");
-      }
-    }
-  }, [searchParams]);
+  }, [router, searchParams]);
 
   // Users
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -529,8 +533,10 @@ export default function SettingsPage() {
                 prev.rolePermissions,
               customRoles: (ts.customRoles as CustomRole[]) || prev.customRoles,
               currencyRateSource:
-                (ts.currencyRateSource as "manual" | "api") ||
-                prev.currencyRateSource,
+                (ts.currencyRateSource as
+                  | "manual"
+                  | "open_exchange_rates"
+                  | "xe_com") || prev.currencyRateSource,
               currencyAutoRefreshMinutes:
                 ts.currencyAutoRefreshMinutes ??
                 prev.currencyAutoRefreshMinutes,
@@ -679,7 +685,7 @@ export default function SettingsPage() {
       ) as Record<string, string[]>,
       customRoles: [],
       currencyRateSource: "manual",
-      currencyAutoRefreshMinutes: 60,
+      currencyAutoRefreshMinutes: 1440,
       currencyLastSyncAt: "",
       currencyRates: getDefaultCurrencyRates("UGX"),
     });
@@ -741,7 +747,7 @@ export default function SettingsPage() {
   }, [fetchFiscalYears]);
 
   const refreshCurrencyRates = useCallback(async () => {
-    if (s.currencyRateSource !== "api") return;
+    if (s.currencyRateSource === "manual") return;
     setSyncingRates(true);
     setCurrencyRateStatus("");
     try {
@@ -756,6 +762,7 @@ export default function SettingsPage() {
       const now = new Date().toISOString();
       const nextRates = s.currencyRates
         .map((row) => {
+          if (row.autoFetch === false) return row;
           const rate = Number(data.rates[row.code]);
           if (!Number.isFinite(rate) || rate <= 0) return row;
           return { ...row, rate, lastUpdatedAt: now };
@@ -775,8 +782,11 @@ export default function SettingsPage() {
   }, [s.currency, s.currencyRateSource, s.currencyRates]);
 
   useEffect(() => {
-    if (s.currencyRateSource !== "api") return;
-    const intervalMs = Math.max(5, s.currencyAutoRefreshMinutes || 60) * 60000;
+    if (s.currencyRateSource === "manual") return;
+    if (!s.currencyAutoRefreshMinutes || s.currencyAutoRefreshMinutes <= 0) {
+      return;
+    }
+    const intervalMs = s.currencyAutoRefreshMinutes * 60000;
     const id = window.setInterval(() => {
       void refreshCurrencyRates();
     }, intervalMs);
@@ -1283,10 +1293,13 @@ export default function SettingsPage() {
                     <div className="flex gap-3">
                       <div className="h-16 w-16 overflow-hidden rounded-lg border border-gray-200 bg-white flex items-center justify-center text-[10px] text-gray-400">
                         {s.logo ? (
-                          <img
+                          <Image
                             src={s.logo}
                             alt="Business logo"
+                            width={64}
+                            height={64}
                             className="h-full w-full object-contain"
+                            unoptimized
                           />
                         ) : (
                           "No logo"
@@ -1711,7 +1724,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <div>
-                    <label className={labelClass}>Rate Source</label>
+                    <label className={labelClass}>Exchange Rate Source</label>
                     <select
                       value={s.currencyRateSource}
                       onChange={(e) =>
@@ -1720,33 +1733,43 @@ export default function SettingsPage() {
                       className={inputClass}
                     >
                       <option value="manual">Manual</option>
-                      <option value="api">API (auto-sync)</option>
+                      <option value="open_exchange_rates">
+                        Open Exchange Rates API
+                      </option>
+                      <option value="xe_com">XE.com</option>
                     </select>
                     <p className="mt-1 text-[12px] text-gray-500">
-                      {s.currencyRateSource === "api"
-                        ? "Rates can be refreshed automatically from a public FX provider."
-                        : "You control all exchange rates manually."}
+                      {s.currencyRateSource === "manual"
+                        ? "You control all exchange rates manually."
+                        : "Rates can be refreshed automatically from the selected provider."}
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-4 rounded-xl border border-gray-100 bg-gray-50/60 p-4 md:grid-cols-[1fr_auto] md:items-end">
                   <div>
-                    <label className={labelClass}>
-                      Auto Refresh Interval (Minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min={5}
-                      value={s.currencyAutoRefreshMinutes}
+                    <label className={labelClass}>Auto Refresh Interval</label>
+                    <select
+                      value={
+                        s.currencyAutoRefreshMinutes === 0
+                          ? "0"
+                          : s.currencyAutoRefreshMinutes >= 10080
+                            ? "10080"
+                            : "1440"
+                      }
                       onChange={(e) =>
                         upd(
                           "currencyAutoRefreshMinutes",
-                          Math.max(5, Number(e.target.value) || 5),
+                          Number(e.target.value),
                         )
                       }
-                      className={inputClass + " max-w-[220px]"}
-                    />
+                      className={inputClass + " max-w-55"}
+                      disabled={s.currencyRateSource === "manual"}
+                    >
+                      <option value="0">Manual only</option>
+                      <option value="1440">Daily</option>
+                      <option value="10080">Weekly</option>
+                    </select>
                     <p className="mt-1 text-[12px] text-gray-500">
                       Last Sync:{" "}
                       {s.currencyLastSyncAt
@@ -1756,7 +1779,7 @@ export default function SettingsPage() {
                   </div>
                   <button
                     onClick={refreshCurrencyRates}
-                    disabled={syncingRates || s.currencyRateSource !== "api"}
+                    disabled={syncingRates || s.currencyRateSource === "manual"}
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 disabled:opacity-50"
                   >
                     <RefreshCw
@@ -1792,60 +1815,120 @@ export default function SettingsPage() {
                       Add Rate
                     </button>
                   </div>
-                  <div className="space-y-2 p-4">
-                    {s.currencyRates.map((rate, idx) => (
-                      <div
-                        key={`${rate.code}-${idx}`}
-                        className="grid grid-cols-[110px_1fr_auto] gap-2"
-                      >
-                        <input
-                          value={rate.code}
-                          onChange={(e) => {
-                            const code = e.target.value
-                              .toUpperCase()
-                              .slice(0, 3);
-                            setS((prev) => ({
-                              ...prev,
-                              currencyRates: prev.currencyRates.map((r, i) =>
-                                i === idx ? { ...r, code } : r,
-                              ),
-                            }));
-                          }}
-                          className={inputClass + " mt-0"}
-                          placeholder="USD"
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.000001"
-                          value={rate.rate}
-                          onChange={(e) => {
-                            const nextRate = Number(e.target.value || 0);
-                            setS((prev) => ({
-                              ...prev,
-                              currencyRates: prev.currencyRates.map((r, i) =>
-                                i === idx ? { ...r, rate: nextRate } : r,
-                              ),
-                            }));
-                          }}
-                          className={inputClass + " mt-0"}
-                          placeholder={`1 ${s.currency} = ?`}
-                        />
-                        <button
-                          onClick={() =>
-                            setS((prev) => ({
-                              ...prev,
-                              currencyRates: prev.currencyRates.filter(
-                                (_, i) => i !== idx,
-                              ),
-                            }))
-                          }
-                          className="rounded-lg border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-600"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                          <th className="px-3 py-2">Currency</th>
+                          <th className="px-3 py-2">Exchange Rate</th>
+                          <th className="px-3 py-2">Last Updated</th>
+                          <th className="px-3 py-2 text-center">Auto-fetch</th>
+                          <th className="px-3 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {s.currencyRates.map((rate, idx) => (
+                          <tr key={`${rate.code}-${idx}`}>
+                            <td className="px-3 py-2">
+                              <input
+                                value={rate.code}
+                                onChange={(e) => {
+                                  const code = e.target.value
+                                    .toUpperCase()
+                                    .slice(0, 3);
+                                  setS((prev) => ({
+                                    ...prev,
+                                    currencyRates: prev.currencyRates.map(
+                                      (r, i) =>
+                                        i === idx ? { ...r, code } : r,
+                                    ),
+                                  }));
+                                }}
+                                className={inputClass + " mt-0 w-20"}
+                                placeholder="USD"
+                                maxLength={3}
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.000001"
+                                value={rate.rate}
+                                disabled={
+                                  (s.currencyRateSource === "manual" &&
+                                    user?.role !== "admin" &&
+                                    user?.role !== "accountant") ||
+                                  (s.currencyRateSource !== "manual" &&
+                                    (rate.autoFetch ?? false))
+                                }
+                                onChange={(e) => {
+                                  const nextRate = Number(e.target.value || 0);
+                                  setS((prev) => ({
+                                    ...prev,
+                                    currencyRates: prev.currencyRates.map(
+                                      (r, i) =>
+                                        i === idx
+                                          ? { ...r, rate: nextRate }
+                                          : r,
+                                    ),
+                                  }));
+                                }}
+                                className={
+                                  inputClass +
+                                  " mt-0 w-36 disabled:bg-gray-100 disabled:text-gray-400"
+                                }
+                                placeholder={`1 ${s.currency} = ?`}
+                              />
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-[12px] text-gray-500">
+                              {rate.lastUpdatedAt
+                                ? new Date(
+                                    rate.lastUpdatedAt,
+                                  ).toLocaleDateString()
+                                : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={rate.autoFetch ?? false}
+                                disabled={s.currencyRateSource === "manual"}
+                                onChange={(e) =>
+                                  setS((prev) => ({
+                                    ...prev,
+                                    currencyRates: prev.currencyRates.map(
+                                      (r, i) =>
+                                        i === idx
+                                          ? {
+                                              ...r,
+                                              autoFetch: e.target.checked,
+                                            }
+                                          : r,
+                                    ),
+                                  }))
+                                }
+                                className="h-4 w-4 rounded border-gray-300 accent-blue-600 disabled:opacity-40"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={() =>
+                                  setS((prev) => ({
+                                    ...prev,
+                                    currencyRates: prev.currencyRates.filter(
+                                      (_, i) => i !== idx,
+                                    ),
+                                  }))
+                                }
+                                className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
@@ -1958,60 +2041,6 @@ export default function SettingsPage() {
                   onChange={(v) => upd("allowNegativeStock", v)}
                   label="Allow sales when stock is zero or negative"
                   description="Allow transactions even when stock quantity is zero or negative"
-                />
-                {s.allowNegativeStock && (
-                  <div className="py-3 border-b border-gray-50">
-                    <label className={labelClass}>
-                      Maximum Allowed Negative Stock Quantity
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={s.maxNegativeStockQty}
-                      onChange={(e) =>
-                        upd(
-                          "maxNegativeStockQty",
-                          parseInt(e.target.value) || 0,
-                        )
-                      }
-                      className={inputClass + " max-w-xs"}
-                    />
-                  </div>
-                )}
-                <Toggle
-                  checked={s.autoReorderOnNegative}
-                  onChange={(v) => upd("autoReorderOnNegative", v)}
-                  label="Auto-create reorder requests on negative stock"
-                  description="Automatically create reorder requests when stock goes negative"
-                />
-                <Toggle
-                  checked={s.notifyOnNegativeStock}
-                  onChange={(v) => upd("notifyOnNegativeStock", v)}
-                  label="Notify on negative stock levels"
-                  description="Send notifications when stock levels go negative"
-                />
-              </div>
-            </SectionCard>
-          )}
-
-          {/* ═══════ NOTIFICATIONS ═══════ */}
-          {activeSection === "notifications" && (
-            <SectionCard
-              title="Notification Settings"
-              description="Configure notification preferences"
-            >
-              <div className="max-w-lg space-y-1">
-                <Toggle
-                  checked={s.emailNotifications}
-                  onChange={(v) => upd("emailNotifications", v)}
-                  label="Email notifications"
-                  description="Receive important updates via email"
-                />
-                <Toggle
-                  checked={s.stockLevelAlerts}
-                  onChange={(v) => upd("stockLevelAlerts", v)}
-                  label="Stock level alerts"
-                  description="Get notified when stock is running low"
                 />
                 <Toggle
                   checked={s.reorderAlerts}
@@ -2821,14 +2850,27 @@ export default function SettingsPage() {
                         key={role}
                         className="rounded-lg border border-gray-200 bg-white p-3"
                       >
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-gray-700">
-                            {ROLE_LABELS[role] || getRoleLabel(role)}
-                          </p>
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-semibold text-gray-700">
+                              {ROLE_LABELS[role] || getRoleLabel(role)}
+                            </p>
+                            {ROLE_DESCRIPTIONS[role] && (
+                              <p className="text-[11px] text-gray-500 leading-snug max-w-lg">
+                                {ROLE_DESCRIPTIONS[role]}
+                              </p>
+                            )}
+                            {ROLE_RESTRICTIONS[role] &&
+                              ROLE_RESTRICTIONS[role] !== "None" && (
+                                <p className="text-[11px] text-amber-700 leading-snug">
+                                  ⚠ {ROLE_RESTRICTIONS[role]}
+                                </p>
+                              )}
+                          </div>
                           {s.customRoles.some((r) => r.key === role) && (
                             <button
                               onClick={() => removeCustomRole(role)}
-                              className="text-xs font-semibold text-red-600"
+                              className="text-xs font-semibold text-red-600 shrink-0"
                             >
                               Remove
                             </button>

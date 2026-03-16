@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import User from "@/models/User";
 import Tenant from "@/models/Tenant";
 import Branch from "@/models/Branch";
-import { hashPassword, createToken, setSession } from "@/lib/auth";
+import { hashPassword, setSession } from "@/lib/auth";
+import { validatePasswordPolicy } from "@/lib/security";
 import { slugify } from "@/lib/utils";
+import { apiError, apiSuccess } from "@/lib/api-helpers";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,19 +15,21 @@ export async function POST(request: NextRequest) {
       await request.json();
 
     if (!businessName || !email || !password || !name) {
-      return NextResponse.json(
-        { error: "Business name, email, password, and name are required" },
-        { status: 400 },
+      return apiError(
+        "Business name, email, password, and name are required",
+        400,
       );
+    }
+
+    const passwordPolicyError = validatePasswordPolicy(password);
+    if (passwordPolicyError) {
+      return apiError(passwordPolicyError, 400);
     }
 
     // Check if email already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      return NextResponse.json(
-        { error: "Email already registered" },
-        { status: 409 },
-      );
+      return apiError("Email already registered", 409);
     }
 
     // Create tenant
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
       branchId: branch._id,
     });
 
-    const token = await createToken({
+    await setSession({
       userId: user._id.toString(),
       tenantId: tenant._id.toString(),
       email: user.email,
@@ -66,9 +70,7 @@ export async function POST(request: NextRequest) {
       name: user.name,
     });
 
-    await setSession(token);
-
-    return NextResponse.json(
+    return apiSuccess(
       {
         user: {
           id: user._id,
@@ -84,13 +86,10 @@ export async function POST(request: NextRequest) {
           saasProduct: tenant.saasProduct,
         },
       },
-      { status: 201 },
+      201,
     );
   } catch (error) {
     console.error("Sign up error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError("Internal server error", 500);
   }
 }

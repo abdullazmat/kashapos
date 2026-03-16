@@ -100,6 +100,35 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, ModulePermission[]> = {
   ],
 };
 
+export const ROLE_DESCRIPTIONS: Record<string, string> = {
+  admin:
+    "Full system access — all modules, settings, finance, reports, user management",
+  store_manager:
+    "Dashboard, POS Terminal, Sales, Inventory, Customers, Suppliers, Staff Management, Branches, Reports",
+  warehouse_manager:
+    "Inventory, Warehouse & Storage, Stock, Batches, Returns, Purchases, Suppliers",
+  accountant:
+    "Finance (Expenses, Invoices, Cash Flow, Fiscal Year, Taxes, Reports), Purchases (view)",
+  cashier: "POS Terminal, Sales (own records only), Till & Cash Register",
+  customer_service:
+    "Customers, Sales (view only), Invoices (view only), Returns",
+  inventory_clerk:
+    "Inventory, Warehouse & Storage (view + adjust), Stock, Batches, Returns",
+  manager:
+    "Dashboard, POS Terminal, Sales, Inventory, Customers, Purchases, Reports",
+};
+
+export const ROLE_RESTRICTIONS: Record<string, string> = {
+  admin: "None",
+  store_manager: "Cannot access system settings or delete financial records",
+  warehouse_manager: "No access to Finance, Sales reports, or Staff Management",
+  accountant: "Cannot edit products, manage staff, or change system settings",
+  cashier: "No Finance, no Inventory management, no Staff records",
+  customer_service: "Cannot process sales, access Finance, or manage inventory",
+  inventory_clerk: "No Finance, no Sales, no Staff Management",
+  manager: "Legacy role — configure permissions above",
+};
+
 export function getRoleLabel(role: string) {
   return (
     ROLE_LABELS[role] ||

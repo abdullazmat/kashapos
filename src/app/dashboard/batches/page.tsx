@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "../layout";
 import {
+  Barcode as BarcodeIcon,
   Layers,
   Plus,
   Search,
@@ -20,6 +21,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { findBarcodeMatch, logBarcodeScanEvent } from "@/lib/barcode-client";
 
 type CostingMethod = "fifo" | "lifo" | "weighted_avg";
 
@@ -51,6 +53,7 @@ interface Product {
   _id: string;
   name: string;
   sku: string;
+  barcode?: string;
   price: number;
   costPrice?: number;
 }
@@ -70,6 +73,7 @@ export default function BatchesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [savingBatch, setSavingBatch] = useState(false);
   const [batchError, setBatchError] = useState("");
+  const [batchBarcodeInput, setBatchBarcodeInput] = useState("");
 
   const [newBatch, setNewBatch] = useState({
     batchNumber: "",
@@ -259,6 +263,66 @@ export default function BatchesPage() {
     } finally {
       setSavingBatch(false);
     }
+  };
+
+  const handleBatchBarcodeScan = async () => {
+    const value = batchBarcodeInput.trim();
+    if (!value) return;
+
+    const match = findBarcodeMatch(products, value);
+    if (!match) {
+      setBatchError(`No product matches barcode ${value}.`);
+      void logBarcodeScanEvent({
+        value,
+        context: "batches",
+        source: "scanner",
+        module: "stock",
+        scanAction: "not_found",
+        result: "not_found",
+      }).catch(() => {
+        /* ignore */
+      });
+      return;
+    }
+
+    setNewBatch((prev) => {
+      const nextItems = [...prev.items];
+      const emptyIndex = nextItems.findIndex((item) => !item.productId);
+      const targetIndex = emptyIndex >= 0 ? emptyIndex : nextItems.length;
+      const nextItem = {
+        productId: match.product._id,
+        quantity:
+          targetIndex < nextItems.length
+            ? nextItems[targetIndex].quantity || "1"
+            : "1",
+        costPrice: String(match.product.costPrice || ""),
+        sellingPrice: String(match.product.price || ""),
+        expiryDate:
+          targetIndex < nextItems.length
+            ? nextItems[targetIndex].expiryDate
+            : "",
+      };
+
+      if (targetIndex < nextItems.length) nextItems[targetIndex] = nextItem;
+      else nextItems.push(nextItem);
+      return { ...prev, items: nextItems };
+    });
+
+    setBatchBarcodeInput("");
+    setBatchError("");
+    void logBarcodeScanEvent({
+      value,
+      context: "batches",
+      source: "scanner",
+      module: "stock",
+      scanAction: "batch_traceability_lookup",
+      result: "found",
+      productId: match.product._id,
+      productName: match.product.name,
+      productSku: match.product.sku,
+    }).catch(() => {
+      /* ignore */
+    });
   };
 
   const viewBatchDetail = (batch: Batch) => {
@@ -465,7 +529,7 @@ export default function BatchesPage() {
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${s.gradient} shadow-md`}
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br ${s.gradient} shadow-md`}
                 >
                   <s.icon className="h-5 w-5 text-white" />
                 </div>
@@ -601,7 +665,7 @@ export default function BatchesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 shadow-lg shadow-purple-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-purple-500 to-violet-600 shadow-lg shadow-purple-500/20">
             <Layers className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -621,7 +685,7 @@ export default function BatchesPage() {
           </button>
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
+            className="flex items-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
           >
             <Plus className="h-4 w-4" /> New Batch
           </button>
@@ -666,7 +730,7 @@ export default function BatchesPage() {
           >
             <div className="flex items-center gap-3">
               <div
-                className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${s.gradient} shadow-md ${s.shadow}`}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br ${s.gradient} shadow-md ${s.shadow}`}
               >
                 <s.icon className="h-5 w-5 text-white" />
               </div>
@@ -681,7 +745,7 @@ export default function BatchesPage() {
 
       {/* Search & Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-50">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
@@ -707,7 +771,7 @@ export default function BatchesPage() {
                 onClick={() => setFilter(f)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
                   filter === f
-                    ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-sm"
+                    ? "bg-linear-to-r from-orange-500 to-amber-600 text-white shadow-sm"
                     : "text-gray-500 hover:bg-gray-50"
                 }`}
               >
@@ -777,7 +841,7 @@ export default function BatchesPage() {
                           {batch.items.slice(0, 2).map((item, i) => (
                             <p
                               key={i}
-                              className="text-xs text-gray-600 truncate max-w-[200px]"
+                              className="text-xs text-gray-600 truncate max-w-50"
                             >
                               {item.productName}
                             </p>
@@ -841,7 +905,7 @@ export default function BatchesPage() {
             {!search && filter === "all" && (
               <button
                 onClick={openAdd}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md"
+                className="flex items-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md"
               >
                 <Plus className="h-4 w-4" /> Create First Batch
               </button>
@@ -943,6 +1007,31 @@ export default function BatchesPage() {
                   className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-orange-600 hover:bg-orange-50 transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add Item
+                </button>
+              </div>
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 p-3">
+                <div className="flex min-w-60 flex-1 items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2">
+                  <BarcodeIcon className="h-4 w-4 text-orange-500" />
+                  <input
+                    value={batchBarcodeInput}
+                    onChange={(event) =>
+                      setBatchBarcodeInput(event.target.value)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleBatchBarcodeScan();
+                      }
+                    }}
+                    placeholder="Scan barcode to add product to this batch"
+                    className="flex-1 bg-transparent text-sm outline-none"
+                  />
+                </div>
+                <button
+                  onClick={() => void handleBatchBarcodeScan()}
+                  className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-600"
+                >
+                  Add By Barcode
                 </button>
               </div>
               <div className="space-y-3">
@@ -1064,7 +1153,7 @@ export default function BatchesPage() {
                   !newBatch.batchNumber ||
                   newBatch.items.every((i) => !i.productId || !i.quantity)
                 }
-                className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {savingBatch ? "Saving..." : "Save Batch"}
               </button>
