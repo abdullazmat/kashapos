@@ -37,7 +37,8 @@ export async function PUT(
       .lean();
     const rolePermissions =
       (tenant?.settings as { rolePermissions?: Record<string, string[]> })
-        ?.rolePermissions?.[auth.role] || getDefaultPermissionsForRole(auth.role);
+        ?.rolePermissions?.[auth.role] ||
+      getDefaultPermissionsForRole(auth.role);
 
     if (auth.role !== "admin" && !rolePermissions.includes("inventory")) {
       return apiError("Insufficient permissions", 403);
