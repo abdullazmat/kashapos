@@ -50,7 +50,18 @@ function applySecurityHeaders(response: NextResponse) {
   );
   response.headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+    [
+      "default-src 'self'",
+      // Next.js App Router injects small inline runtime scripts for hydration.
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https: wss:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; '),
   );
   return response;
 }
