@@ -61,7 +61,7 @@ function applySecurityHeaders(response: NextResponse) {
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-    ].join('; '),
+    ].join("; "),
   );
   return response;
 }
