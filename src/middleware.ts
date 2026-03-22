@@ -7,6 +7,7 @@ import {
   LEGACY_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
   type JWTPayload,
+  createAccessToken,
   verifyJwt,
 } from "@/lib/auth-tokens";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -39,8 +40,6 @@ function applySecurityHeaders(response: NextResponse) {
   response.headers.set("Referrer-Policy", "same-origin");
 
   if (process.env.NODE_ENV !== "production") {
-    // Do not enforce strict CSP/HSTS in dev; Next.js dev runtime relies on
-    // inline style injection and websocket connections for HMR.
     return response;
   }
 
@@ -52,7 +51,6 @@ function applySecurityHeaders(response: NextResponse) {
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      // Next.js App Router injects small inline runtime scripts for hydration.
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
@@ -89,15 +87,9 @@ function withRequestHeaders(
   );
 }
 
-async function createAccessToken(payload: JWTPayload): Promise<string> {
-  return new SignJWT({ ...payload, tokenType: "access" })
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("15m")
-    .setIssuedAt()
-    .sign(JWT_SECRET);
-}
 
-export async function proxy(request: NextRequest) {
+
+export async function middleware(request: NextRequest) {
   const originalPathname = request.nextUrl.pathname;
   const isV1Route = originalPathname.startsWith("/api/v1/");
   const pathname = originalPathname.startsWith("/api/v1/")
@@ -173,7 +165,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-user-id", authPayload.userId);
   requestHeaders.set("x-tenant-id", authPayload.tenantId);
   requestHeaders.set("x-user-role", authPayload.role);
-  requestHeaders.set("x-user-email", authPayload.email);
+  requestHeaders.set("x-user-email", authPayload.email || "");
   requestHeaders.set("x-user-name", authPayload.name);
   if (authPayload.branchId) {
     requestHeaders.set("x-branch-id", authPayload.branchId);
@@ -202,20 +194,15 @@ export async function proxy(request: NextRequest) {
   const response = withRequestHeaders(request, requestHeaders, rewritePathname);
 
   if (rotatedAccessToken) {
-    response.cookies.set(ACCESS_TOKEN_COOKIE, rotatedAccessToken, {
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "lax" as const,
       maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
       path: "/",
-    });
-    response.cookies.set(LEGACY_TOKEN_COOKIE, rotatedAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
-      path: "/",
-    });
+    };
+    response.cookies.set(ACCESS_TOKEN_COOKIE, rotatedAccessToken, cookieOptions);
+    response.cookies.set(LEGACY_TOKEN_COOKIE, rotatedAccessToken, cookieOptions);
   }
 
   return response;

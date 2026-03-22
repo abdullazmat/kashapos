@@ -181,7 +181,7 @@ export default function SignInPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                     placeholder="you@example.com"
                     required
                   />
@@ -202,7 +202,7 @@ export default function SignInPage() {
                     <select
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
-                      className={`w-28 px-2 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
+                      className={`w-28 px-2 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
                     >
                       {countryCodes.map((c) => (
                         <option key={c.code} value={c.code}>
@@ -214,7 +214,7 @@ export default function SignInPage() {
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className={`flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
+                      className={`flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
                       placeholder="7XX XXX XXX"
                       required
                     />
@@ -236,7 +236,7 @@ export default function SignInPage() {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 pr-10"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 pr-10"
                     placeholder="••••••••"
                     required
                   />

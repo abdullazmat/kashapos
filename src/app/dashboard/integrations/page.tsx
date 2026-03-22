@@ -79,6 +79,18 @@ const defaultIntegrations: Integration[] = [
     status: "coming_soon",
     popular: true,
   },
+  {
+    id: "pesapal",
+    name: "Pesapal",
+    description: "Accept card and mobile money payments via Pesapal V3 API",
+    category: "Payment",
+    icon: CreditCard,
+    color: "text-blue-700",
+    bgColor: "bg-blue-50",
+    connected: true, // Marking as connected since we added env keys
+    status: "active",
+    popular: true,
+  },
   // Communication
   {
     id: "email-smtp",

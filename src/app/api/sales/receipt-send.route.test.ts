@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-// @ts-expect-error Node strip-types tests resolve explicit .ts extensions.
 import { prepareReceiptEmail } from "../../../lib/manual-email-rules.ts";
 
 describe("sales receipt send endpoint rules", () => {

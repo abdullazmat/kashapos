@@ -60,7 +60,7 @@ export interface ITenantSettings {
   notifyOnNegativeStock?: boolean;
   // Notifications
   emailNotifications?: boolean;
-  emailProvider?: "sendgrid" | "mailgun" | "smtp" | "postmark";
+  emailProvider?: "sendgrid" | "mailgun" | "smtp" | "postmark" | "resend";
   emailApiKey?: string;
   emailSmtpHost?: string;
   emailSmtpPort?: number;
@@ -174,7 +174,7 @@ const TenantSchema = new Schema<ITenant>(
   {
     name: { type: String, required: true },
     slug: { type: String, required: true, unique: true },
-    email: { type: String, required: true },
+    email: { type: String, required: false },
     phone: { type: String, default: "" },
     address: { type: String, default: "" },
     logo: { type: String },
@@ -244,8 +244,8 @@ const TenantSchema = new Schema<ITenant>(
       emailNotifications: { type: Boolean, default: true },
       emailProvider: {
         type: String,
-        enum: ["sendgrid", "mailgun", "smtp", "postmark"],
-        default: "smtp",
+        enum: ["sendgrid", "mailgun", "smtp", "postmark", "resend"],
+        default: "resend",
       },
       emailApiKey: { type: String },
       emailSmtpHost: { type: String },

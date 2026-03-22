@@ -638,15 +638,15 @@ export default function POSTerminalPage() {
     });
   }
 
-  function updateQty(lineKey: string, delta: number) {
+  function setQty(lineKey: string, value: number) {
     let stockError = "";
     setCart((prev) =>
       prev
         .map((i) => {
           if (i.lineKey !== lineKey) return i;
-          const nextQty = i.quantity + delta;
+          const nextQty = Math.max(0, value);
           const stockCap = getStockCapForCartItem(i);
-          if (delta > 0 && typeof stockCap === "number" && nextQty > stockCap) {
+          if (typeof stockCap === "number" && nextQty > stockCap) {
             stockError =
               stockCap <= 0
                 ? `"${i.name}" is out of stock.`
@@ -662,8 +662,14 @@ export default function POSTerminalPage() {
       setSaleError(stockError);
       return;
     }
+    setSaleError("");
+  }
 
-    if (delta > 0) setSaleError("");
+  function updateQty(lineKey: string, delta: number) {
+    const item = cart.find(i => i.lineKey === lineKey);
+    if (item) {
+      setQty(lineKey, item.quantity + delta);
+    }
   }
 
   function removeItem(lineKey: string) {
@@ -1758,9 +1764,14 @@ export default function POSTerminalPage() {
                     >
                       <Minus className="h-3 w-3" />
                     </button>
-                    <span className="w-7 text-center text-xs font-bold text-gray-700">
-                      {item.quantity}
-                    </span>
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) => setQty(item.lineKey, parseFloat(e.target.value) || 0)}
+                      className="w-12 border-none bg-transparent text-center text-xs font-bold text-gray-700 focus:outline-none focus:ring-0"
+                      step="any"
+                      min="0"
+                    />
                     <button
                       onClick={() => updateQty(item.lineKey, 1)}
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
@@ -1820,11 +1831,11 @@ export default function POSTerminalPage() {
 
       {showCreateCustomerModal && (
         <div
-          className="fixed inset-0 z-65 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-65 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 transition-all"
           onClick={() => setShowCreateCustomerModal(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+            className="w-full max-w-md flex flex-col max-h-full overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl scrollbar-hide"
             onClick={(event) => event.stopPropagation()}
           >
             <h3 className="text-base font-bold text-gray-800">Add Customer</h3>
@@ -1872,10 +1883,10 @@ export default function POSTerminalPage() {
 
       {/* ── Payment Modal ── */}
       {showPayment && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4 transition-all">
+          <div className="flex max-h-full w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl overflow-hidden animate-fade-zoom-in">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+            <div className="shrink-0 flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
                   <Banknote className="h-5 w-5 text-white" />
@@ -1895,7 +1906,7 @@ export default function POSTerminalPage() {
               </button>
             </div>
 
-            <div className="px-6 py-5 space-y-5">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
               {saleError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {saleError}
@@ -1903,11 +1914,11 @@ export default function POSTerminalPage() {
               )}
 
               {/* Total Display */}
-              <div className="rounded-xl bg-linear-to-br from-orange-500 to-amber-600 p-5 text-center text-white shadow-lg shadow-orange-500/20">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wider text-orange-100">
+              <div className="rounded-xl bg-linear-to-br from-orange-500 to-amber-600 p-4 sm:p-5 text-center text-white shadow-lg shadow-orange-500/20">
+                <p className="mb-1 text-[10px] sm:text-xs font-medium uppercase tracking-wider text-orange-100">
                   Amount Due
                 </p>
-                <p className="text-3xl font-extrabold">
+                <p className="text-2xl sm:text-3xl font-extrabold">
                   {formatCurrency(orderGrandTotal, currency)}
                 </p>
               </div>
@@ -1917,12 +1928,12 @@ export default function POSTerminalPage() {
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                   Payment Method
                 </label>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {availablePaymentOptions.map((m) => (
                     <button
                       key={m.key}
                       onClick={() => setPaymentMethod(m.key)}
-                      className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 transition-all ${
+                      className={`flex flex-col items-center gap-1 rounded-xl border-2 px-1 py-2.5 transition-all ${
                         paymentMethod === m.key
                           ? m.key === "credit"
                             ? "border-amber-500 bg-amber-50 text-amber-700 shadow-sm"
@@ -1930,7 +1941,7 @@ export default function POSTerminalPage() {
                           : "border-gray-100 bg-white text-gray-500 hover:border-gray-200 hover:bg-gray-50"
                       }`}
                     >
-                      <m.icon className="h-5 w-5" />
+                      <m.icon className="h-4 w-4 sm:h-5 sm:w-5" />
                       <span className="text-[10px] font-semibold">
                         {m.label}
                       </span>
@@ -2365,7 +2376,7 @@ export default function POSTerminalPage() {
             </div>
 
             {/* Footer */}
-            <div className="flex gap-3 border-t border-gray-100 px-6 py-4">
+            <div className="shrink-0 flex gap-3 border-t border-gray-100 px-6 py-4 bg-gray-50/30">
               <button
                 onClick={() => setShowPayment(false)}
                 className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
@@ -2401,14 +2412,14 @@ export default function POSTerminalPage() {
       {/* ── Sale Complete Modal ── */}
       {showComplete && lastSale && (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 transition-all"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               closeCompleteModal();
             }
           }}
         >
-          <div className="relative w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-2xl">
+          <div className="relative w-full max-w-sm flex flex-col max-h-full overflow-y-auto rounded-2xl bg-white p-8 text-center shadow-2xl scrollbar-hide animate-fade-zoom-in">
             <button
               onClick={closeCompleteModal}
               className="absolute right-4 top-4 rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"

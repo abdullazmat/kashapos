@@ -1166,8 +1166,13 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!user || !tenant) return;
 
-    const timeoutMinutes = Number(tenant.settings?.sessionTimeout || 0);
-    if (!Number.isFinite(timeoutMinutes) || timeoutMinutes <= 0) return;
+    const baseTimeout = Number(tenant.settings?.sessionTimeout || 0);
+    if (!Number.isFinite(baseTimeout) || baseTimeout <= 0) return;
+
+    // For POS terminal, use a much longer idle timeout (e.g., 12 hours)
+    // to avoid disruptions during the business day.
+    const isPosPage = pathname === "/dashboard/pos";
+    const timeoutMinutes = isPosPage ? Math.max(720, baseTimeout) : baseTimeout;
 
     let timeoutId: number | undefined;
 

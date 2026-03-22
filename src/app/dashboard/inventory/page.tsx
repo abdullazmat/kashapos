@@ -1278,7 +1278,7 @@ export default function InventoryPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <div className="flex items-center justify-end gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
                           <button
                             onClick={(event) => {
                               event.stopPropagation();

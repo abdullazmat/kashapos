@@ -9,6 +9,7 @@ import PurchaseOrder from "@/models/PurchaseOrder";
 import Sale from "@/models/Sale";
 import Stock from "@/models/Stock";
 import "@/models/Vendor";
+import "@/models/Product";
 
 type NotificationType = "warning" | "success" | "info";
 

@@ -83,6 +83,7 @@ export default function PurchasesPage() {
   const [purchaseBarcodeInput, setPurchaseBarcodeInput] = useState("");
   const [formError, setFormError] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const [newOrder, setNewOrder] = useState({
     vendorId: "",
@@ -421,6 +422,29 @@ export default function PurchasesPage() {
     }
   };
 
+  const markReceived = async (id: string) => {
+    if (updatingStatus) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`/api/purchases/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "received", paymentStatus: "paid" }),
+      });
+      if (res.ok) {
+        setViewOrder(null);
+        fetchData();
+      } else {
+        const d = await res.json();
+        alert(d.error || "Failed to update status");
+      }
+    } catch {
+      alert("Failed to update status");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const totalPages = Math.ceil(total / 20);
 
   const orderSubtotal = useMemo(
@@ -484,7 +508,7 @@ export default function PurchasesPage() {
     draft: "bg-gray-50 text-gray-700 ring-1 ring-gray-600/10",
     ordered: "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20",
     partial: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
-    received: "bg-emerald-50 text-emerald-700 ring-1 ring-amber-600/20",
+    received: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-600/30",
     cancelled: "bg-red-50 text-red-700 ring-1 ring-red-600/20",
   };
 
@@ -622,6 +646,9 @@ export default function PurchasesPage() {
                 <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
                   Vendor
                 </th>
+                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                  Items
+                </th>
                 <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
                   Total
                 </th>
@@ -689,6 +716,21 @@ export default function PurchasesPage() {
                         </span>
                       </div>
                     </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex flex-col gap-0.5 max-w-[200px]">
+                        {o.items.slice(0, 2).map((item, idx) => (
+                          <div key={idx} className="flex justify-between text-[12px] text-gray-600 truncate">
+                            <span>{item.productName}</span>
+                            <span className="ml-2 font-semibold text-orange-600">x{item.quantity}</span>
+                          </div>
+                        ))}
+                        {o.items.length > 2 && (
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            +{o.items.length - 2} more items
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
                       {formatCurrency(o.total, currency)}
                     </td>
@@ -716,12 +758,24 @@ export default function PurchasesPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <button
-                        onClick={() => setViewOrder(o)}
-                        className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 group-hover:opacity-100"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {o.status !== "received" && (
+                          <button
+                            onClick={() => void markReceived(o._id)}
+                            disabled={updatingStatus}
+                            className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-50"
+                            title="Mark as Received & Update Stock"
+                          >
+                            Receive
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setViewOrder(o)}
+                          className="rounded-lg p-1.5 text-gray-400 md:opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 md:group-hover:opacity-100"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -891,8 +945,8 @@ export default function PurchasesPage() {
                     </div>
                   </div>
 
-                  {/* Due Date & Currency Row */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Due Date, Status & Currency Row */}
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
                         <Calendar className="h-4 w-4 text-gray-400" />
@@ -908,10 +962,26 @@ export default function PurchasesPage() {
                       />
                     </div>
                     <div>
+                      <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
+                        Status *
+                      </label>
+                      <select
+                        value={newOrder.status}
+                        onChange={(e) =>
+                          setNewOrder({ ...newOrder, status: e.target.value })
+                        }
+                        className={inputClass}
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="ordered">Ordered</option>
+                        <option value="received">Received (Updates Stock)</option>
+                      </select>
+                    </div>
+                    <div>
                       <label className="text-[13px] font-semibold text-gray-700 mb-1.5 block">
                         Currency
                       </label>
-                      <div className="mt-1.5 rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-2.5 text-sm text-gray-600 font-medium">
+                      <div className="mt-1.5 rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-2.5 text-sm text-gray-600 font-medium text-center">
                         {currency}
                       </div>
                     </div>
@@ -1020,12 +1090,13 @@ export default function PurchasesPage() {
                               updateItem(
                                 i,
                                 "quantity",
-                                parseInt(e.target.value) || 0,
+                                parseFloat(e.target.value) || 0,
                               )
                             }
                             className="col-span-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
                             placeholder="Qty"
-                            min="1"
+                            min="0.01"
+                            step="any"
                           />
                           <input
                             type="number"
@@ -1386,7 +1457,6 @@ export default function PurchasesPage() {
                   ))}
                 </tbody>
               </table>
-
               <div className="rounded-xl bg-gray-50 p-4">
                 <div className="flex justify-between border-t-0 text-base font-bold">
                   <span className="text-gray-900">Total</span>
@@ -1395,6 +1465,17 @@ export default function PurchasesPage() {
                   </span>
                 </div>
               </div>
+              {viewOrder.status !== "received" && (
+                <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-5">
+                  <button
+                    onClick={() => void markReceived(viewOrder._id)}
+                    disabled={updatingStatus}
+                    className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 hover:shadow-emerald-600/30 disabled:opacity-50"
+                  >
+                    {updatingStatus ? "Updating..." : "Mark as Received & Update Stock"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

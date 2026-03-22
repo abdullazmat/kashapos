@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 import {
   Settings,
   Users,
@@ -239,7 +240,7 @@ export default function SettingsPage() {
     autoReorderOnNegative: false,
     notifyOnNegativeStock: true,
     emailNotifications: true,
-    emailProvider: "smtp",
+    emailProvider: "resend",
     emailApiKey: "",
     emailSmtpHost: "",
     emailSmtpPort: 587,
@@ -587,7 +588,9 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(s),
       });
+      const data = await res.json();
       if (res.ok) {
+        toast.success("Settings saved successfully!");
         applyThemeSetting(s.theme);
         window.dispatchEvent(
           new CustomEvent("meka-settings-updated", {
@@ -601,10 +604,11 @@ export default function SettingsPage() {
         setSaveMsg({ type: "success", text: "Settings saved successfully!" });
         setTimeout(() => setSaveMsg(null), 3000);
       } else {
-        const data = await res.json();
+        toast.error(data.error || "Failed to save");
         setSaveMsg({ type: "error", text: data.error || "Failed to save" });
       }
     } catch {
+      toast.error("Network error");
       setSaveMsg({ type: "error", text: "Network error" });
     }
     setSaving(false);
@@ -638,7 +642,7 @@ export default function SettingsPage() {
       autoReorderOnNegative: false,
       notifyOnNegativeStock: true,
       emailNotifications: true,
-      emailProvider: "smtp",
+      emailProvider: "resend",
       emailApiKey: "",
       emailSmtpHost: "",
       emailSmtpPort: 587,
@@ -804,9 +808,27 @@ export default function SettingsPage() {
       const res = await fetch("/api/settings/email/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: testEmailAddress.trim() }),
+        body: JSON.stringify({
+          email: testEmailAddress.trim(),
+          settings: {
+            emailProvider: s.emailProvider,
+            emailApiKey: s.emailApiKey,
+            emailSmtpHost: s.emailSmtpHost,
+            emailSmtpPort: s.emailSmtpPort,
+            emailSmtpUser: s.emailSmtpUser,
+            emailSmtpPassword: s.emailSmtpPassword,
+            emailFromName: s.emailFromName,
+            emailFromAddress: s.emailFromAddress,
+            emailReplyToAddress: s.emailReplyToAddress,
+          },
+        }),
       });
       const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || "Test email sent successfully");
+      } else {
+        toast.error(data.error || "Email test request failed");
+      }
       setSaveMsg({
         type: res.ok ? "success" : "error",
         text: data.message || data.error || "Email test request failed",
@@ -1435,6 +1457,7 @@ export default function SettingsPage() {
                       onChange={(e) => upd("emailProvider", e.target.value)}
                       className={inputClass}
                     >
+                      <option value="resend">Resend</option>
                       <option value="sendgrid">SendGrid</option>
                       <option value="mailgun">Mailgun</option>
                       <option value="smtp">SMTP</option>

@@ -27,6 +27,13 @@
   --color-sidebar-bg: hsl(var(--sidebar-bg));
   --color-sidebar-fg: hsl(var(--sidebar-fg));
   --color-sidebar-active: hsl(var(--sidebar-active));
+
+  --animate-fade-zoom-in: fade-zoom-in 0.25s ease-out;
+
+  @keyframes fade-zoom-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
 }
 
 :root {

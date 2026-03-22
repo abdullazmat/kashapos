@@ -54,13 +54,15 @@ export async function getSession(): Promise<JWTPayload | null> {
 
   // Silent access-token rotation when refresh token is still valid.
   const newAccessToken = await createAccessToken(refreshPayload);
-  cookieStore.set(ACCESS_TOKEN_COOKIE, newAccessToken, {
+  const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "lax" as const,
     maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
     path: "/",
-  });
+  };
+  cookieStore.set(ACCESS_TOKEN_COOKIE, newAccessToken, cookieOptions);
+  cookieStore.set(LEGACY_TOKEN_COOKIE, newAccessToken, cookieOptions);
 
   return refreshPayload;
 }

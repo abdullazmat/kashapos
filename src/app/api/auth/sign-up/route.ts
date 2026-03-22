@@ -14,9 +14,9 @@ export async function POST(request: NextRequest) {
     const { businessName, email, password, name, phone, saasProduct } =
       await request.json();
 
-    if (!businessName || !email || !password || !name) {
+    if (!businessName || (!email && !phone) || !password || !name) {
       return apiError(
-        "Business name, email, password, and name are required",
+        "Business name, contact (email or phone), password, and name are required",
         400,
       );
     }
@@ -26,10 +26,17 @@ export async function POST(request: NextRequest) {
       return apiError(passwordPolicyError, 400);
     }
 
-    // Check if email already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    // Check if email or phone already exists
+    const query: Record<string, any> = {};
+    if (email) {
+      query.email = email.toLowerCase();
+    } else if (phone) {
+      query.phone = phone;
+    }
+    
+    const existingUser = await User.findOne(query);
     if (existingUser) {
-      return apiError("Email already registered", 409);
+      return apiError(email ? "Email already registered" : "Phone number already registered", 409);
     }
 
     // Create tenant
@@ -37,7 +44,7 @@ export async function POST(request: NextRequest) {
     const tenant = await Tenant.create({
       name: businessName,
       slug,
-      email: email.toLowerCase(),
+      email: email ? email.toLowerCase() : "",
       phone: phone || "",
       saasProduct: saasProduct || "retail",
     });
@@ -55,7 +62,7 @@ export async function POST(request: NextRequest) {
     const user = await User.create({
       tenantId: tenant._id,
       name,
-      email: email.toLowerCase(),
+      email: email ? email.toLowerCase() : "",
       password: hashedPassword,
       role: "admin",
       branchId: branch._id,

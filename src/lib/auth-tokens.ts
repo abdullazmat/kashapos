@@ -3,7 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 export interface JWTPayload {
   userId: string;
   tenantId: string;
-  email: string;
+  email?: string;
   role: string;
   branchId?: string;
   name: string;
@@ -13,7 +13,7 @@ export const ACCESS_TOKEN_COOKIE = "access_token";
 export const REFRESH_TOKEN_COOKIE = "refresh_token";
 export const LEGACY_TOKEN_COOKIE = "token";
 
-export const ACCESS_TOKEN_MAX_AGE_SECONDS = 15 * 60;
+export const ACCESS_TOKEN_MAX_AGE_SECONDS = 60 * 60;
 export const REFRESH_TOKEN_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 const JWT_SECRET = new TextEncoder().encode(
@@ -23,7 +23,7 @@ const JWT_SECRET = new TextEncoder().encode(
 export async function createAccessToken(payload: JWTPayload): Promise<string> {
   return new SignJWT({ ...payload, tokenType: "access" })
     .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("15m")
+    .setExpirationTime("1h")
     .setIssuedAt()
     .sign(JWT_SECRET);
 }

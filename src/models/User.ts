@@ -28,7 +28,7 @@ const UserSchema = new Schema<IUser>(
       index: true,
     },
     name: { type: String, required: true },
-    email: { type: String, required: true },
+    email: { type: String, required: false },
     phone: { type: String },
     password: { type: String, required: true },
     role: {
@@ -50,7 +50,8 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true },
 );
 
-UserSchema.index({ tenantId: 1, email: 1 }, { unique: true });
+UserSchema.index({ tenantId: 1, email: 1 }, { unique: true, sparse: true });
+UserSchema.index({ tenantId: 1, phone: 1 }, { unique: true, sparse: true });
 UserSchema.index({ phone: 1 }, { sparse: true });
 
 const User: Model<IUser> =

@@ -232,7 +232,7 @@ export default function SignUpPage() {
                   onChange={(e) =>
                     setForm({ ...form, businessName: e.target.value })
                   }
-                  className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.businessName ? "border-red-300" : "border-gray-300"}`}
+                  className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.businessName ? "border-red-300" : "border-gray-300"}`}
                   placeholder="My Business"
                   required
                 />
@@ -246,7 +246,7 @@ export default function SignUpPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.name ? "border-red-300" : "border-gray-300"}`}
+                  className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.name ? "border-red-300" : "border-gray-300"}`}
                   placeholder="John Doe"
                   required
                 />
@@ -264,7 +264,7 @@ export default function SignUpPage() {
                     onChange={(e) =>
                       setForm({ ...form, email: e.target.value })
                     }
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.email ? "border-red-300" : "border-gray-300"}`}
+                    className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.email ? "border-red-300" : "border-gray-300"}`}
                     placeholder="you@example.com"
                     required
                   />
@@ -283,7 +283,7 @@ export default function SignUpPage() {
                     onChange={(e) =>
                       setForm({ ...form, phone: e.target.value })
                     }
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.phone ? "border-red-300" : "border-gray-300"}`}
+                    className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.phone ? "border-red-300" : "border-gray-300"}`}
                     placeholder="+256 7XX XXX XXX"
                     required
                   />
@@ -305,7 +305,7 @@ export default function SignUpPage() {
                     onChange={(e) =>
                       setForm({ ...form, whatsapp: e.target.value })
                     }
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 ${fieldErrors.whatsapp ? "border-red-300" : "border-gray-300"}`}
+                    className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 ${fieldErrors.whatsapp ? "border-red-300" : "border-gray-300"}`}
                     placeholder="+256 7XX XXX XXX"
                     required
                   />
@@ -328,7 +328,7 @@ export default function SignUpPage() {
                     onChange={(e) =>
                       setForm({ ...form, email: e.target.value })
                     }
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -345,7 +345,7 @@ export default function SignUpPage() {
                     onChange={(e) =>
                       setForm({ ...form, phone: e.target.value })
                     }
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                     placeholder="+256700000000"
                   />
                 </div>
@@ -362,7 +362,7 @@ export default function SignUpPage() {
                     onChange={(e) =>
                       setForm({ ...form, password: e.target.value })
                     }
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 pr-10 ${fieldErrors.password ? "border-red-300" : "border-gray-300"}`}
+                    className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 pr-10 ${fieldErrors.password ? "border-red-300" : "border-gray-300"}`}
                     placeholder="••••••••"
                     required
                     minLength={6}
@@ -391,7 +391,7 @@ export default function SignUpPage() {
                   onChange={(e) =>
                     setForm({ ...form, saasProduct: e.target.value })
                   }
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                 >
                   <option value="retail">Retail POS</option>
                   <option value="pharmacy">Pharmacy POS</option>
