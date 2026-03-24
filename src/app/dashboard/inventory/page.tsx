@@ -8,7 +8,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Barcode from "react-barcode";
 import {
@@ -261,6 +261,7 @@ function parseCsvLine(line: string) {
 
 export default function InventoryPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { tenant } = useSession();
   const currency = tenant?.settings?.currency || "UGX";
   const [products, setProducts] = useState<Product[]>([]);
@@ -325,11 +326,13 @@ export default function InventoryPage() {
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
+    const purchaseOrderId = searchParams.get("purchase_order_id");
     const params = new URLSearchParams({
       page: page.toString(),
       limit: "20",
       ...(search && { search }),
       ...(filterCategory && { category: filterCategory }),
+      ...(purchaseOrderId && { purchase_order_id: purchaseOrderId }),
     });
     try {
       const res = await fetch(`/api/products?${params}`);
@@ -342,7 +345,7 @@ export default function InventoryPage() {
       console.error(err);
     }
     setLoading(false);
-  }, [page, search, filterCategory]);
+  }, [page, search, filterCategory, searchParams]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -952,6 +955,21 @@ export default function InventoryPage() {
           </button>
         </div>
       </div>
+
+      {searchParams.get("purchase_order_id") && (
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-orange-700">
+            <Package className="h-4 w-4" />
+            <span>Showing products from Purchase Order</span>
+          </div>
+          <button
+            onClick={() => router.push("/dashboard/inventory")}
+            className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-orange-600 hover:text-orange-700"
+          >
+            Clear Filter <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">

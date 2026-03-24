@@ -28,7 +28,10 @@ import {
   ArrowUpDown,
   Clock,
   ImageIcon,
+  History,
+  Key,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import {
   printHtml,
   formatCurrency,
@@ -37,6 +40,7 @@ import {
   getPrintFooterMarkup,
   subscribeToStockSync,
 } from "@/lib/utils";
+import { openCashDrawer, openDrawerViaPrint } from "@/lib/hardware-client";
 import {
   apiRequest,
   getApiErrorMessage,
@@ -975,6 +979,12 @@ export default function POSTerminalPage() {
       );
       if (res.ok) {
         await fetchData();
+
+        // Proactive: Open drawer on cash completion
+        if (paymentMethod === "cash" || paymentMethod === "split") {
+          void openCashDrawer().catch(() => openDrawerViaPrint());
+        }
+
         setLastSale({
           saleNumber: data.sale?.orderNumber || "N/A",
           total: orderGrandTotal,
@@ -1017,6 +1027,22 @@ export default function POSTerminalPage() {
   function closeCompleteModal() {
     setShowComplete(false);
     setSaleError("");
+  }
+
+  async function handleOpenDrawer() {
+    try {
+      const waitToast = toast.loading("Connecting to drawer...");
+      try {
+        await openCashDrawer();
+        toast.success("Drawer opened", { id: waitToast });
+      } catch (err: any) {
+        toast.error(err.message || "Failed to open via Serial", { id: waitToast });
+        // Fallback: Driver-based kick via print
+        openDrawerViaPrint();
+      }
+    } catch {
+      toast.error("An error occurred. Check browser permissions.");
+    }
   }
 
   function printReceipt() {
@@ -1817,15 +1843,24 @@ export default function POSTerminalPage() {
             </div>
           </div>
 
-          <button
-            onClick={openPayment}
-            disabled={cart.length === 0}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-xl hover:shadow-orange-500/30 disabled:opacity-40 disabled:shadow-none"
-          >
-            <Banknote className="h-4 w-4" />
-            Charge {formatCurrency(orderGrandTotal, currency)}
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleOpenDrawer}
+              title="Open Cash Drawer (No Sale)"
+              className="flex items-center justify-center rounded-xl border border-gray-200 bg-white px-3 h-12 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 hover:shadow-sm"
+            >
+              <Key className="h-4.5 w-4.5" />
+            </button>
+            <button
+              onClick={openPayment}
+              disabled={cart.length === 0}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-xl hover:shadow-orange-500/30 disabled:opacity-40 disabled:shadow-none"
+            >
+              <Banknote className="h-4 w-4" />
+              Charge {formatCurrency(orderGrandTotal, currency)}
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2467,8 +2502,15 @@ export default function POSTerminalPage() {
                   Print
                 </button>
                 <button
-                  onClick={closeCompleteModal}
+                  onClick={handleOpenDrawer}
                   className="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+                >
+                  <Key className="h-4 w-4" />
+                  Drawer
+                </button>
+                <button
+                  onClick={closeCompleteModal}
+                  className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Back to POS

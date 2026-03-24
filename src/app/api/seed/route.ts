@@ -110,6 +110,7 @@ export async function POST() {
         password: password,
         role: "admin",
         branchId: branches[0]._id,
+        emailVerified: true,
       },
       {
         tenantId: tenants[0]._id,
@@ -118,6 +119,7 @@ export async function POST() {
         password: password,
         role: "cashier",
         branchId: branches[0]._id,
+        emailVerified: true,
       },
       {
         tenantId: tenants[1]._id,
@@ -126,6 +128,7 @@ export async function POST() {
         password: proPassword,
         role: "admin",
         branchId: branches[1]._id,
+        emailVerified: true,
       },
       {
         tenantId: tenants[2]._id,
@@ -134,6 +137,7 @@ export async function POST() {
         password: entPassword,
         role: "admin",
         branchId: branches[2]._id,
+        emailVerified: true,
       },
     ]);
 

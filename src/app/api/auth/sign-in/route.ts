@@ -28,6 +28,10 @@ export async function POST(request: NextRequest) {
       return apiError("Invalid credentials", 401);
     }
 
+    if (user.email && !user.emailVerified) {
+      return apiError("Please verify your email address. Check your inbox (or spam) for a verification link.", 403);
+    }
+
     if (!user.isActive) {
       return apiError("Account is disabled", 403);
     }

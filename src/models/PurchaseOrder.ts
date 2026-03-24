@@ -3,6 +3,7 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface IPurchaseOrderItem {
   productId?: mongoose.Types.ObjectId;
   productName: string;
+  sku?: string;
   quantity: number;
   unitCost: number;
   receivedQuantity: number;
@@ -32,6 +33,7 @@ export interface IPurchaseOrder extends Document {
 const PurchaseOrderItemSchema = new Schema<IPurchaseOrderItem>({
   productId: { type: Schema.Types.ObjectId, ref: "Product" },
   productName: { type: String, required: true },
+  sku: { type: String },
   quantity: { type: Number, required: true },
   unitCost: { type: Number, required: true },
   receivedQuantity: { type: Number, default: 0 },

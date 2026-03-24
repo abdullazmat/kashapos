@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     if (email) {
       query.email = email.toLowerCase();
     } else if (phone) {
-      query.phone = phone;
+      query.phone = phone.replace(/\s+/g, "");
     }
     
     const existingUser = await User.findOne(query);
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       name: businessName,
       slug,
       email: email ? email.toLowerCase() : "",
-      phone: phone || "",
+      phone: phone ? phone.replace(/\s+/g, "") : "",
       saasProduct: saasProduct || "retail",
     });
 
@@ -59,6 +59,8 @@ export async function POST(request: NextRequest) {
 
     // Create admin user
     const hashedPassword = await hashPassword(password);
+    const verificationToken = email ? Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) : undefined;
+    
     const user = await User.create({
       tenantId: tenant._id,
       name,
@@ -66,16 +68,48 @@ export async function POST(request: NextRequest) {
       password: hashedPassword,
       role: "admin",
       branchId: branch._id,
+      emailVerified: false,
+      emailVerificationToken: verificationToken,
     });
 
-    await setSession({
-      userId: user._id.toString(),
-      tenantId: tenant._id.toString(),
-      email: user.email,
-      role: user.role,
-      branchId: branch._id.toString(),
-      name: user.name,
-    });
+    // Send verification email if email is provided
+    if (email) {
+      try {
+        const { sendTenantEmail } = await import("@/lib/mailer");
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+        const verificationLink = `${baseUrl}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email.toLowerCase())}`;
+        
+        await sendTenantEmail({
+          tenantId: tenant._id.toString(),
+          to: email.toLowerCase(),
+          subject: "Verify your email - Meka PoS",
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2>Welcome to Meka PoS!</h2>
+              <p>Thank you for signing up for a trial. Please verify your email to get started.</p>
+              <a href="${verificationLink}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Verify Email</a>
+              <p style="margin-top: 24px; color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="color: #666; font-size: 14px;">${verificationLink}</p>
+            </div>
+          `,
+        });
+      } catch (emailErr) {
+        console.error("Failed to send verification email:", emailErr);
+        // We don't fail registration if email fails, but in a real app we might want to retry or alert the user.
+      }
+    }
+
+    // Only set session if no email is provided (mobile/whatsapp only)
+    if (!email) {
+      await setSession({
+        userId: user._id.toString(),
+        tenantId: tenant._id.toString(),
+        email: user.email,
+        role: user.role,
+        branchId: branch._id.toString(),
+        name: user.name,
+      });
+    }
 
     return apiSuccess(
       {

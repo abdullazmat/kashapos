@@ -7,6 +7,7 @@ import {
   createContext,
   useContext,
   useCallback,
+  Suspense,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -1391,7 +1392,7 @@ export default function DashboardLayout({
               <div className="relative" ref={searchRef}>
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
-                  type="text"
+                  type="search"
                   placeholder="Search pages..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -1408,6 +1409,8 @@ export default function DashboardLayout({
                     }
                   }}
                   className="pl-9 pr-8 py-2 bg-gray-50 hover:bg-gray-100 rounded-xl text-sm border border-gray-200/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/30 w-60 lg:w-72 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-750"
+                  autoComplete="off"
+                  name="dashboard_search_uniqueness_v3"
                 />
                 {searchQuery && (
                   <button
@@ -1958,7 +1961,11 @@ export default function DashboardLayout({
           )}
 
           {/* Page content */}
-          <main className="p-6 dark:text-gray-100">{children}</main>
+          <main className="p-6 dark:text-gray-100">
+            <Suspense fallback={<div>Loading...</div>}>
+              {children}
+            </Suspense>
+          </main>
         </div>
       </div>
     </SessionContext.Provider>

@@ -202,6 +202,45 @@ function Toggle({
   );
 }
 
+const SectionCard = ({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) => (
+  <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h3 className="mb-1 text-base font-bold text-gray-800">{title}</h3>
+    {description && (
+      <p className="text-[13px] text-gray-400 mb-5">{description}</p>
+    )}
+    {!description && <div className="mb-5" />}
+    {children}
+  </div>
+);
+
+const RoleBadge = ({ role }: { role: string }) => {
+  const colors: Record<string, string> = {
+    admin: "bg-purple-50 text-purple-600 ring-purple-600/20",
+    store_manager: "bg-blue-50 text-blue-600 ring-blue-600/20",
+    warehouse_manager: "bg-indigo-50 text-indigo-600 ring-indigo-600/20",
+    accountant: "bg-emerald-50 text-emerald-600 ring-emerald-600/20",
+    cashier: "bg-amber-50 text-amber-600 ring-amber-600/20",
+    customer_service: "bg-cyan-50 text-cyan-700 ring-cyan-700/20",
+    inventory_clerk: "bg-orange-50 text-orange-600 ring-orange-600/20",
+    manager: "bg-slate-50 text-slate-600 ring-slate-600/20",
+  };
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ring-1 ${colors[role] || "bg-gray-50 text-gray-600 ring-gray-600/20"}`}
+    >
+      {getRoleLabel(role)}
+    </span>
+  );
+};
+
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1030,25 +1069,6 @@ export default function SettingsPage() {
     }
   };
 
-  const roleBadge = (role: string) => {
-    const colors: Record<string, string> = {
-      admin: "bg-purple-50 text-purple-600 ring-purple-600/20",
-      store_manager: "bg-blue-50 text-blue-600 ring-blue-600/20",
-      warehouse_manager: "bg-indigo-50 text-indigo-600 ring-indigo-600/20",
-      accountant: "bg-emerald-50 text-emerald-600 ring-emerald-600/20",
-      cashier: "bg-amber-50 text-amber-600 ring-amber-600/20",
-      customer_service: "bg-cyan-50 text-cyan-700 ring-cyan-700/20",
-      inventory_clerk: "bg-orange-50 text-orange-600 ring-orange-600/20",
-      manager: "bg-slate-50 text-slate-600 ring-slate-600/20",
-    };
-    return (
-      <span
-        className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ring-1 ${colors[role] || "bg-gray-50 text-gray-600 ring-gray-600/20"}`}
-      >
-        {getRoleLabel(role)}
-      </span>
-    );
-  };
 
   const allAvailableRoles = [
     ...CORE_ROLES,
@@ -1150,24 +1170,6 @@ export default function SettingsPage() {
     return (amount / fromRate) * toRate;
   })();
 
-  const SectionCard = ({
-    title,
-    description,
-    children,
-  }: {
-    title: string;
-    description?: string;
-    children: React.ReactNode;
-  }) => (
-    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-      <h3 className="mb-1 text-base font-bold text-gray-800">{title}</h3>
-      {description && (
-        <p className="text-[13px] text-gray-400 mb-5">{description}</p>
-      )}
-      {!description && <div className="mb-5" />}
-      {children}
-    </div>
-  );
 
   return (
     <div className="space-y-6">
@@ -2833,7 +2835,7 @@ export default function SettingsPage() {
                             <td className="px-4 py-3 text-gray-500">
                               {u.email}
                             </td>
-                            <td className="px-4 py-3">{roleBadge(u.role)}</td>
+                            <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
                             <td className="px-4 py-3 text-gray-500">
                               {u.branchId?.name || "—"}
                             </td>

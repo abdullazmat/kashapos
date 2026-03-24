@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ShoppingCart,
@@ -14,8 +14,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isVerified = searchParams.get("verified") === "true";
+
   const [loginMethod, setLoginMethod] = useState<
     "email" | "phone" | "whatsapp"
   >("email");
@@ -139,6 +142,13 @@ export default function SignInPage() {
           </p>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            {isVerified && (
+              <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                Email verified successfully! You can now sign in.
+              </div>
+            )}
+            
             {error && (
               <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -295,5 +305,13 @@ export default function SignInPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SignInForm />
+    </Suspense>
   );
 }

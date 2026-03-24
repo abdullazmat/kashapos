@@ -10,12 +10,15 @@ import {
   Truck,
   ChevronLeft,
   ChevronRight,
+  Search,
   Filter,
   Package,
   Calendar,
   Store,
   DollarSign,
   CreditCard,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { formatCurrency, formatDate, slugify } from "@/lib/utils";
 import { findBarcodeMatch, logBarcodeScanEvent } from "@/lib/barcode-client";
@@ -24,9 +27,11 @@ import { useSession } from "../layout";
 interface PurchaseOrder {
   _id: string;
   orderNumber: string;
-  vendorId?: { name: string };
+  vendorId?: { _id: string; name: string };
+  branchId?: string;
   items: {
     productName: string;
+    sku?: string;
     quantity: number;
     unitCost: number;
     receivedQuantity: number;
@@ -93,12 +98,19 @@ export default function PurchasesPage() {
     dueDate: "",
     paymentMethod: "cash",
     amountPaid: "",
+    orderNumber: "",
+    expectedDelivery: "",
+    tax: 0,
+    shippingCost: 0,
+    total: 0,
     items: [] as {
       productId?: string;
       productName: string;
+      sku?: string;
       unit: string;
       quantity: number;
       unitCost: number;
+      receivedQuantity: number;
       total: number;
     }[],
   });
@@ -156,9 +168,11 @@ export default function PurchasesPage() {
         {
           productId: "",
           productName: "",
+          sku: "",
           unit: "piece",
           quantity: 1,
           unitCost: 0,
+          receivedQuantity: 0,
           total: 0,
         },
       ],
@@ -194,12 +208,14 @@ export default function PurchasesPage() {
       const nextItem = {
         productId: match.product._id,
         productName: match.product.name,
+        sku: match.variant?.sku || match.product.sku,
         unit: match.product.unit || "piece",
         quantity:
           targetIndex < nextItems.length
             ? nextItems[targetIndex].quantity || 1
             : 1,
         unitCost: match.product.costPrice,
+        receivedQuantity: 0,
         total:
           (targetIndex < nextItems.length
             ? nextItems[targetIndex].quantity || 1
@@ -408,6 +424,11 @@ export default function PurchasesPage() {
           dueDate: "",
           paymentMethod: "cash",
           amountPaid: "",
+          orderNumber: "",
+          expectedDelivery: "",
+          tax: 0,
+          shippingCost: 0,
+          total: 0,
           items: [],
         });
         setFormError("");
@@ -771,9 +792,54 @@ export default function PurchasesPage() {
                         )}
                         <button
                           onClick={() => setViewOrder(o)}
-                          className="rounded-lg p-1.5 text-gray-400 md:opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 md:group-hover:opacity-100"
+                          className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 group-hover:opacity-100"
+                          title="View Order Details"
                         >
                           <Eye className="h-4 w-4" />
+                        </button>
+                        <a
+                          href={`/dashboard/inventory?purchase_order_id=${o._id}`}
+                          className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 group-hover:opacity-100"
+                          title="View Linked Inventory"
+                        >
+                          <Package className="h-4 w-4" />
+                        </a>
+                        <button
+                          onClick={() => {
+                            setNewOrder({
+                              vendorId: o.vendorId?._id || "",
+                              orderNumber: o.orderNumber,
+                              branchId: o.branchId || "",
+                              status: o.status,
+                              notes: o.notes || "",
+                              dueDate: "",
+                              paymentMethod: "cash",
+                              amountPaid: "",
+                              expectedDelivery: o.expectedDelivery
+                                ? new Date(o.expectedDelivery)
+                                    .toISOString()
+                                    .split("T")[0]
+                                : "",
+                              tax: o.tax,
+                              shippingCost: o.shippingCost,
+                              total: o.total,
+                              items: o.items.map((i: any) => ({
+                                productId: i.productId || "",
+                                productName: i.productName,
+                                sku: i.sku,
+                                unit: i.unit || "piece",
+                                quantity: i.quantity,
+                                unitCost: i.unitCost,
+                                receivedQuantity: i.receivedQuantity,
+                                total: i.total,
+                              })),
+                            });
+                            setShowNewOrder(true);
+                          }}
+                          className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 group-hover:opacity-100"
+                          title="Edit Order"
+                        >
+                          <Edit className="h-4 w-4" />
                         </button>
                       </div>
                     </td>
@@ -816,7 +882,7 @@ export default function PurchasesPage() {
           onClick={() => setShowNewOrder(false)}
         >
           <div
-            className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl"
+            className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -842,9 +908,10 @@ export default function PurchasesPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-full">
               {/* Left: Form */}
-              <div className="lg:col-span-2 max-h-[70vh] overflow-y-auto px-6 py-5">
+              <div className="lg:col-span-2 px-6 py-5">
                 <div className="space-y-5">
                   {formError && (
                     <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -1333,6 +1400,7 @@ export default function PurchasesPage() {
                 </div>
               </div>
             </div>
+          </div>
 
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">

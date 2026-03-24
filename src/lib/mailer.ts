@@ -61,6 +61,23 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
     });
 
     if (error) {
+      if (
+        process.env.NODE_ENV === "development" &&
+        (error.message.includes("testing emails to your own email address") ||
+          error.message.includes("restricted"))
+      ) {
+        console.warn("\n" + "=".repeat(60));
+        console.warn("⚠️  RESEND TESTING RESTRICTION TRIGGERED");
+        console.warn(`To: ${input.to}`);
+        console.warn(`Subject: ${input.subject}`);
+        console.warn("Emails can't be delivered to non-authorized accounts in Resend trial.");
+        console.warn("Check the console below for the email content (e.g. verification links).");
+        console.warn("=".repeat(60) + "\n");
+        console.log(input.html);
+        console.log("\n" + "=".repeat(60) + "\n");
+        return { id: "mock-success-for-testing", mock: true };
+      }
+
       console.error("Resend delivery failed:", error);
       throw new Error(`Resend delivery failed: ${error.message}`);
     }

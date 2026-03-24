@@ -47,14 +47,38 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const category = searchParams.get("category") || "";
     const active = searchParams.get("active");
+    const purchaseOrderId = searchParams.get("purchase_order_id");
 
-    const query: Record<string, unknown> = { tenantId: auth.tenantId };
+    const query: Record<string, any> = { tenantId: auth.tenantId };
+    
+    if (purchaseOrderId) {
+      const PurchaseOrder = (await import("@/models/PurchaseOrder")).default;
+      const po = await PurchaseOrder.findOne({ _id: purchaseOrderId, tenantId: auth.tenantId });
+      if (po) {
+        const productIds = po.items.map(i => i.productId).filter(Boolean);
+        const skus = po.items.map(i => i.sku).filter(Boolean);
+        query.$or = [
+          { _id: { $in: productIds } },
+          { sku: { $in: skus } },
+          { "variants.sku": { $in: skus } }
+        ];
+      }
+    }
+
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { sku: { $regex: search, $options: "i" } },
-        { barcode: { $regex: search, $options: "i" } },
-      ];
+      const searchFilter = {
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { sku: { $regex: search, $options: "i" } },
+          { barcode: { $regex: search, $options: "i" } },
+        ]
+      };
+      if (query.$or) {
+        query.$and = [ { $or: query.$or }, searchFilter ];
+        delete query.$or;
+      } else {
+        query.$or = searchFilter.$or;
+      }
     }
     if (category) query.categoryId = category;
     if (active !== null && active !== undefined)

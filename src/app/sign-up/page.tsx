@@ -40,6 +40,7 @@ export default function SignUpPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const validateForm = () => {
     const errors: Record<string, string> = {};
@@ -106,7 +107,11 @@ export default function SignUpPage() {
         return;
       }
 
-      router.push("/dashboard");
+      if (form.email) {
+        setIsSuccess(true);
+      } else {
+        router.push("/dashboard");
+      }
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -123,6 +128,37 @@ export default function SignUpPage() {
       </p>
     );
   };
+
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FFF8F0] px-4">
+        <div className="w-full max-w-md bg-white rounded-2x border border-gray-200 p-8 shadow-sm text-center">
+          <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Mail className="w-8 h-8 text-orange-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h1>
+          <p className="text-gray-600 mb-8">
+            We&apos;ve sent a verification link to <span className="font-semibold text-gray-900">{form.email}</span>. 
+            Please check your inbox (and spam folder) to verify your account.
+          </p>
+          <div className="space-y-4">
+            <Link 
+              href="/sign-in"
+              className="block w-full bg-orange-500 text-white py-3 rounded-xl font-medium text-sm hover:bg-orange-600 transition-colors"
+            >
+              Back to Sign In
+            </Link>
+            <button 
+              onClick={() => setIsSuccess(false)}
+              className="text-sm text-gray-500 hover:text-orange-600 transition-colors"
+            >
+              Didn&apos;t receive it? Try again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-[#FFF8F0]">
