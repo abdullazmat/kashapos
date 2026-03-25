@@ -98,6 +98,17 @@ interface PurchaseData {
   total: number;
 }
 
+interface ActivityLogData {
+  logs: {
+    _id: string;
+    userName: string;
+    action: string;
+    module: string;
+    description: string;
+    createdAt: string;
+  }[];
+}
+
 type ReportView =
   | "overview"
   | "sales"
@@ -163,6 +174,7 @@ export default function ReportsPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
   const [purchaseData, setPurchaseData] = useState<PurchaseData | null>(null);
+  const [activityData, setActivityData] = useState<ActivityLogData | null>(null);
   const [period, setPeriod] = useState("month");
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ReportView>("overview");
@@ -171,14 +183,16 @@ export default function ReportsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [dashRes, invRes, poRes] = await Promise.all([
+      const [dashRes, invRes, poRes, actRes] = await Promise.all([
         fetch(`/api/dashboard?period=${period}`),
         fetch(`/api/invoices?limit=100`),
         fetch(`/api/purchases?limit=100`),
+        fetch(`/api/activity-logs?limit=50`),
       ]);
       if (dashRes.ok) setData(await dashRes.json());
       if (invRes.ok) setInvoiceData(await invRes.json());
       if (poRes.ok) setPurchaseData(await poRes.json());
+      if (actRes.ok) setActivityData(await actRes.json());
     } catch (err) {
       console.error(err);
     }
@@ -211,6 +225,32 @@ export default function ReportsPage() {
   );
   const totalPurchased = purchaseOrders.reduce((sum, po) => sum + po.total, 0);
   const monthlySales = useMemo(() => data?.weeklySales ?? [], [data]);
+  const activities = useMemo(() => {
+    return (activityData?.logs || []).map((log) => {
+      const date = new Date(log.createdAt);
+      const isToday = date.toDateString() === new Date().toDateString();
+      const timeStr = isToday
+        ? date.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : date.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+
+      return {
+        time: timeStr,
+        user: log.userName,
+        action: log.action.charAt(0).toUpperCase() + log.action.slice(1),
+        detail: log.description,
+        type: log.module,
+      };
+    });
+  }, [activityData]);
+
   const chartTitle =
     period === "today"
       ? "Today Revenue"
@@ -266,7 +306,13 @@ export default function ReportsPage() {
           },
         ];
       case "activity":
-        return [{ note: "Activity log is currently demo data only" }];
+        return activities.map((act) => ({
+          time: act.time,
+          user: act.user,
+          action: act.action,
+          detail: act.detail,
+          module: act.type,
+        }));
       case "overview":
       default:
         return [
@@ -352,6 +398,11 @@ export default function ReportsPage() {
           <p style="color:#9ca3af;font-size:11px;margin-top:16px">* COGS and expenses estimated based on typical operating ratios.</p>`;
         break;
       }
+      case "activity":
+        html = `
+          <table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
+          <tbody>${activities.map((act) => `<tr><td>${act.time}</td><td>${act.user}</td><td>${act.action}</td><td>${act.detail}</td></tr>`).join("")}</tbody></table>`;
+        break;
       default: {
         const sales = data?.weeklySales || [];
         const prods = data?.topProducts || [];
@@ -1222,64 +1273,6 @@ export default function ReportsPage() {
 
   // ──── ACTIVITY LOG ────
   if (view === "activity") {
-    const activities = [
-      {
-        time: "09:15 AM",
-        user: "Sarah Nakamya",
-        action: "Completed sale",
-        detail: "Order #ORD-2K34F — UGX 45,000",
-        type: "sale",
-      },
-      {
-        time: "09:02 AM",
-        user: "Sarah Nakamya",
-        action: "Added customer",
-        detail: "John Mukisa — +256 700 123 456",
-        type: "customer",
-      },
-      {
-        time: "08:45 AM",
-        user: "Sarah Nakamya",
-        action: "Adjusted stock",
-        detail: "Cappuccino +50 units — Restock delivery",
-        type: "stock",
-      },
-      {
-        time: "08:30 AM",
-        user: "System",
-        action: "Low stock alert",
-        detail: "Croissant — 3 units remaining",
-        type: "alert",
-      },
-      {
-        time: "08:15 AM",
-        user: "Sarah Nakamya",
-        action: "Opened POS",
-        detail: "Main Branch terminal started",
-        type: "system",
-      },
-      {
-        time: "Yesterday 6:00 PM",
-        user: "System",
-        action: "Daily summary",
-        detail: "12 sales — UGX 340,000 total",
-        type: "report",
-      },
-      {
-        time: "Yesterday 4:30 PM",
-        user: "Sarah Nakamya",
-        action: "Created invoice",
-        detail: "INV-001234 — UGX 120,000",
-        type: "invoice",
-      },
-      {
-        time: "Yesterday 2:15 PM",
-        user: "Sarah Nakamya",
-        action: "Voided sale",
-        detail: "Order #ORD-2K30A — Customer refund",
-        type: "sale",
-      },
-    ];
 
     const typeIcons: Record<string, React.ElementType> = {
       sale: ShoppingBag,

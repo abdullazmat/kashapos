@@ -272,8 +272,10 @@ export default function InventoryPage() {
   const [filterCategory, setFilterCategory] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [showCatModal, setShowCatModal] = useState(false);
+  const [showUnitModal, setShowUnitModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [units, setUnits] = useState<any[]>([]);
   const [stockFilter, setStockFilter] = useState<
     "all" | "in-stock" | "low" | "out"
   >("all");
@@ -314,6 +316,10 @@ export default function InventoryPage() {
     name: "",
     slug: "",
     description: "",
+  });
+  const [unitForm, setUnitForm] = useState({
+    name: "",
+    shortName: "",
   });
 
   useEffect(() => {
@@ -359,9 +365,23 @@ export default function InventoryPage() {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  const fetchUnits = useCallback(async () => {
+    try {
+      const res = await fetch("/api/units");
+      if (res.ok) {
+        const d = await res.json();
+        setUnits(d || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCategories();
-  }, [fetchCategories]);
+    fetchUnits();
+  }, [fetchCategories, fetchUnits]);
 
   useEffect(() => {
     if (!quickBarcodeProduct) return;
@@ -751,6 +771,22 @@ export default function InventoryPage() {
       setShowCatModal(false);
       setCatForm({ name: "", slug: "", description: "" });
       fetchCategories();
+    }
+  };
+
+  const saveUnit = async () => {
+    const res = await fetch("/api/units", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(unitForm),
+    });
+    if (res.ok) {
+      setShowUnitModal(false);
+      setUnitForm({ name: "", shortName: "" });
+      fetchUnits();
+    } else {
+      const err = await res.json();
+      alert(err.error || "Failed to save unit");
     }
   };
 
@@ -1782,19 +1818,29 @@ export default function InventoryPage() {
                     <label className="text-[13px] font-semibold text-gray-700">
                       Unit
                     </label>
-                    <select
-                      value={form.unit}
-                      onChange={(e) =>
-                        setForm({ ...form, unit: e.target.value })
-                      }
-                      className={inputClass}
-                    >
-                      <option value="pcs">Pieces</option>
-                      <option value="kg">Kilograms</option>
-                      <option value="litre">Litres</option>
-                      <option value="box">Boxes</option>
-                      <option value="pack">Packs</option>
-                    </select>
+                    <div className="flex gap-2 mt-1.5">
+                      <select
+                        value={form.unit}
+                        onChange={(e) =>
+                          setForm({ ...form, unit: e.target.value })
+                        }
+                        className="flex-1 rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                      >
+                        {units.map((u, i) => (
+                          <option key={u._id || i} value={u.shortName}>
+                            {u.name} ({u.shortName})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowUnitModal(true)}
+                        className="flex h-10.5 w-10.5 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition-colors hover:bg-gray-50 hover:text-orange-600"
+                        title="Add new unit"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
@@ -2132,6 +2178,68 @@ export default function InventoryPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Unit Modal */}
+      {showUnitModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowUnitModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-amber-600 shadow-md shadow-orange-500/20">
+                  <Package className="h-4 w-4 text-white" />
+                </div>
+                <h2 className="font-bold text-gray-900">Add Unit</h2>
+              </div>
+              <button
+                onClick={() => setShowUnitModal(false)}
+                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Unit Name *
+                </label>
+                <input
+                  value={unitForm.name}
+                  onChange={(e) =>
+                    setUnitForm({ ...unitForm, name: e.target.value })
+                  }
+                  placeholder="e.g. Kilograms"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="text-[13px] font-semibold text-gray-700">
+                  Short Name *
+                </label>
+                <input
+                  value={unitForm.shortName}
+                  onChange={(e) =>
+                    setUnitForm({ ...unitForm, shortName: e.target.value })
+                  }
+                  placeholder="e.g. kg"
+                  className={inputClass}
+                />
+              </div>
+              <button
+                onClick={saveUnit}
+                disabled={!unitForm.name || !unitForm.shortName}
+                className="w-full rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                Create Unit
+              </button>
             </div>
           </div>
         </div>

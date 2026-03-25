@@ -207,7 +207,7 @@ export default function PurchasesPage() {
           productId: "",
           productName: "",
           sku: "",
-          unit: "piece",
+          unit: "pcs",
           quantity: 1,
           unitCost: 0,
           receivedQuantity: 0,
@@ -248,7 +248,7 @@ export default function PurchasesPage() {
         productId: match.product._id,
         productName: match.product.name,
         sku: match.variant?.sku || match.product.sku,
-        unit: match.product.unit || "piece",
+        unit: match.product.unit || "pcs",
         quantity: targetIndex < nextItems.length ? nextItems[targetIndex].quantity || 1 : 1,
         unitCost: match.product.costPrice,
         receivedQuantity: 0,
@@ -345,7 +345,7 @@ export default function PurchasesPage() {
         item.productId = p._id;
         item.productName = p.name;
         item.sku = p.sku;
-        item.unit = p.unit || item.unit || "piece";
+        item.unit = p.unit || item.unit || "pcs";
         item.unitCost = p.costPrice;
         item.total = p.costPrice * item.quantity;
       } else {
@@ -360,7 +360,7 @@ export default function PurchasesPage() {
       );
       if (matched) {
         item.productId = matched._id;
-        item.unit = matched.unit || item.unit || "piece";
+        item.unit = matched.unit || item.unit || "pcs";
         item.unitCost = matched.costPrice;
       } else {
         item.productId = "";
@@ -394,7 +394,7 @@ export default function PurchasesPage() {
           sku: createdSku,
           price: Math.max(0, Number(item.unitCost) || 0),
           costPrice: Math.max(0, Number(item.unitCost) || 0),
-          unit: item.unit || "piece",
+          unit: item.unit || "pcs",
           hasVariants: false,
           variants: [],
           trackStock: true,
@@ -898,7 +898,7 @@ export default function PurchasesPage() {
                                 productId: i.productId || "",
                                 productName: i.productName,
                                 sku: i.sku,
-                                unit: i.unit || "piece",
+                                unit: i.unit || "pcs",
                                 quantity: i.quantity,
                                 unitCost: i.unitCost,
                                 receivedQuantity: i.receivedQuantity,
@@ -1242,7 +1242,7 @@ export default function PurchasesPage() {
                           />
                           <div className="col-span-2 flex items-center gap-1.5">
                             <select
-                              value={item.unit || "piece"}
+                              value={item.unit || "pcs"}
                               onChange={(e) => {
                                 if (e.target.value === "ADD_NEW") {
                                   setShowAddUnit(true);
@@ -1253,8 +1253,8 @@ export default function PurchasesPage() {
                               className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
                             >
                               {units.map((u) => (
-                                <option key={u.name} value={u.name.toLowerCase()}>
-                                  {u.name}
+                                <option key={u.name} value={u.shortName}>
+                                  {u.name} ({u.shortName})
                                 </option>
                               ))}
                               <option value="ADD_NEW">+ Create New...</option>

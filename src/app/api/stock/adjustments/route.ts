@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Stock from "@/models/Stock";
 import StockAdjustment from "@/models/StockAdjustment";
+import ActivityLog from "@/models/ActivityLog";
+import Product from "@/models/Product";
 import { apiError, apiSuccess, getAuthContext } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -122,6 +124,18 @@ export async function POST(request: NextRequest) {
       performedBy: auth.userId,
       approvedBy: approvedBy || undefined,
       adjustmentDate,
+    });
+
+    // Log to activity log
+    const product = await Product.findById(productId).select("name").lean();
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "update",
+      module: "stock",
+      description: `Adjusted stock for ${product?.name || "item"}: ${delta > 0 ? "+" : ""}${delta} units (${adjustmentType})`,
+      metadata: { productId, adjustmentId: adjustment._id, type: adjustmentType, delta },
     });
 
     return apiSuccess({ adjustment, newQty: updated.quantity }, 201);

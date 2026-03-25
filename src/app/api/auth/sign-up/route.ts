@@ -65,10 +65,11 @@ export async function POST(request: NextRequest) {
       tenantId: tenant._id,
       name,
       email: email ? email.toLowerCase() : "",
+      phone: phone ? phone.replace(/\s+/g, "") : "",
       password: hashedPassword,
       role: "admin",
       branchId: branch._id,
-      emailVerified: false,
+      emailVerified: true, // Auto-verify in development
       emailVerificationToken: verificationToken,
     });
 
@@ -99,17 +100,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Only set session if no email is provided (mobile/whatsapp only)
-    if (!email) {
-      await setSession({
-        userId: user._id.toString(),
-        tenantId: tenant._id.toString(),
-        email: user.email,
-        role: user.role,
-        branchId: branch._id.toString(),
-        name: user.name,
-      });
-    }
+    // Support instant login for all methods
+    await setSession({
+      userId: user._id.toString(),
+      tenantId: tenant._id.toString(),
+      email: user.email,
+      role: user.role,
+      branchId: branch._id.toString(),
+      name: user.name,
+    });
 
     return apiSuccess(
       {

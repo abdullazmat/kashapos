@@ -15,10 +15,11 @@ export async function GET(request: NextRequest) {
     if (units.length === 0) {
       return apiSuccess([
         { name: "Piece", shortName: "pcs" },
-        { name: "Box", shortName: "bx" },
-        { name: "Kg", shortName: "kg" },
+        { name: "Kilogram", shortName: "kg" },
+        { name: "Litre", shortName: "litre" },
+        { name: "Box", shortName: "box" },
+        { name: "Pack", shortName: "pack" },
         { name: "Dozen", shortName: "dz" },
-        { name: "Carton", shortName: "ctn" },
       ]);
     }
 

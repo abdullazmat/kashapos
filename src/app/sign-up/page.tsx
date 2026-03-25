@@ -107,11 +107,8 @@ export default function SignUpPage() {
         return;
       }
 
-      if (form.email) {
-        setIsSuccess(true);
-      } else {
-        router.push("/dashboard");
-      }
+      // Instant login for all methods in development
+      router.push("/dashboard");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {

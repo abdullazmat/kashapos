@@ -4,6 +4,7 @@ import Product from "@/models/Product";
 import Stock from "@/models/Stock";
 import Branch from "@/models/Branch";
 import Tenant from "@/models/Tenant";
+import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import {
   buildBarcodeSeed,
@@ -194,6 +195,17 @@ export async function POST(request: NextRequest) {
 
     const product = await Product.create({
       ...payload,
+    });
+
+    // Log to activity log
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "create",
+      module: "items",
+      description: `Created new product: ${product.name}`,
+      metadata: { productId: product._id },
     });
 
     if (product.trackStock !== false) {

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import PurchaseOrder from "@/models/PurchaseOrder";
 import Stock from "@/models/Stock";
+import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import { applyStockUpdate } from "@/lib/stock-service";
 
@@ -58,7 +59,7 @@ export async function PUT(
     const existingOrder = await PurchaseOrder.findOne({
       _id: id,
       tenantId: auth.tenantId,
-    });
+    }).populate("vendorId", "name");
 
     if (!existingOrder) return apiError("Order not found", 404);
 
@@ -72,6 +73,17 @@ export async function PUT(
         existingOrder.branchId.toString(),
         existingOrder.items,
       );
+
+      // Log activity
+      await ActivityLog.create({
+        tenantId: auth.tenantId,
+        userId: auth.userId,
+        userName: auth.name || "Unknown",
+        action: "update",
+        module: "purchases",
+        description: `Received purchase order ${existingOrder.orderNumber} from ${(existingOrder.vendorId as any)?.name || "supplier"}`,
+        metadata: { orderId: existingOrder._id.toString(), numItems: existingOrder.items.length },
+      });
     }
 
     Object.assign(existingOrder, body);
