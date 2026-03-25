@@ -3,92 +3,25 @@ import dbConnect from "@/lib/db";
 import PurchaseOrder from "@/models/PurchaseOrder";
 import Stock from "@/models/Stock";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+import { applyStockUpdate } from "@/lib/stock-service";
 
-function getReceivedQuantities(items: any[]) {
-  const quantities = new Map<string, number>();
-  for (const item of items) {
-    if (!item.productId) continue;
-    const quantity = item.receivedQuantity > 0 ? item.receivedQuantity : item.quantity;
-    quantities.set(
-      item.productId.toString(),
-      (quantities.get(item.productId.toString()) || 0) + quantity
-    );
-  }
-  return quantities;
-}
-
-async function applyStockDeltas(tenantId: string, branchId: string, deltas: Map<string, number>, items: any[]) {
-  const Product = (await import("@/models/Product")).default;
-  const mongoose = (await import("mongoose")).default;
-
-  for (const item of items) {
-    if (!item.sku && !item.productId) continue;
-    const delta = item.receivedQuantity > 0 ? item.receivedQuantity : item.quantity;
-    if (delta <= 0) continue;
-
-    let targetProductId = item.productId;
-    let variantSku = item.sku;
-
-    // 1. Find the product and/or variant by SKU if productId is missing or to confirm variant
-    let product = null;
-    if (item.sku) {
-      product = await Product.findOne({
-        tenantId,
-        $or: [{ sku: item.sku }, { "variants.sku": item.sku }],
-      });
-    } else if (item.productId) {
-      product = await Product.findOne({ _id: item.productId, tenantId });
-    }
-
-    if (!product) {
-      console.warn(`Could not find product for SKU: ${item.sku} or ID: ${item.productId}`);
-      continue;
-    }
-
-    targetProductId = product._id;
-
-    // 2. Update stock levels (Stock model uses productId)
-    await Stock.findOneAndUpdate(
-      { tenantId, branchId, productId: targetProductId },
-      {
-        $inc: { quantity: delta },
-        $setOnInsert: { reorderLevel: 10, reservedQuantity: 0 },
-      },
-      { upsert: true, new: true }
-    );
-
-    // 3. Update Product Catalog (Cost & Variant Stock)
-    let productChanged = false;
-
-    // Update cost price if specified
-    if (item.unitCost > 0) {
-      if (product.sku === item.sku || !product.hasVariants) {
-        // Main product cost update
-        product.costPrice = item.unitCost;
-        productChanged = true;
-      } else if (item.sku) {
-        // Variant cost update
-        const variantIndex = product.variants.findIndex(v => v.sku === item.sku);
-        if (variantIndex > -1) {
-          product.variants[variantIndex].costPrice = item.unitCost;
-          productChanged = true;
-        }
-      }
-    }
-
-    // Update variant-specific stock if it's a variant match
-    if (product.hasVariants && item.sku) {
-      const variantIndex = product.variants.findIndex(v => v.sku === item.sku);
-      if (variantIndex > -1) {
-        product.variants[variantIndex].stock = (product.variants[variantIndex].stock || 0) + delta;
-        productChanged = true;
-      }
-    }
-
-    if (productChanged) {
-      await product.save();
-    }
-  }
+async function applyStockDeltas(
+  tenantId: string,
+  branchId: string,
+  items: any[],
+) {
+  await applyStockUpdate(
+    tenantId,
+    branchId,
+    items.map((i) => ({
+      productId: i.productId,
+      sku: i.sku,
+      productName: i.productName,
+      unit: i.unit,
+      quantity: i.receivedQuantity > 0 ? i.receivedQuantity : i.quantity,
+      unitCost: i.unitCost,
+    })),
+  );
 }
 
 export async function GET(
@@ -137,8 +70,7 @@ export async function PUT(
       await applyStockDeltas(
         auth.tenantId,
         existingOrder.branchId.toString(),
-        getReceivedQuantities(existingOrder.items),
-        existingOrder.items
+        existingOrder.items,
       );
     }
 

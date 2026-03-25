@@ -419,6 +419,50 @@ export default function SettingsPage() {
   const [branchAddress, setBranchAddress] = useState("");
   const [branchPhone, setBranchPhone] = useState("");
   const [savingBranch, setSavingBranch] = useState(false);
+  const [units, setUnits] = useState<{ _id: string; name: string; shortName: string }[]>([]);
+  const [loadingUnits, setLoadingUnits] = useState(false);
+  const [showUnitModal, setShowUnitModal] = useState(false);
+  const [unitName, setUnitName] = useState("");
+  const [unitShortName, setUnitShortName] = useState("");
+  const [savingUnit, setSavingUnit] = useState(false);
+
+  const fetchUnits = useCallback(async () => {
+    setLoadingUnits(true);
+    try {
+      const res = await fetch("/api/units");
+      if (res.ok) setUnits(await res.json());
+    } finally {
+      setLoadingUnits(false);
+    }
+  }, []);
+
+  const handleCreateUnit = async () => {
+    if (!unitName.trim() || !unitShortName.trim() || savingUnit) return;
+    setSavingUnit(true);
+    try {
+      const res = await fetch("/api/units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: unitName, shortName: unitShortName }),
+      });
+      if (res.ok) {
+        await fetchUnits();
+        setShowUnitModal(false);
+        setUnitName("");
+        setUnitShortName("");
+      }
+    } finally {
+      setSavingUnit(false);
+    }
+  };
+
+  const handleDeleteUnit = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this unit?")) return;
+    try {
+      const res = await fetch(`/api/units/${id}`, { method: "DELETE" });
+      if (res.ok) await fetchUnits();
+    } catch {}
+  };
 
   const applyThemeSetting = useCallback((theme: string) => {
     const useDark = theme === "dark";
@@ -591,7 +635,8 @@ export default function SettingsPage() {
         // ignore
       }
     })();
-  }, []);
+    void fetchUnits();
+  }, [fetchUnits]);
 
   const fetchUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -2050,6 +2095,95 @@ export default function SettingsPage() {
                     Alert when stock falls below this level
                   </p>
                 </div>
+
+                {/* Units of Measure Sub-section */}
+                <div className="mt-8 border-t border-gray-100 pt-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-900">Units of Measure</h4>
+                      <p className="text-[12px] text-gray-500">Manage units used for products (e.g. Piece, Kg, Box)</p>
+                    </div>
+                    <button
+                      onClick={() => setShowUnitModal(true)}
+                      className="rounded-xl bg-blue-50 px-3.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                    >
+                      + Add New Unit
+                    </button>
+                  </div>
+
+                  {loadingUnits ? (
+                    <div className="py-4 text-center text-gray-400 text-xs italic">Loading units...</div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {units.map((unit) => (
+                        <div key={unit._id} className="group relative rounded-xl border border-gray-100 bg-gray-50/50 p-3 flex items-center justify-between hover:border-blue-100 hover:bg-white transition-all shadow-sm">
+                          <div>
+                            <p className="text-sm font-bold text-gray-800">{unit.name}</p>
+                            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">{unit.shortName}</p>
+                          </div>
+                          {unit._id && (
+                            <button
+                              onClick={() => void handleDeleteUnit(unit._id)}
+                              className="rounded-lg p-1.5 text-gray-300 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 transition-all shadow-sm"
+                              title="Delete unit"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Add Unit Modal Small Overlay */}
+                {showUnitModal && (
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in duration-200">
+                      <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500 shadow-lg shadow-blue-500/20">
+                            <Plus className="h-5 w-5 text-white" />
+                          </div>
+                          <h3 className="font-bold text-gray-900">Add New Unit</h3>
+                        </div>
+                        <button onClick={() => setShowUnitModal(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100">
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[12px] font-bold text-gray-700 mb-1.5 block">Full Name</label>
+                          <input
+                            placeholder="e.g. Kilogram"
+                            value={unitName}
+                            onChange={e => setUnitName(e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[12px] font-bold text-gray-700 mb-1.5 block">Short Code</label>
+                          <input
+                            placeholder="e.g. kg"
+                            value={unitShortName}
+                            onChange={e => setUnitShortName(e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={() => setShowUnitModal(false)} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
+                        <button
+                          onClick={handleCreateUnit}
+                          disabled={savingUnit}
+                          className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {savingUnit ? "Adding..." : "Add Unit"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </SectionCard>
           )}

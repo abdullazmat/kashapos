@@ -1,13 +1,15 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import PurchaseOrder from "@/models/PurchaseOrder";
-import Stock from "@/models/Stock";
 import Product from "@/models/Product";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+import { applyStockUpdate } from "@/lib/stock-service";
 
 type RawPurchaseItem = {
   productId?: string;
   product?: string;
+  sku?: string;
+  unit?: string;
   productName?: string;
   quantity?: number;
   unitCost?: number;
@@ -21,6 +23,8 @@ type NormalizedPurchasePayload = {
   items: {
     productId?: string;
     productName: string;
+    sku?: string;
+    unit: string;
     quantity: number;
     unitCost: number;
     receivedQuantity: number;
@@ -40,49 +44,6 @@ type NormalizedPurchasePayload = {
 function asNumber(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function getReceivedQuantities(
-  status: string,
-  items: Array<{
-    productId?: string;
-    quantity: number;
-    receivedQuantity: number;
-  }>,
-) {
-  const quantities = new Map<string, number>();
-  if (status !== "received") return quantities;
-
-  for (const item of items) {
-    if (!item.productId) continue;
-    const quantity =
-      item.receivedQuantity > 0 ? item.receivedQuantity : item.quantity;
-    quantities.set(
-      item.productId,
-      (quantities.get(item.productId) || 0) + quantity,
-    );
-  }
-
-  return quantities;
-}
-
-async function applyStockDeltas(
-  tenantId: string,
-  branchId: string,
-  deltas: Map<string, number>,
-) {
-  for (const [productId, delta] of deltas.entries()) {
-    if (delta === 0) continue;
-
-    await Stock.findOneAndUpdate(
-      { tenantId, branchId, productId },
-      {
-        $inc: { quantity: delta },
-        $setOnInsert: { reorderLevel: 10, reservedQuantity: 0 },
-      },
-      { upsert: true, new: true },
-    );
-  }
 }
 
 async function normalizePurchasePayload(
@@ -148,6 +109,8 @@ async function normalizePurchasePayload(
     return {
       productId: productId || undefined,
       productName: resolvedProductName,
+      sku: item.sku || product?.sku,
+      unit: (item.unit || product?.unit || "piece").toLowerCase(),
       quantity,
       unitCost,
       receivedQuantity,
@@ -252,10 +215,17 @@ export async function POST(request: NextRequest) {
     });
 
     if (normalized.status === "received") {
-      await applyStockDeltas(
+      await applyStockUpdate(
         auth.tenantId,
         normalized.branchId,
-        getReceivedQuantities(normalized.status, normalized.items),
+        normalized.items.map((i) => ({
+          productId: i.productId,
+          sku: i.sku,
+          productName: i.productName,
+          unit: (i.unit || "piece").toLowerCase(),
+          quantity: i.receivedQuantity > 0 ? i.receivedQuantity : i.quantity,
+          unitCost: i.unitCost,
+        })),
       );
     }
 

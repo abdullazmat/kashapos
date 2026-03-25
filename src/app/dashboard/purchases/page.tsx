@@ -19,6 +19,8 @@ import {
   CreditCard,
   Edit,
   Trash2,
+  Layers,
+  Scan,
 } from "lucide-react";
 import { formatCurrency, formatDate, slugify } from "@/lib/utils";
 import { findBarcodeMatch, logBarcodeScanEvent } from "@/lib/barcode-client";
@@ -60,6 +62,7 @@ interface Product {
   barcode?: string;
   costPrice: number;
   unit?: string;
+  variants?: { name: string; sku: string; barcode?: string; costPrice: number }[];
 }
 interface Branch {
   _id: string;
@@ -89,6 +92,12 @@ export default function PurchasesPage() {
   const [formError, setFormError] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [units, setUnits] = useState<{ _id?: string; name: string; shortName: string }[]>([]);
+  const [showAddUnit, setShowAddUnit] = useState(false);
+  const [newUnit, setNewUnit] = useState({ name: "", shortName: "" });
+  const [savingUnit, setSavingUnit] = useState(false);
+  const [barcodeMatches, setBarcodeMatches] = useState<{ product: Product; variant?: any }[]>([]);
+  const [showBarcodeDropdown, setShowBarcodeDropdown] = useState(false);
 
   const [newOrder, setNewOrder] = useState({
     vendorId: "",
@@ -115,6 +124,31 @@ export default function PurchasesPage() {
     }[],
   });
 
+  const addNewUnit = async () => {
+    if (!newUnit.name.trim() || !newUnit.shortName.trim() || savingUnit) return;
+    setSavingUnit(true);
+    try {
+      const res = await fetch("/api/units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUnit),
+      });
+      if (res.ok) {
+        const unit = await res.json();
+        setUnits((prev) => [...prev, unit]);
+        setShowAddUnit(false);
+        setNewUnit({ name: "", shortName: "" });
+      } else {
+        const d = await res.json();
+        setFormError(d.error || "Failed to create unit");
+      }
+    } catch {
+      setFormError("Failed to create unit");
+    } finally {
+      setSavingUnit(false);
+    }
+  };
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({
@@ -123,11 +157,12 @@ export default function PurchasesPage() {
       ...(statusFilter && { status: statusFilter }),
     });
     try {
-      const [ordRes, vendRes, prodRes, branchRes] = await Promise.all([
+      const [ordRes, vendRes, prodRes, branchRes, unitRes] = await Promise.all([
         fetch(`/api/purchases?${params}`),
         fetch("/api/vendors"),
         fetch("/api/products?limit=200"),
         fetch("/api/branches"),
+        fetch("/api/units"),
       ]);
       if (ordRes.ok) {
         const d = await ordRes.json();
@@ -149,6 +184,9 @@ export default function PurchasesPage() {
         setBranches(
           Array.isArray(branchData) ? branchData : branchData.branches || [],
         );
+      }
+      if (unitRes.ok) {
+        setUnits(await unitRes.json());
       }
     } catch (err) {
       console.error(err);
@@ -205,31 +243,31 @@ export default function PurchasesPage() {
         (item) => !item.productId && !item.productName.trim(),
       );
       const targetIndex = emptyIndex >= 0 ? emptyIndex : nextItems.length;
+      
       const nextItem = {
         productId: match.product._id,
         productName: match.product.name,
         sku: match.variant?.sku || match.product.sku,
         unit: match.product.unit || "piece",
-        quantity:
-          targetIndex < nextItems.length
-            ? nextItems[targetIndex].quantity || 1
-            : 1,
+        quantity: targetIndex < nextItems.length ? nextItems[targetIndex].quantity || 1 : 1,
         unitCost: match.product.costPrice,
         receivedQuantity: 0,
-        total:
-          (targetIndex < nextItems.length
-            ? nextItems[targetIndex].quantity || 1
-            : 1) * match.product.costPrice,
+        total: (targetIndex < nextItems.length ? nextItems[targetIndex].quantity || 1 : 1) * match.product.costPrice,
       };
 
-      if (targetIndex < nextItems.length) nextItems[targetIndex] = nextItem;
-      else nextItems.push(nextItem);
-
+      if (targetIndex < nextItems.length) {
+        nextItems[targetIndex] = nextItem;
+      } else {
+        nextItems.push(nextItem);
+      }
       return { ...prev, items: nextItems };
     });
 
     setPurchaseBarcodeInput("");
+    setBarcodeMatches([]);
+    setShowBarcodeDropdown(false);
     setFormError("");
+    
     void logBarcodeScanEvent({
       value,
       context: "receiving",
@@ -244,6 +282,30 @@ export default function PurchasesPage() {
     }).catch(() => {
       /* ignore */
     });
+  };
+
+  const handleBarcodeChange = (val: string) => {
+    setPurchaseBarcodeInput(val);
+    if (!val.trim()) {
+      setBarcodeMatches([]);
+      setShowBarcodeDropdown(false);
+      return;
+    }
+    // Search for matches
+    const matches: { product: Product; variant?: any }[] = [];
+    const query = val.toLowerCase().trim();
+    products.forEach((p) => {
+      if (p.barcode?.toLowerCase().includes(query)) {
+        matches.push({ product: p });
+      }
+      p.variants?.forEach((v: any) => {
+        if (v.barcode?.toLowerCase().includes(query)) {
+          matches.push({ product: p, variant: v });
+        }
+      });
+    });
+    setBarcodeMatches(matches.slice(0, 5));
+    setShowBarcodeDropdown(matches.length > 0);
   };
 
   const addNewVendor = async () => {
@@ -282,6 +344,7 @@ export default function PurchasesPage() {
       if (p) {
         item.productId = p._id;
         item.productName = p.name;
+        item.sku = p.sku;
         item.unit = p.unit || item.unit || "piece";
         item.unitCost = p.costPrice;
         item.total = p.costPrice * item.quantity;
@@ -290,7 +353,7 @@ export default function PurchasesPage() {
       }
     }
     if (field === "productName") {
-      const typedName = String(value || "").trim();
+      const typedName = String(value || "");
       item.productName = typedName;
       const matched = products.find(
         (pr) => pr.name.toLowerCase() === typedName.toLowerCase(),
@@ -588,15 +651,23 @@ export default function PurchasesPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => {
-            setFormError("");
-            setShowNewOrder(true);
-          }}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
-        >
-          <Plus className="h-4 w-4" /> New Purchase Order
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddUnit(true)}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
+          >
+            <Layers className="h-4 w-4 text-blue-500" /> Manage Units
+          </button>
+          <button
+            onClick={() => {
+              setFormError("");
+              setShowNewOrder(true);
+            }}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
+          >
+            <Plus className="h-4 w-4" /> New Purchase Order
+          </button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -1071,26 +1142,58 @@ export default function PurchasesPage() {
                     <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 p-3">
                       <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2">
                         <BarcodeIcon className="h-4 w-4 text-orange-500" />
-                        <input
-                          value={purchaseBarcodeInput}
-                          onChange={(event) =>
-                            setPurchaseBarcodeInput(event.target.value)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              void handlePurchaseBarcodeScan();
+                        <div className="relative flex-1">
+                          <input
+                            value={purchaseBarcodeInput}
+                            onChange={(event) =>
+                              handleBarcodeChange(event.target.value)
                             }
-                          }}
-                          placeholder="Scan barcode to add item"
-                          className="flex-1 bg-transparent text-sm outline-none"
-                        />
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void handlePurchaseBarcodeScan();
+                              }
+                            }}
+                            placeholder="Scan barcode to add item"
+                            className="w-full bg-transparent text-sm outline-none"
+                            onFocus={() => { if (barcodeMatches.length > 0) setShowBarcodeDropdown(true); }}
+                          />
+                          {showBarcodeDropdown && (
+                            <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-xl border border-gray-100 bg-white p-1 shadow-xl">
+                              {barcodeMatches.map((m, idx) => (
+                                <button
+                                  key={`${m.product._id}-${idx}`}
+                                  onClick={() => {
+                                    setPurchaseBarcodeInput(m.variant?.barcode || m.product.barcode || "");
+                                    setTimeout(() => void handlePurchaseBarcodeScan(), 50);
+                                  }}
+                                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-orange-50"
+                                >
+                                  <div>
+                                    <p className="text-sm font-bold text-gray-800">
+                                      {m.product.name} {m.variant ? `- ${m.variant.name}` : ""}
+                                    </p>
+                                    <p className="text-[11px] text-gray-500">{m.variant?.sku || m.product.sku}</p>
+                                  </div>
+                                  <span className="text-[11px] font-mono font-bold text-orange-600">{m.variant?.barcode || m.product.barcode}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => { /* Placeholder for camera scan */ alert("Opening camera scanner..."); }}
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-orange-100 hover:text-orange-600"
+                          title="Open camera scanner"
+                        >
+                          <Scan className="h-4 w-4" />
+                        </button>
                       </div>
                       <button
                         onClick={() => void handlePurchaseBarcodeScan()}
-                        className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-600"
+                        className="rounded-lg bg-orange-500 px-4 py-2 text-xs font-bold text-white hover:bg-orange-600"
                       >
-                        Add By Barcode
+                        Add
                       </button>
                     </div>
 
@@ -1137,19 +1240,33 @@ export default function PurchasesPage() {
                             className="col-span-4 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
                             placeholder="Type/select item or enter description"
                           />
-                          <select
-                            value={item.unit || "piece"}
-                            onChange={(e) =>
-                              updateItem(i, "unit", e.target.value)
-                            }
-                            className="col-span-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
-                          >
-                            <option value="piece">Piece</option>
-                            <option value="box">Box</option>
-                            <option value="kg">Kg</option>
-                            <option value="dozen">Dozen</option>
-                            <option value="carton">Carton</option>
-                          </select>
+                          <div className="col-span-2 flex items-center gap-1.5">
+                            <select
+                              value={item.unit || "piece"}
+                              onChange={(e) => {
+                                if (e.target.value === "ADD_NEW") {
+                                  setShowAddUnit(true);
+                                } else {
+                                  updateItem(i, "unit", e.target.value);
+                                }
+                              }}
+                              className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
+                            >
+                              {units.map((u) => (
+                                <option key={u.name} value={u.name.toLowerCase()}>
+                                  {u.name}
+                                </option>
+                              ))}
+                              <option value="ADD_NEW">+ Create New...</option>
+                            </select>
+                            <button
+                              onClick={() => setShowAddUnit(true)}
+                              className="rounded-lg border border-gray-200 bg-white p-2 text-blue-600 hover:bg-blue-50"
+                              title="Add new unit"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                           <input
                             type="number"
                             value={item.quantity}
@@ -1217,10 +1334,9 @@ export default function PurchasesPage() {
                       </div>
                     )}
                   </div>
-
                   {/* Notes */}
                   <div>
-                    <label className="text-[13px] font-semibold text-gray-700">
+                    <label className="text-[13px] font-semibold text-gray-700 font-bold mb-1.5 block">
                       Notes
                     </label>
                     <textarea
@@ -1230,8 +1346,54 @@ export default function PurchasesPage() {
                       }
                       rows={2}
                       className={inputClass}
+                      placeholder="Add any additional information about this order..."
                     />
                   </div>
+
+                  {/* Add Unit Modal Small Overlay */}
+                  {showAddUnit && (
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-5 space-y-4 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                          <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wider">Create New Unit</h4>
+                        </div>
+                        <button 
+                          onClick={() => setShowAddUnit(false)} 
+                          className="rounded-lg p-1 text-blue-400 hover:bg-blue-100 hover:text-blue-600 transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-blue-700/60 uppercase ml-1">Unit Name</label>
+                          <input
+                            placeholder="e.g. Gram"
+                            value={newUnit.name}
+                            onChange={e => setNewUnit({...newUnit, name: e.target.value})}
+                            className={inputClass + " bg-white/80 border-blue-100 focus:border-blue-300 focus:ring-blue-100"}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-blue-700/60 uppercase ml-1">Short Code</label>
+                          <input
+                            placeholder="e.g. g"
+                            value={newUnit.shortName}
+                            onChange={e => setNewUnit({...newUnit, shortName: e.target.value})}
+                            className={inputClass + " bg-white/80 border-blue-100 focus:border-blue-300 focus:ring-blue-100"}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={addNewUnit}
+                        disabled={savingUnit}
+                        className="w-full rounded-xl bg-blue-600 py-3 text-xs font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/30 transition-all disabled:opacity-50 active:scale-[0.98]"
+                      >
+                        {savingUnit ? "Creating..." : "Save Unit of Measure"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

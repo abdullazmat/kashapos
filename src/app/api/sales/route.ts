@@ -7,6 +7,7 @@ import CustomerPayment from "@/models/CustomerPayment";
 import Product from "@/models/Product";
 import Tenant from "@/models/Tenant";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+import { applyStockUpdate } from "@/lib/stock-service";
 import { generateOrderNumber } from "@/lib/utils";
 import { normalizeMoney, resolvePaymentStatus } from "@/lib/customer-balance";
 import { computeSalePaymentState } from "@/lib/sale-payment";
@@ -181,17 +182,17 @@ async function ensureStockAvailability(
 async function applyStockDeltas(
   tenantId: string,
   branchId: string,
-  deltas: Map<string, number>,
+  items: any[],
 ) {
-  for (const [productId, delta] of deltas.entries()) {
-    if (delta === 0) continue;
-
-    await Stock.findOneAndUpdate(
-      { tenantId, branchId, productId },
-      { $inc: { quantity: delta } },
-      { new: true },
-    );
-  }
+  await applyStockUpdate(
+    tenantId,
+    branchId,
+    items.map((i) => ({
+      productId: i.productId,
+      sku: i.sku,
+      quantity: -i.quantity, // Sales deduct quantity
+    })),
+  );
 }
 
 async function adjustCustomerStats(
@@ -700,7 +701,11 @@ export async function POST(request: NextRequest) {
       cashierId: auth.userId,
     });
 
-    await applyStockDeltas(auth.tenantId, normalized.branchId, stockDeltas);
+    await applyStockDeltas(
+      auth.tenantId,
+      normalized.branchId,
+      normalized.items,
+    );
 
     if (normalized.customerId && contributesToCustomer(normalized.status)) {
       await adjustCustomerStats(auth.tenantId, {
