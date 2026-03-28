@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Customer from "@/models/Customer";
+import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -67,6 +68,18 @@ export async function POST(request: NextRequest) {
     const customer = await Customer.create({
       ...customerPayload,
     });
+
+    // Log activity
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "create",
+      module: "customers",
+      description: `Created customer: ${customer.name}`,
+      metadata: { customerId: customer._id },
+    });
+
     return apiSuccess(customer, 201);
   } catch (error) {
     console.error("Customers POST error:", error);

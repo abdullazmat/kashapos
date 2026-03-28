@@ -6,6 +6,7 @@ import Customer from "@/models/Customer";
 import CustomerPayment from "@/models/CustomerPayment";
 import Product from "@/models/Product";
 import Tenant from "@/models/Tenant";
+import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import { applyStockUpdate } from "@/lib/stock-service";
 import { generateOrderNumber } from "@/lib/utils";
@@ -699,6 +700,17 @@ export async function POST(request: NextRequest) {
       tenantId: auth.tenantId,
       orderNumber,
       cashierId: auth.userId,
+    });
+
+    // Log activity
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "create",
+      module: "sales",
+      description: `Created sale ${orderNumber} for ${normalized.total.toLocaleString()}`,
+      metadata: { saleId: sale._id, orderNumber, total: normalized.total },
     });
 
     await applyStockDeltas(

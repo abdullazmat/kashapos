@@ -89,7 +89,7 @@ function withRequestHeaders(
 
 
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const originalPathname = request.nextUrl.pathname;
   const isV1Route = originalPathname.startsWith("/api/v1/");
   const pathname = originalPathname.startsWith("/api/v1/")

@@ -15,6 +15,10 @@ function sanitizeSettingsForClient(settings: unknown) {
     ...source,
     emailApiKey: source.emailApiKey ? "********" : "",
     emailSmtpPassword: source.emailSmtpPassword ? "********" : "",
+    siliconPayEncryptionKey: source.siliconPayEncryptionKey ? "********" : "",
+    twilioApiSecret: source.twilioApiSecret ? "********" : "",
+    pesapalConsumerSecret: source.pesapalConsumerSecret ? "********" : "",
+    atApiKey: source.atApiKey ? "********" : "",
   };
 }
 

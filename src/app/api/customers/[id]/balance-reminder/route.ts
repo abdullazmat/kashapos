@@ -5,6 +5,7 @@ import Sale from "@/models/Sale";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import { sendTenantEmail } from "@/lib/mailer";
 import { prepareBalanceReminderEmail } from "@/lib/manual-email-rules";
+import { twilioService } from "@/lib/twilio";
 
 export async function POST(
   request: NextRequest,
@@ -52,12 +53,25 @@ export async function POST(
 
     await sendTenantEmail(prepared.email);
 
+    // Send SMS if phone exists
+    let smsSent = false;
+    if (customer.phone) {
+      try {
+        const message = `Hello ${customer.name}, you have an outstanding balance of UGX ${Number(customer.outstandingBalance || 0).toLocaleString()}. Please settle your bills. Thank you.`;
+        await twilioService.sendSMS(customer.phone, message);
+        smsSent = true;
+      } catch (smsError) {
+        console.error("Failed to send balance reminder SMS:", smsError);
+      }
+    }
+
     return apiSuccess({
       ok: true,
-      message: "Balance reminder email sent",
+      message: smsSent ? "Balance reminder email and SMS sent" : "Balance reminder email sent",
       customer: {
         _id: String(customer._id),
       },
+      smsSent,
     });
   } catch (error) {
     console.error("Manual balance reminder send error:", error);

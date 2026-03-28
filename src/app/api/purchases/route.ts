@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import PurchaseOrder from "@/models/PurchaseOrder";
 import Product from "@/models/Product";
+import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import { applyStockUpdate } from "@/lib/stock-service";
 
@@ -212,6 +213,17 @@ export async function POST(request: NextRequest) {
       tenantId: auth.tenantId,
       orderNumber,
       createdBy: auth.userId,
+    });
+
+    // Log activity
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "create",
+      module: "purchases",
+      description: `Created purchase order ${orderNumber} for ${normalized.total.toLocaleString()}`,
+      metadata: { purchaseId: order._id, orderNumber, total: normalized.total },
     });
 
     if (normalized.status === "received") {

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Expense from "@/models/Expense";
+import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -70,6 +71,17 @@ export async function POST(request: NextRequest) {
       createdBy: auth.userId,
     });
 
+    // Log activity
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "create",
+      module: "expenses",
+      description: `Recorded expense: ${expense.description} for ${expense.amount.toLocaleString()}`,
+      metadata: { expenseId: expense._id, amount: expense.amount },
+    });
+
     return apiSuccess(expense, 201);
   } catch (error) {
     console.error("Expenses POST error:", error);
@@ -91,6 +103,17 @@ export async function DELETE(request: NextRequest) {
       tenantId: auth.tenantId,
     });
     if (!expense) return apiError("Expense not found", 404);
+
+    // Log activity
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "delete",
+      module: "expenses",
+      description: `Deleted expense: ${expense.description} of ${expense.amount?.toLocaleString()}`,
+      metadata: { expenseId: expense._id, amount: expense.amount },
+    });
 
     return apiSuccess({ message: "Expense deleted" });
   } catch (error) {

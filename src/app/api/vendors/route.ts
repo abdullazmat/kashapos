@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Vendor from "@/models/Vendor";
+import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -25,6 +26,18 @@ export async function POST(request: NextRequest) {
       return apiError("Insufficient permissions", 403);
     const body = await request.json();
     const vendor = await Vendor.create({ ...body, tenantId: auth.tenantId });
+
+    // Log activity
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "create",
+      module: "vendors",
+      description: `Created vendor: ${vendor.name}`,
+      metadata: { vendorId: vendor._id },
+    });
+
     return apiSuccess(vendor, 201);
   } catch (error) {
     console.error("Vendors POST error:", error);
@@ -47,6 +60,18 @@ export async function PUT(request: NextRequest) {
       { new: true },
     );
     if (!vendor) return apiError("Vendor not found", 404);
+
+    // Log activity
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "update",
+      module: "vendors",
+      description: `Updated vendor: ${vendor.name}`,
+      metadata: { vendorId: vendor._id },
+    });
+
     return apiSuccess(vendor);
   } catch (error) {
     console.error("Vendors PUT error:", error);
@@ -63,7 +88,24 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) return apiError("Vendor ID is required", 400);
-    await Vendor.findOneAndDelete({ _id: id, tenantId: auth.tenantId });
+    const vendor = await Vendor.findOneAndDelete({
+      _id: id,
+      tenantId: auth.tenantId,
+    });
+
+    if (vendor) {
+      // Log activity
+      await ActivityLog.create({
+        tenantId: auth.tenantId,
+        userId: auth.userId,
+        userName: auth.name || "Unknown",
+        action: "delete",
+        module: "vendors",
+        description: `Deleted vendor: ${vendor.name}`,
+        metadata: { vendorId: vendor._id },
+      });
+    }
+
     return apiSuccess({ message: "Vendor deleted" });
   } catch (error) {
     console.error("Vendors DELETE error:", error);

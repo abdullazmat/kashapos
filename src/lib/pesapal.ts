@@ -21,34 +21,78 @@ export interface PesapalIpnResponse {
 }
 
 export class PesapalService {
-  private static async getAuthToken(): Promise<string> {
-    const response = await fetch(`${PESAPAL_URL}/Auth/RequestToken`, {
+  private static async getAuthToken(credentials?: {
+    pesapalConsumerKey?: string;
+    pesapalConsumerSecret?: string;
+  }): Promise<string> {
+    const key = ((credentials?.pesapalConsumerKey && credentials.pesapalConsumerKey !== "********") ? credentials.pesapalConsumerKey : CONSUMER_KEY).trim();
+    const secret = ((credentials?.pesapalConsumerSecret && credentials.pesapalConsumerSecret !== "********") ? credentials.pesapalConsumerSecret : CONSUMER_SECRET).trim();
+
+    const url = PESAPAL_URL.replace(/\/$/, "") + "/Auth/RequestToken";
+    
+    console.log("Pesapal Token Request:", {
+      url,
+      consumer_key: key
+    });
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
       body: JSON.stringify({
-        consumer_key: CONSUMER_KEY,
-        consumer_secret: CONSUMER_SECRET,
+        consumer_key: key,
+        consumer_secret: secret,
       }),
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Pesapal Auth Failed: ${JSON.stringify(error)}`);
+      const err = await response.text();
+      console.error("Pesapal Auth Error Response:", err);
+      throw new Error(`Pesapal Auth Failed: ${err}`);
     }
 
-    const data: PesapalAuthResponse = await response.json();
-    return data.token;
+    const data: any = await response.json();
+    console.log("Pesapal Token Response Body:", JSON.stringify(data));
+    
+    // Some APIs (like Pesapal) might return HTTP 200 but an error INSIDE the JSON
+    if (data.status && String(data.status) !== "200") {
+      const errMsg = data.error?.message || data.message || "Unknown Pesapal API error";
+      const errCode = data.error?.code || data.code || "unknown_error";
+      throw new Error(`Pesapal API Error (${data.status}): ${errCode} - ${errMsg}`);
+    }
+
+    // Some versions or variants might use token, access_token, or CaseVariations
+    const token = data.token || data.access_token || data.Token || data.Access_token || data.AccessToken;
+    
+    if (!token) {
+       throw new Error(`Pesapal Authentication Failed: No token present in response. ${JSON.stringify(data)}`);
+    }
+
+    return token;
   }
 
   /**
    * Registers a URL for Instant Payment Notifications (IPN)
    */
-  static async registerIpn(callbackUrl: string): Promise<string> {
-    const token = await this.getAuthToken();
-    const response = await fetch(`${PESAPAL_URL}/URLRegister/RegisterIPN`, {
+  static async registerIpn(
+    callbackUrl: string,
+    credentials?: any,
+  ): Promise<string> {
+    const token = await this.getAuthToken(credentials);
+    
+    if (!token) {
+      throw new Error("Pesapal Auth Failed: No token received from provider");
+    }
+
+    const url = PESAPAL_URL.replace(/\/$/, "") + "/URLSetup/RegisterIPN";
+    console.log("Pesapal IPN Register Request:", {
+      url,
+      token: token.substring(0, 10) + "..."
+    });
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -62,8 +106,14 @@ export class PesapalService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Pesapal IPN Registration Failed: ${JSON.stringify(error)}`);
+      const errText = await response.text();
+      console.error("Pesapal IPN Register Error Response:", errText);
+      try {
+        const error = JSON.parse(errText);
+        throw new Error(`Pesapal IPN Registration Failed: ${JSON.stringify(error)}`);
+      } catch {
+        throw new Error(`Pesapal IPN Registration Failed: ${errText}`);
+      }
     }
 
     const data: PesapalIpnResponse = await response.json();
@@ -73,20 +123,23 @@ export class PesapalService {
   /**
    * Initiates a payment request
    */
-  static async submitOrderRequest(orderData: {
-    id: string;
-    amount: number;
-    description: string;
-    callback_url: string;
-    notification_id: string;
-    billing_address: {
-      email_address: string;
-      phone_number?: string;
-      first_name?: string;
-      last_name?: string;
-    };
-  }) {
-    const token = await this.getAuthToken();
+  static async submitOrderRequest(
+    orderData: {
+      id: string;
+      amount: number;
+      description: string;
+      callback_url: string;
+      notification_id: string;
+      billing_address: {
+        email_address: string;
+        phone_number?: string;
+        first_name?: string;
+        last_name?: string;
+      };
+    },
+    credentials?: any,
+  ) {
+    const token = await this.getAuthToken(credentials);
     const response = await fetch(`${PESAPAL_URL}/Transactions/SubmitOrderRequest`, {
       method: "POST",
       headers: {

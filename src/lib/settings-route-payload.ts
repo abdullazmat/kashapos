@@ -98,6 +98,17 @@ const stringFields = [
   "barcodeDefaultPaperSize",
   "barcodeDefaultPrinterType",
   "barcodeDefaultFontSize",
+  "siliconPayPublicKey",
+  "siliconPayEncryptionKey",
+  "twilioAccountSid",
+  "twilioApiKey",
+  "twilioApiSecret",
+  "twilioWhatsAppNumber",
+  "twilioSmsNumber",
+  "pesapalConsumerKey",
+  "pesapalConsumerSecret",
+  "atUsername",
+  "atApiKey",
 ] as const;
 
 const numberFields = [
@@ -159,7 +170,16 @@ export function buildAllowedSettingsUpdate(
       const trimmed = body[field].trim();
 
       // Secret-like settings are encrypted at rest before persistence.
-      if (field === "emailApiKey" || field === "emailSmtpPassword") {
+      const sensitiveFields = [
+        "emailApiKey",
+        "emailSmtpPassword",
+        "siliconPayEncryptionKey",
+        "twilioApiSecret",
+        "pesapalConsumerSecret",
+        "atApiKey",
+      ];
+
+      if (sensitiveFields.includes(field)) {
         if (!trimmed || trimmed === "********") {
           continue;
         }

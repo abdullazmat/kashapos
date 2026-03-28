@@ -18,6 +18,8 @@ import {
   Zap,
   FileText,
 } from "lucide-react";
+import toast from "react-hot-toast";
+import { useEffect } from "react";
 
 interface Integration {
   id: string;
@@ -91,7 +93,31 @@ const defaultIntegrations: Integration[] = [
     status: "active",
     popular: true,
   },
+  {
+    id: "silicon-pay",
+    name: "Silicon Pay",
+    description: "Accept Mobile Money payments in Uganda via Silicon Pay API",
+    category: "Payment",
+    icon: Smartphone,
+    color: "text-orange-600",
+    bgColor: "bg-orange-50",
+    connected: true,
+    status: "active",
+    popular: true,
+  },
   // Communication
+  {
+    id: "email-resend",
+    name: "Resend Email",
+    description: "Send professional emails via Resend API",
+    category: "Communication",
+    icon: Mail,
+    color: "text-gray-900",
+    bgColor: "bg-gray-100",
+    connected: true,
+    status: "active",
+    popular: true,
+  },
   {
     id: "email-smtp",
     name: "Email (SMTP)",
@@ -105,26 +131,38 @@ const defaultIntegrations: Integration[] = [
   },
   {
     id: "whatsapp",
-    name: "WhatsApp Business",
-    description: "Send receipts and notifications on WhatsApp",
+    name: "WhatsApp Business (Twilio)",
+    description: "Send receipts and notifications on WhatsApp via Twilio",
     category: "Communication",
     icon: MessageSquare,
     color: "text-green-600",
     bgColor: "bg-green-50",
-    connected: false,
-    status: "coming_soon",
+    connected: true,
+    status: "active",
     popular: true,
   },
   {
     id: "sms",
-    name: "SMS Gateway",
-    description: "Bulk SMS for promotions and receipts",
+    name: "SMS Gateway (Twilio)",
+    description: "Bulk SMS for promotions and receipts via Twilio",
     category: "Communication",
     icon: MessageSquare,
     color: "text-purple-600",
     bgColor: "bg-purple-50",
-    connected: false,
-    status: "coming_soon",
+    connected: true,
+    status: "active",
+  },
+  {
+    id: "at-sms",
+    name: "Africa's Talking SMS",
+    description: "Send SMS notifications and receipts via Africa's Talking",
+    category: "Communication",
+    icon: Smartphone,
+    color: "text-blue-600",
+    bgColor: "bg-blue-50",
+    connected: true,
+    status: "active",
+    popular: true,
   },
   // E-Commerce
   {
@@ -197,6 +235,103 @@ export default function IntegrationsPage() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedIntegration, setSelectedIntegration] =
     useState<Integration | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  const [settings, setSettings] = useState<any>({});
+  const [formValues, setFormValues] = useState<any>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (res.ok) {
+        const s = (data.data?.settings || data.settings || data) || {};
+        setSettings(s);
+        setFormValues(s);
+
+        // Update connected status based on settings
+        setIntegrations((prev) =>
+          prev.map((i) => {
+            let isConnected = i.connected;
+            if (i.id === "silicon-pay") isConnected = !!s.siliconPayPublicKey;
+            if (i.id === "pesapal") isConnected = !!s.pesapalConsumerKey;
+            if (i.id === "sms" || i.id === "whatsapp")
+              isConnected = !!s.twilioAccountSid;
+            if (i.id === "email-resend") isConnected = !!s.emailApiKey;
+
+            return {
+              ...i,
+              connected: isConnected,
+              status:
+                isConnected ? "active"
+                : i.status === "coming_soon" ? "coming_soon"
+                : "inactive",
+            };
+          }),
+        );
+      }
+    } catch (err) {
+      console.error("Failed to fetch settings:", err);
+    }
+  };
+
+  const testConnection = async (id: string) => {
+    setTesting(true);
+    setTestResult(null);
+    const toastId = toast.loading(`Testing ${id} connection...`);
+    try {
+      let type = id;
+      // Map frontend IDs to backend test types if different
+      if (id === "at-sms") type = "at_sms";
+      if (id === "sms") type = "twilio_sms";
+      if (id === "whatsapp") type = "twilio_whatsapp";
+      if (id === "email-resend") type = "email_resend";
+      if (id === "email-smtp") type = "email_smtp";
+      if (id === "mtn-momo" || id === "airtel-money") type = "silicon-pay";
+
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const testPayload = { ...formValues } as any;
+
+      if (type === "pesapal") {
+        testPayload.callbackUrl = `${baseUrl}/api/integrations/pesapal/callback`;
+      } else if (type === "silicon-pay") {
+        testPayload.callbackUrl = `${baseUrl}/api/integrations/silicon-pay/callback`;
+      }
+
+      const res = await fetch("/api/settings/integrations/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, payload: testPayload }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTestResult({ success: true, message: "Connection successful!" });
+        toast.success("Connection successful!", { id: toastId });
+      } else {
+        const errorMsg = data.error || data.message || "Connection failed";
+        // Strip HTML if present
+        const cleanError = errorMsg.replace(/<[^>]*>/g, "").trim();
+        setTestResult({
+          success: false,
+          message: errorMsg,
+        });
+        toast.error(cleanError.substring(0, 500), { id: toastId });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.message });
+      toast.error(err.message, { id: toastId });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const categories = [
     "all",
@@ -216,10 +351,14 @@ export default function IntegrationsPage() {
 
   const openConfig = (integration: Integration) => {
     setSelectedIntegration(integration);
+    setTestResult(null);
     setShowConfigModal(true);
   };
 
   const toggleConnect = (id: string) => {
+    const integration = integrations.find((i) => i.id === id);
+    const action = integration?.connected ? "Disconnected" : "Connected";
+
     setIntegrations((prev) =>
       prev.map((i) =>
         i.id === id
@@ -232,6 +371,31 @@ export default function IntegrationsPage() {
       ),
     );
     setShowConfigModal(false);
+    toast.success(`${integration?.name} ${action} successfully`);
+  };
+
+  const handleSaveSettings = async (id: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formValues),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSettings(data.data?.settings || data.settings || data);
+        toast.success(`Settings saved successfully`);
+        setShowConfigModal(false);
+      } else {
+        toast.error(data.error || data.message || "Failed to save settings");
+        console.error("Save Error:", data.error || data.message);
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -428,50 +592,367 @@ export default function IntegrationsPage() {
               </div>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  API Key
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter your API key"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  API Secret
-                </label>
-                <input
-                  type="password"
-                  placeholder="Enter your API secret"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Webhook URL (optional)
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
+              {/* Dynamic form fields based on integration ID */}
+              {(selectedIntegration.id === "silicon-pay" ||
+                selectedIntegration.id === "mtn-momo" ||
+                selectedIntegration.id === "airtel-money") && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Public Key
+                    </label>
+                    <input
+                      type="text"
+                      name="siliconPayPublicKey"
+                      value={formValues.siliconPayPublicKey || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          siliconPayPublicKey: e.target.value,
+                        })
+                      }
+                      placeholder="Enter your Silicon Pay Public Key"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Encryption Key
+                    </label>
+                    <input
+                      type="password"
+                      name="siliconPayEncryptionKey"
+                      value={formValues.siliconPayEncryptionKey || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          siliconPayEncryptionKey: e.target.value,
+                        })
+                      }
+                      placeholder="********"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {selectedIntegration.id === "pesapal" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Consumer Key
+                    </label>
+                    <input
+                      type="text"
+                      name="pesapalConsumerKey"
+                      value={formValues.pesapalConsumerKey || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          pesapalConsumerKey: e.target.value,
+                        })
+                      }
+                      placeholder="Enter your Pesapal Consumer Key"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Consumer Secret
+                    </label>
+                    <input
+                      type="password"
+                      name="pesapalConsumerSecret"
+                      value={formValues.pesapalConsumerSecret || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          pesapalConsumerSecret: e.target.value,
+                        })
+                      }
+                      placeholder="********"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {(selectedIntegration.id === "sms" ||
+                selectedIntegration.id === "whatsapp") && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Account SID
+                    </label>
+                    <input
+                      type="text"
+                      name="twilioAccountSid"
+                      value={formValues.twilioAccountSid || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          twilioAccountSid: e.target.value,
+                        })
+                      }
+                      placeholder="AC..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      API Secret
+                    </label>
+                    <input
+                      type="password"
+                      name="twilioApiSecret"
+                      value={formValues.twilioApiSecret || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          twilioApiSecret: e.target.value,
+                        })
+                      }
+                      placeholder="********"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {selectedIntegration.id === "email-resend" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    API Key
+                  </label>
+                  <input
+                    type="password"
+                    name="emailApiKey"
+                    value={formValues.emailApiKey || ""}
+                    onChange={(e) =>
+                      setFormValues({
+                        ...formValues,
+                        emailApiKey: e.target.value,
+                      })
+                    }
+                    placeholder="re_..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              )}
+
+              {selectedIntegration.id === "email-smtp" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SMTP Host
+                    </label>
+                    <input
+                      type="text"
+                      name="emailSmtpHost"
+                      value={formValues.emailSmtpHost || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          emailSmtpHost: e.target.value,
+                        })
+                      }
+                      placeholder="smtp.example.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        SMTP Port
+                      </label>
+                      <input
+                        type="number"
+                        name="emailSmtpPort"
+                        value={formValues.emailSmtpPort || 587}
+                        onChange={(e) =>
+                          setFormValues({
+                            ...formValues,
+                            emailSmtpPort: parseInt(e.target.value),
+                          })
+                        }
+                        placeholder="587"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        SMTP User
+                      </label>
+                      <input
+                        type="text"
+                        name="emailSmtpUser"
+                        value={formValues.emailSmtpUser || ""}
+                        onChange={(e) =>
+                          setFormValues({
+                            ...formValues,
+                            emailSmtpUser: e.target.value,
+                          })
+                        }
+                        placeholder="user@example.com"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SMTP Password
+                    </label>
+                    <input
+                      type="password"
+                      name="emailSmtpPassword"
+                      value={formValues.emailSmtpPassword || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          emailSmtpPassword: e.target.value,
+                        })
+                      }
+                      placeholder="********"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {(selectedIntegration.id === "email-resend" ||
+                selectedIntegration.id === "email-smtp") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Test Recipient Email
+                  </label>
+                  <input
+                    type="email"
+                    name="testEmail"
+                    value={formValues.testEmail || ""}
+                    onChange={(e) =>
+                      setFormValues({
+                        ...formValues,
+                        testEmail: e.target.value,
+                      })
+                    }
+                    placeholder="you@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">For testing email delivery</p>
+                </div>
+              )}
+
+              {selectedIntegration.id === "at-sms" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      name="atUsername"
+                      value={formValues.atUsername || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          atUsername: e.target.value,
+                        })
+                      }
+                      placeholder="Enter AT Username"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      API Key
+                    </label>
+                    <input
+                      type="password"
+                      name="atApiKey"
+                      value={formValues.atApiKey || ""}
+                      onChange={(e) =>
+                        setFormValues({
+                          ...formValues,
+                          atApiKey: e.target.value,
+                        })
+                      }
+                      placeholder="********"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {(selectedIntegration.id === "sms" ||
+                selectedIntegration.id === "whatsapp" ||
+                selectedIntegration.id === "at-sms" ||
+                selectedIntegration.id === "silicon-pay") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Test Phone Number
+                  </label>
+                  <input
+                    type="text"
+                    name="phoneNumber"
+                    value={formValues.phoneNumber || ""}
+                    onChange={(e) =>
+                      setFormValues({
+                        ...formValues,
+                        phoneNumber: e.target.value,
+                      })
+                    }
+                    placeholder="+256..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">For testing SMS/WhatsApp delivery</p>
+                </div>
+              )}
+
+              {!["silicon-pay", "pesapal", "sms", "whatsapp", "email-resend", "at-sms", "mtn-momo", "airtel-money"].includes(selectedIntegration.id) && (
+                <p className="text-sm text-gray-500 italic">No configuration fields available for this integration.</p>
+              )}
             </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowConfigModal(false)}
-                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            {testResult && (
+              <div
+                className={`mt-4 p-3 rounded-lg text-sm break-words max-h-40 overflow-auto ${
+                  testResult.success
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-700 border border-red-200"
+                }`}
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => toggleConnect(selectedIntegration.id)}
-                className="px-4 py-2 text-sm text-white bg-orange-600 rounded-lg hover:bg-orange-700"
-              >
-                {selectedIntegration.connected ? "Save Changes" : "Connect"}
-              </button>
+                {testResult.message.replace(/<[^>]*>/g, "").trim()}
+              </div>
+            )}
+            <div className="flex justify-between items-center mt-6">
+              <div>
+                {selectedIntegration.status !== "coming_soon" && (
+                  <button
+                    onClick={() => testConnection(selectedIntegration.id)}
+                    disabled={testing}
+                    className="px-4 py-2 text-sm font-medium text-orange-600 bg-orange-50 rounded-lg hover:bg-orange-100 disabled:opacity-50"
+                  >
+                    {testing ? "Testing..." : "Test Connection"}
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConfigModal(false)}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() =>
+                    selectedIntegration.connected
+                      ? handleSaveSettings(selectedIntegration.id)
+                      : toggleConnect(selectedIntegration.id)
+                  }
+                  className="px-4 py-2 text-sm text-white bg-orange-600 rounded-lg hover:bg-orange-700"
+                >
+                  {selectedIntegration.connected ? "Save Changes" : "Connect"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
