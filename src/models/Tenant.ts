@@ -161,7 +161,7 @@ export interface ITenant extends Document {
   phone: string;
   address: string;
   logo?: string;
-  plan: "basic" | "professional" | "enterprise";
+  plan: "basic" | "premium" | "professional" | "corporate" | "enterprise";
   planExpiry: Date;
   isActive: boolean;
   settings: ITenantSettings;
@@ -180,7 +180,7 @@ const TenantSchema = new Schema<ITenant>(
     logo: { type: String },
     plan: {
       type: String,
-      enum: ["basic", "professional", "enterprise"],
+      enum: ["basic", "premium", "professional", "corporate", "enterprise"],
       default: "basic",
     },
     planExpiry: {

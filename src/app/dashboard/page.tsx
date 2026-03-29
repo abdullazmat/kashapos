@@ -81,13 +81,21 @@ const formatChartLabel = (key: string, period: TimePeriod) => {
 
 interface DashboardData {
   summary: {
-    todaySales: number;
-    salesGrowth: number;
-    todayOrders: number;
-    ordersGrowth: number;
+    salesTotal: number;
+    purchasesTotal: number;
+    expensesTotal: number;
+    cogsTotal: number;
+    stockValue: number;
+    creditBalance: number;
+    grossProfit: number;
+    netProfit: number;
     totalStock: number;
     totalCustomers: number;
     totalProducts: number;
+    todaySales: number;
+    todayOrders: number;
+    salesGrowth: number;
+    ordersGrowth: number;
   };
   weeklySales: { _id: string; total: number; count: number }[];
   lowStockAlerts: {
@@ -251,36 +259,68 @@ export default function DashboardPage() {
 
   const summaryCards = [
     {
-      title: "Revenue",
-      value: formatCurrency(data?.summary.todaySales || 0, currency),
-      growth: data?.summary.salesGrowth || 0,
+      title: "Sales Total",
+      value: formatCurrency(data?.summary.salesTotal || 0, currency),
       icon: DollarSign,
-      gradient: "from-orange-500 to-amber-600",
-      shadow: "shadow-orange-500/20",
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+      border: "border-emerald-100",
     },
     {
-      title: "Orders",
-      value: String(data?.summary.todayOrders || 0),
-      growth: data?.summary.ordersGrowth || 0,
+      title: "Purchases Total",
+      value: formatCurrency(data?.summary.purchasesTotal || 0, currency),
       icon: ShoppingCart,
-      gradient: "from-blue-500 to-indigo-600",
-      shadow: "shadow-blue-500/20",
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      border: "border-blue-100",
     },
     {
-      title: "Stock",
-      value: (data?.summary.totalStock || 0).toLocaleString(),
-      growth: 0,
+      title: "Profit Total",
+      value: formatCurrency(data?.summary.netProfit || 0, currency),
+      icon: TrendingUp,
+      color: "text-green-600",
+      bg: "bg-green-50",
+      border: "border-green-100",
+    },
+    {
+      title: "Gross Profit",
+      value: formatCurrency(data?.summary.grossProfit || 0, currency),
+      icon: Activity,
+      color: "text-teal-600",
+      bg: "bg-teal-50",
+      border: "border-teal-100",
+    },
+    {
+      title: "Expenses Total",
+      value: formatCurrency(data?.summary.expensesTotal || 0, currency),
+      icon: TrendingDown,
+      color: "text-rose-600",
+      bg: "bg-rose-50",
+      border: "border-rose-100",
+    },
+    {
+      title: "Stock Value",
+      value: formatCurrency(data?.summary.stockValue || 0, currency),
       icon: Package,
-      gradient: "from-amber-500 to-orange-600",
-      shadow: "shadow-amber-500/20",
+      color: "text-purple-600",
+      bg: "bg-purple-50",
+      border: "border-purple-100",
     },
     {
-      title: "Customers",
-      value: String(data?.summary.totalCustomers || 0),
-      growth: 0,
-      icon: Users,
-      gradient: "from-violet-500 to-purple-600",
-      shadow: "shadow-violet-500/20",
+      title: "Credit Balance",
+      value: formatCurrency(data?.summary.creditBalance || 0, currency),
+      icon: CreditCard,
+      color: "text-amber-600",
+      bg: "bg-amber-50",
+      border: "border-amber-100",
+    },
+    {
+      title: "Cost of Goods Sold",
+      value: formatCurrency(data?.summary.cogsTotal || 0, currency),
+      icon: BarChart3,
+      color: "text-slate-600",
+      bg: "bg-slate-50",
+      border: "border-slate-100",
     },
   ];
 
@@ -328,48 +368,30 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {summaryCards.map((card, i) => (
           <div
             key={i}
-            className="group relative bg-white rounded-2xl border border-gray-100 p-4 md:p-5 hover:shadow-lg transition-all duration-300 overflow-hidden"
+            className={`bg-white rounded-2xl border ${card.border} p-5 hover:shadow-md transition-all duration-300`}
           >
-            <div className="absolute top-0 right-0 w-16 h-16 -mr-4 -mt-4 opacity-[0.05]">
-              <div
-                className={`w-full h-full rounded-full bg-gradient-to-br ${card.gradient}`}
-              />
+            <div className="flex items-center justify-between mb-4">
+              <div className={`w-10 h-10 ${card.bg} rounded-xl flex items-center justify-center`}>
+                <card.icon className={`w-5 h-5 ${card.color}`} />
+              </div>
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest hidden md:block">Real-time</span>
             </div>
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between relative gap-2">
-              <div>
-                <p className="text-[11px] md:text-[13px] font-medium text-gray-500 uppercase tracking-wider">
-                  {card.title}
-                </p>
-                {loading ? (
-                  <div className="h-6 md:h-8 w-20 md:w-28 bg-gray-100 rounded-lg animate-pulse mt-2" />
-                ) : (
-                  <p className="text-lg md:text-2xl font-bold text-gray-900 mt-0.5 md:mt-1 tracking-tight truncate">
-                    {card.value}
-                  </p>
-                )}
-              </div>
-              <div
-                className={`w-9 h-9 md:w-11 md:h-11 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-lg shrink-0`}
-              >
-                <card.icon className="w-4 h-4 md:w-5 md:h-5 text-white" />
-              </div>
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">{card.title}</p>
+              {loading ? (
+                <div className="h-7 w-32 bg-slate-50 rounded-lg animate-pulse" />
+              ) : (
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">{card.value}</h3>
+              )}
             </div>
-            {card.growth !== 0 && !loading && (
-              <div
-                className={`inline-flex items-center gap-1 mt-3 px-2 py-0.5 rounded-full text-[10px] md:text-xs font-medium ${card.growth > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
-              >
-                {card.growth > 0 ? (
-                  <TrendingUp className="w-2.5 h-2.5" />
-                ) : (
-                  <TrendingDown className="w-2.5 h-2.5" />
-                )}
-                {Math.abs(card.growth)}%
-              </div>
-            )}
+            <div className="mt-4 flex items-center gap-2">
+               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Insight</span>
+            </div>
           </div>
         ))}
       </div>

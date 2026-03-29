@@ -76,9 +76,11 @@ export async function POST(request: NextRequest) {
       });
       if (res && 'mock' in res && res.mock) isMock = true;
     } else if (method === "phone") {
-      await africasTalkingService.sendSMS(identifier, `Your Meka PoS verification code is: ${otp}`);
+      const result = await africasTalkingService.sendSMS(identifier, `Your Meka PoS verification code is: ${otp}`);
+      if (!result.success) isMock = true;
     } else if (method === "whatsapp") {
-      await twilioService.sendWhatsApp(identifier, `Your Meka PoS verification code is: ${otp}`);
+      const result = await twilioService.sendWhatsApp(identifier, `Your Meka PoS verification code is: ${otp}`);
+      if (!result.success) isMock = true;
     } else {
       return apiError("Invalid method", 400);
     }

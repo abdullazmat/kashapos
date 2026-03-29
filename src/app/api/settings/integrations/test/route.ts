@@ -48,6 +48,15 @@ export async function POST(req: NextRequest) {
       return apiSuccess(result);
     }
 
+    if (type === "at_balance") {
+        try {
+            const balance = await africasTalkingService.getBalance(payload);
+            return apiSuccess({ success: true, balance, message: `Current Balance: ${balance}` });
+        } catch (err: any) {
+            return apiError(`Failed to fetch AT balance: ${err.message}`);
+        }
+    }
+
     if (type === "pesapal") {
       // Test Pesapal IPN registration or auth
       try {

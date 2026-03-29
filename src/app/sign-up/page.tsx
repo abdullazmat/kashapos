@@ -19,7 +19,8 @@ function validateEmail(email: string) {
 }
 
 function validatePhone(phone: string) {
-  return /^\+?[1-9]\d{6,14}$/.test(phone.replace(/[\s\-()]/g, ""));
+  const clean = phone.replace(/[\s\-()]/g, "");
+  return /^(\+?[0-9]{7,15})$/.test(clean);
 }
 
 export default function SignUpPage() {
@@ -87,7 +88,10 @@ export default function SignUpPage() {
     e.preventDefault();
     setError("");
 
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      setError("Please fix the errors in the form below.");
+      return;
+    }
 
     setLoading(true);
 
@@ -210,13 +214,13 @@ export default function SignUpPage() {
             <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
               <ShoppingCart className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white">Meka PoS</span>
+            <span className="text-2xl font-bold text-white">KashaPOS</span>
           </div>
           <h2 className="text-3xl font-bold text-white mb-4">
             Start managing your business today
           </h2>
           <p className="text-orange-100 text-lg mb-8">
-            Join hundreds of businesses using Meka PoS to grow their operations.
+            Join hundreds of businesses using KashaPOS to grow their operations.
           </p>
           <div className="space-y-4">
             {[
@@ -236,7 +240,7 @@ export default function SignUpPage() {
         <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-orange-400 rounded-full opacity-30" />
         <div className="absolute -top-10 -left-10 w-40 h-40 bg-orange-600 rounded-full opacity-20" />
       </div>
-
+ 
       {/* Right side - form */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
@@ -245,7 +249,7 @@ export default function SignUpPage() {
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <ShoppingCart className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">Meka PoS</span>
+              <span className="text-2xl font-bold text-gray-900">KashaPOS</span>
             </Link>
           </div>
           <div className="hidden lg:block mb-6">

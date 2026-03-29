@@ -1123,13 +1123,7 @@ export default function POSTerminalPage() {
     0,
     projectedCreditBalance - selectedCustomerCreditLimit,
   );
-  const availablePaymentOptions = useMemo(
-    () =>
-      isWalkInCustomer
-        ? PAYMENT_OPTIONS.filter((option) => option.key !== "credit")
-        : PAYMENT_OPTIONS,
-    [isWalkInCustomer],
-  );
+  const availablePaymentOptions = PAYMENT_OPTIONS;
 
   if (loading) {
     return (

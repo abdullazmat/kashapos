@@ -74,6 +74,28 @@ class AfricasTalkingService {
       throw new Error(`Africa's Talking SMS failed: ${error.message || JSON.stringify(error)}`);
     }
   }
+
+  async getBalance(credentials?: any) {
+    const username = (credentials?.atUsername && credentials.atUsername !== "********") ? credentials.atUsername : AT_USERNAME;
+    const apiKey = (credentials?.atApiKey && credentials.atApiKey !== "********") ? credentials.atApiKey : AT_API_KEY;
+    
+    if (username && apiKey) {
+        try {
+            const africastalking = require('africastalking');
+            const at = africastalking({
+                apiKey: apiKey,
+                username: username,
+            });
+            const data = await at.APPLICATION.fetchApplicationData();
+            console.log("[Africa's Talking Application Data]:", JSON.stringify(data, null, 2));
+            return data.UserData.balance;
+        } catch (error: any) {
+            console.error("Failed to fetch Africa's Talking balance", error);
+            throw new Error(`Failed to fetch balance: ${error.message || JSON.stringify(error)}`);
+        }
+    }
+    throw new Error("Africa's Talking credentials not found");
+  }
 }
 
 export const africasTalkingService = new AfricasTalkingService();

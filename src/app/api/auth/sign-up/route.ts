@@ -92,10 +92,10 @@ export async function POST(request: NextRequest) {
         await sendTenantEmail({
           tenantId: tenant._id.toString(),
           to: email.toLowerCase(),
-          subject: "Verify your email - Meka PoS",
+          subject: "Verify your email - KashaPOS",
           html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>Welcome to Meka PoS!</h2>
+              <h2>Welcome to KashaPOS!</h2>
               <p>Thank you for signing up for a trial. Please verify your email to get started.</p>
               <a href="${verificationLink}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Verify Email</a>
               <p style="margin-top: 24px; color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>

@@ -934,6 +934,39 @@ export default function IntegrationsPage() {
                     {testing ? "Testing..." : "Test Connection"}
                   </button>
                 )}
+                {selectedIntegration.id === "at-sms" && (
+                  <button
+                    onClick={async () => {
+                      setTesting(true);
+                      setTestResult(null);
+                      const toastId = toast.loading("Checking balance...");
+                      try {
+                        const res = await fetch("/api/settings/integrations/test", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ type: "at_balance", payload: formValues }),
+                        });
+                        const data = await res.json();
+                        if (res.ok) {
+                          setTestResult({ success: true, message: data.message });
+                          toast.success(data.message, { id: toastId });
+                        } else {
+                          setTestResult({ success: false, message: data.error || data.message });
+                          toast.error(data.error || data.message, { id: toastId });
+                        }
+                      } catch (err: any) {
+                        setTestResult({ success: false, message: err.message });
+                        toast.error(err.message, { id: toastId });
+                      } finally {
+                        setTesting(false);
+                      }
+                    }}
+                    disabled={testing}
+                    className="ml-2 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-50"
+                  >
+                    Check Balance
+                  </button>
+                )}
               </div>
               <div className="flex gap-3">
                 <button

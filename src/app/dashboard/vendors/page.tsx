@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
+  FileText,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useSession } from "../layout";
@@ -596,38 +597,218 @@ export default function VendorsPage() {
 
       {/* TAB: Pay Suppliers */}
       {activeTab === "pay" && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {vendors.map((v) => (
-            <button
-              key={v._id}
-              onClick={() => {
-                setPayVendor(v);
-                setPayForm({
-                  amount: "",
-                  method: "bank",
-                  reference: "",
-                  notes: "",
-                });
-                setShowPayModal(true);
-              }}
-              className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-all hover:shadow-md hover:border-orange-200"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-amber-100">
-                <span className="text-sm font-bold text-orange-600">
-                  {v.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-800 truncate">{v.name}</p>
-                <p className="text-[12px] text-gray-400">
-                  {vendorsWithBalance.get(v._id)
-                    ? `Outstanding: ${formatCurrency(vendorsWithBalance.get(v._id)!, currency)}`
-                    : "No outstanding balance"}
-                </p>
-              </div>
-              <Wallet className="h-5 w-5 text-gray-300" />
-            </button>
-          ))}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Payment Form */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+               <div className="flex items-center gap-2 mb-6 border-b border-gray-50 pb-4">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+                    <CreditCard className="w-4 h-4 text-white" />
+                  </div>
+                  <h3 className="font-bold text-gray-800">Payment Information</h3>
+               </div>
+
+               {/* Recipient Card */}
+               {payVendor && (
+                  <div className="mb-6 p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center">
+                       <User className="w-6 h-6 text-slate-400" />
+                    </div>
+                    <div>
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payment Recipient</p>
+                       <h4 className="font-bold text-slate-700">{payVendor.name} • ID: {payVendor._id.slice(-5).toUpperCase()}</h4>
+                       <p className="text-xs text-slate-500">Contact: {payVendor.contactPerson || "N/A"}</p>
+                    </div>
+                  </div>
+               )}
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                      <User className="w-3 h-3" /> Select Supplier
+                    </label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      <input 
+                        className={`${inputClass} pl-10`}
+                        placeholder="Search supplier..."
+                        value={payVendor?.name || ""}
+                        readOnly={!!payVendor}
+                      />
+                      {payVendor && (
+                         <button 
+                          onClick={() => setPayVendor(null)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                        >
+                          <X className="w-4 h-4" />
+                         </button>
+                      )}
+                    </div>
+                    {!payVendor && (
+                      <div className="mt-2 max-h-40 overflow-y-auto border border-gray-100 rounded-xl bg-white shadow-lg">
+                        {vendors.slice(0, 5).map(v => (
+                          <button 
+                            key={v._id} 
+                            onClick={() => setPayVendor(v)}
+                            className="w-full text-left px-4 py-2 hover:bg-orange-50 text-sm border-b border-gray-50 last:border-0"
+                          >
+                            {v.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                      <DollarSign className="w-3 h-3" /> Amount ({currency})
+                    </label>
+                    <input 
+                      type="number"
+                      className={inputClass}
+                      placeholder="0.00"
+                      value={payForm.amount}
+                      onChange={(e) => setPayForm({...payForm, amount: e.target.value})}
+                    />
+                    {payForm.amount && (
+                       <div className="mt-2 p-2 rounded-lg bg-emerald-50 text-emerald-700 font-black text-xs">
+                          {formatCurrency(Number(payForm.amount), currency)}
+                       </div>
+                    )}
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                      <Wallet className="w-3 h-3" /> Payment Method
+                    </label>
+                    <select 
+                      className={inputClass}
+                      value={payForm.method}
+                      onChange={(e) => setPayForm({...payForm, method: e.target.value})}
+                    >
+                      <option value="cash">💵 Cash Payment</option>
+                      <option value="bank">🏦 Bank Transfer</option>
+                      <option value="mobile_money">📱 Mobile Money</option>
+                      <option value="check">✍️ Check / Draft</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                      # Reference (Optional)
+                    </label>
+                    <input 
+                      className={inputClass}
+                      placeholder="Transaction reference"
+                      value={payForm.reference}
+                      onChange={(e) => setPayForm({...payForm, reference: e.target.value})}
+                    />
+                  </div>
+               </div>
+
+               <div className="mt-6">
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                    <FileText className="w-3 h-3" /> Payment Notes (Optional)
+                  </label>
+                  <textarea 
+                    className={`${inputClass} h-24 resize-none`}
+                    placeholder="Add any additional notes about this payment..."
+                    value={payForm.notes}
+                    onChange={(e) => setPayForm({...payForm, notes: e.target.value})}
+                  />
+               </div>
+
+               <div className="mt-8 border-t border-gray-100 pt-6">
+                  <button 
+                    onClick={async () => {
+                      if (!payVendor || !payForm.amount) return;
+                      setLoading(true);
+                      try {
+                        const res = await fetch("/api/vendors/pay", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            vendorId: payVendor._id,
+                            ...payForm,
+                            amount: Number(payForm.amount)
+                          })
+                        });
+                        if (res.ok) {
+                          alert("Payment processed successfully!");
+                          setPayForm({ amount: "", method: "bank", reference: "", notes: "" });
+                          fetchVendors();
+                        }
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={!payVendor || !payForm.amount || loading}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-slate-900 py-4 text-white font-black uppercase tracking-widest text-sm hover:bg-slate-800 transition-all disabled:opacity-50 shadow-xl shadow-slate-900/10"
+                  >
+                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4 text-emerald-400" />}
+                    Process Payment
+                  </button>
+               </div>
+            </div>
+          </div>
+
+          {/* Sidebars */}
+          <div className="space-y-6">
+             {/* Payment Summary */}
+             <div className="rounded-2xl bg-emerald-700 p-6 text-white shadow-lg shadow-emerald-500/20">
+                <div className="flex items-center gap-2 mb-6">
+                  <DollarSign className="w-5 h-5 text-emerald-200" />
+                  <h3 className="font-bold">Payment Summary</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <span className="text-emerald-100 text-sm">Amount</span>
+                    <span className="text-xl font-black">{formatCurrency(Number(payForm.amount) || 0, currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-emerald-100 text-sm">Method</span>
+                    <span className="font-bold capitalize">{payForm.method.replace("_", " ")}</span>
+                  </div>
+                </div>
+             </div>
+
+             {/* Balance Summary */}
+             <div className="rounded-2xl bg-blue-600 p-6 text-white shadow-lg shadow-blue-500/20">
+                <div className="flex items-center gap-2 mb-6">
+                  <DollarSign className="w-5 h-5 text-blue-200" />
+                  <h3 className="font-bold">Supplier Balance Summary</h3>
+                </div>
+                <div className="space-y-3">
+                  <div className="bg-white/10 rounded-2xl p-4 border border-white/10 flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-black">1</div>
+                    <div>
+                      <p className="text-[10px] text-blue-100 font-bold uppercase tracking-wider">Outstanding Balance</p>
+                      <p className="text-lg font-black">{formatCurrency(vendorsWithBalance.get(payVendor?._id || "") || 0, currency)}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-orange-500/30 rounded-2xl p-4 border border-orange-500/20 flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-black italic">$</div>
+                    <div>
+                      <p className="text-[10px] text-orange-500 font-bold uppercase tracking-wider">Payment Amount</p>
+                      <p className="text-lg font-black italic">-{formatCurrency(Number(payForm.amount) || 0, currency)}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-500/30 rounded-2xl p-4 border border-emerald-500/20 flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-black italic">3</div>
+                    <div>
+                      <p className="text-[10px] text-emerald-100 font-bold uppercase tracking-wider">Remaining Balance</p>
+                      <p className="text-lg font-black">{formatCurrency(Math.max(0, (vendorsWithBalance.get(payVendor?._id || "") || 0) - (Number(payForm.amount) || 0)), currency)}</p>
+                    </div>
+                  </div>
+                </div>
+             </div>
+          </div>
         </div>
       )}
 

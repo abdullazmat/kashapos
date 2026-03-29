@@ -6,6 +6,8 @@ import Product from "@/models/Product";
 import Stock from "@/models/Stock";
 import Customer from "@/models/Customer";
 import Return from "@/models/Return";
+import PurchaseOrder from "@/models/PurchaseOrder";
+import Expense from "@/models/Expense";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -24,6 +26,7 @@ export async function GET(request: NextRequest) {
     let salesGroupFormat = "%Y-%m-%d";
 
     switch (period) {
+      case "day":
       case "today":
         startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
@@ -68,65 +71,106 @@ export async function GET(request: NextRequest) {
     const aggregateSalesQuery = branchObjectId
       ? { tenantId: tenantObjectId, branchId: branchObjectId }
       : aggregateTenantQuery;
-    const stockQuery = auth.branchId
-      ? { tenantId: auth.tenantId, branchId: auth.branchId }
-      : tenantQuery;
-    const aggregateStockQuery = branchObjectId
-      ? { tenantId: tenantObjectId, branchId: branchObjectId }
-      : aggregateTenantQuery;
 
-    // Today's stats
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const yesterdayStart = new Date(todayStart);
-    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-
+    // Financial Metrics Aggregation
     const [
-      todaySales,
-      yesterdaySales,
-      todayOrders,
-      yesterdayOrders,
-      totalStock,
+      salesStats,
+      purchasesStats,
+      expensesStats,
+      cogsStats,
+      stockValueStats,
+      customerDebtStats,
       totalCustomers,
+      totalProducts,
       weeklySales,
-      todayReturns,
-      yesterdayReturns,
+      lowStockData
     ] = await Promise.all([
+      // Sales Total
       Sale.aggregate([
-        {
-          $match: {
-            ...aggregateSalesQuery,
-            createdAt: { $gte: todayStart },
-            status: "completed",
-          },
+        { 
+          $match: { 
+            ...aggregateSalesQuery, 
+            createdAt: { $gte: startDate }, 
+            status: "completed" 
+          } 
         },
-        { $group: { _id: null, total: { $sum: "$total" } } },
+        { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }
       ]),
+      // Purchases Total
+      PurchaseOrder.aggregate([
+        { 
+          $match: { 
+            ...aggregateSalesQuery, 
+            createdAt: { $gte: startDate }, 
+            status: { $in: ["received", "partially_received", "billed"] } 
+          } 
+        },
+        { $group: { _id: null, total: { $sum: "$total" } } }
+      ]),
+      // Expenses Total
+      Expense.aggregate([
+        { 
+          $match: { 
+            ...aggregateSalesQuery, 
+            expenseDate: { $gte: startDate }, 
+            status: "paid" 
+          } 
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+      ]),
+      // COGS (Cost of Goods Sold)
       Sale.aggregate([
-        {
-          $match: {
-            ...aggregateSalesQuery,
-            createdAt: { $gte: yesterdayStart, $lt: todayStart },
-            status: "completed",
-          },
+        { 
+          $match: { 
+            ...aggregateSalesQuery, 
+            createdAt: { $gte: startDate }, 
+            status: "completed" 
+          } 
         },
-        { $group: { _id: null, total: { $sum: "$total" } } },
+        { $unwind: "$items" },
+        {
+          $lookup: {
+            from: "products",
+            localField: "items.productId",
+            foreignField: "_id",
+            as: "product"
+          }
+        },
+        { $unwind: "$product" },
+        { 
+          $group: { 
+            _id: null, 
+            total: { $sum: { $multiply: ["$items.quantity", "$product.costPrice"] } } 
+          } 
+        }
       ]),
-      Sale.countDocuments({
-        ...salesQuery,
-        createdAt: { $gte: todayStart },
-        status: "completed",
-      }),
-      Sale.countDocuments({
-        ...salesQuery,
-        createdAt: { $gte: yesterdayStart, $lt: todayStart },
-        status: "completed",
-      }),
+      // Stock Value (Asset Valuation)
       Stock.aggregate([
-        { $match: aggregateStockQuery },
-        { $group: { _id: null, total: { $sum: "$quantity" } } },
+        { $match: aggregateSalesQuery },
+        {
+          $lookup: {
+            from: "products",
+            localField: "productId",
+            foreignField: "_id",
+            as: "product"
+          }
+        },
+        { $unwind: "$product" },
+        { 
+          $group: { 
+            _id: null, 
+            total: { $sum: { $multiply: ["$quantity", "$product.costPrice"] } },
+            count: { $sum: "$quantity" }
+          } 
+        }
+      ]),
+      // Customer Debt (Credit Balance)
+      Customer.aggregate([
+        { $match: aggregateTenantQuery },
+        { $group: { _id: null, total: { $sum: "$balance" } } }
       ]),
       Customer.countDocuments({ ...tenantQuery, isActive: true }),
+      Product.countDocuments({ ...tenantQuery, isActive: true }),
       // Weekly sales for chart
       Sale.aggregate([
         {
@@ -147,39 +191,19 @@ export async function GET(request: NextRequest) {
         },
         { $sort: { _id: 1 } },
       ]),
-      // Missing Returns arrays
-      Return.aggregate([
-        {
-          $match: {
-            ...aggregateSalesQuery,
-            createdAt: { $gte: todayStart },
-            status: "completed",
-            type: "sales_return"
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$total" } } },
-      ]),
-      Return.aggregate([
-        {
-          $match: {
-            ...aggregateSalesQuery,
-            createdAt: { $gte: yesterdayStart, $lt: todayStart },
-            status: "completed",
-            type: "sales_return"
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$total" } } },
-      ]),
+      Stock.find(salesQuery).populate("productId", "name sku reorderLevel").limit(10).lean()
     ]);
 
-    // Low stock alerts
-    const lowStockItems = await Stock.find(stockQuery)
-      .populate("productId", "name sku")
-      .populate("branchId", "name")
-      .lean();
-    const lowStock = lowStockItems.filter((s) => s.quantity <= s.reorderLevel);
+    const salesTotal = salesStats[0]?.total || 0;
+    const purchasesTotal = purchasesStats[0]?.total || 0;
+    const expensesTotal = expensesStats[0]?.total || 0;
+    const cogsTotal = cogsStats[0]?.total || 0;
+    const stockValue = stockValueStats[0]?.total || 0;
+    const totalStock = stockValueStats[0]?.count || 0;
+    const creditBalance = customerDebtStats[0]?.total || 0;
+    const grossProfit = salesTotal - cogsTotal;
+    const netProfit = grossProfit - expensesTotal;
 
-    // Top products
     const topProducts = await Sale.aggregate([
       {
         $match: {
@@ -197,43 +221,30 @@ export async function GET(request: NextRequest) {
           totalRevenue: { $sum: "$items.total" },
         },
       },
+      { $sort: { totalRevenue: -1 } },
       { $limit: 10 },
     ]);
 
-    const todayGross = todaySales[0]?.total || 0;
-    const yesterdayGross = yesterdaySales[0]?.total || 0;
-    const todayReturnsTotal = todayReturns[0]?.total || 0;
-    const yesterdayReturnsTotal = yesterdayReturns[0]?.total || 0;
-
-    const todayTotal = Math.max(0, todayGross - todayReturnsTotal);
-    const yesterdayTotal = Math.max(0, yesterdayGross - yesterdayReturnsTotal);
-
-    const salesGrowth =
-      yesterdayTotal > 0
-        ? (((todayTotal - yesterdayTotal) / yesterdayTotal) * 100).toFixed(1)
-        : "0";
-    const ordersGrowth =
-      yesterdayOrders > 0
-        ? (((todayOrders - yesterdayOrders) / yesterdayOrders) * 100).toFixed(1)
-        : "0";
-
-    const totalProducts = await Product.countDocuments({
-      ...tenantQuery,
-      isActive: true,
-    });
-
     return apiSuccess({
       summary: {
-        todaySales: todayTotal,
-        salesGrowth: parseFloat(salesGrowth),
-        todayOrders,
-        ordersGrowth: parseFloat(ordersGrowth),
-        totalStock: totalStock[0]?.total || 0,
+        salesTotal,
+        purchasesTotal,
+        expensesTotal,
+        cogsTotal,
+        stockValue,
+        creditBalance,
+        grossProfit,
+        netProfit,
+        totalStock,
         totalCustomers,
         totalProducts,
+        todaySales: salesTotal, // Legacy fields
+        todayOrders: salesStats[0]?.count || 0,
+        salesGrowth: 0, 
+        ordersGrowth: 0,
       },
       weeklySales,
-      lowStockAlerts: lowStock.slice(0, 10),
+      lowStockAlerts: lowStockData.filter((s: any) => s.quantity <= (s.productId?.reorderLevel || 0)),
       topProducts,
     });
   } catch (error) {

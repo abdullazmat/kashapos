@@ -163,7 +163,7 @@ function SignInForm() {
             <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
               <ShoppingCart className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white">Meka PoS</span>
+            <span className="text-2xl font-bold text-white">KashaPOS</span>
           </div>
           <h2 className="text-3xl font-bold text-white mb-4">
             Welcome back to your business command center
@@ -189,7 +189,7 @@ function SignInForm() {
         <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-orange-400 rounded-full opacity-30" />
         <div className="absolute -top-10 -left-10 w-40 h-40 bg-orange-600 rounded-full opacity-20" />
       </div>
-
+ 
       {/* Right panel - form */}
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-md">
@@ -198,7 +198,7 @@ function SignInForm() {
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <ShoppingCart className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">Meka PoS</span>
+              <span className="text-2xl font-bold text-gray-900">KashaPOS</span>
             </Link>
           </div>
           <div className="hidden lg:block mb-6">
