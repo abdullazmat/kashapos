@@ -543,6 +543,7 @@ export default function DashboardLayout({
   const [showAiAssistant, setShowAiAssistant] = useState(false);
   const [showAiHistory, setShowAiHistory] = useState(false);
   const [aiExpanded, setAiExpanded] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [aiMessageInput, setAiMessageInput] = useState("");
   const [aiSending, setAiSending] = useState(false);
   const [aiActionPendingId, setAiActionPendingId] = useState<string | null>(
@@ -1295,11 +1296,19 @@ export default function DashboardLayout({
   return (
     <SessionContext.Provider value={{ user, tenant, loading }}>
       <div className="min-h-screen flex bg-[hsl(220,20%,97%)] dark:bg-gray-950">
+        {/* Mobile Sidebar Overlay */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
         <aside
-          className={`fixed top-0 left-0 h-full bg-linear-to-b from-[hsl(222,47%,11%)] to-[hsl(224,50%,15%)] text-gray-300 flex flex-col transition-all duration-300 z-40 ${
+          className={`fixed top-0 left-0 h-full bg-linear-to-b from-[hsl(222,47%,11%)] to-[hsl(224,50%,15%)] text-gray-300 flex flex-col transition-all duration-300 z-50 lg:z-40 ${
             sidebarCollapsed ? "w-17" : "w-60"
-          }`}
+          } ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
         >
           {/* Logo */}
           <div className="h-16 flex items-center px-4 border-b border-white/5">
@@ -1312,8 +1321,14 @@ export default function DashboardLayout({
               </span>
             )}
             <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="ml-auto lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="ml-auto w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+              className="hidden lg:flex ml-auto w-7 h-7 items-center justify-center rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
             >
               <ChevronLeft
                 className={`w-4 h-4 transition-transform duration-300 ${sidebarCollapsed ? "rotate-180" : ""}`}
@@ -1361,11 +1376,24 @@ export default function DashboardLayout({
 
         {/* Main Content */}
         <div
-          className={`content-area flex-1 transition-all duration-300 ${sidebarCollapsed ? "ml-17" : "ml-60"}`}
+          className={`content-area flex-1 transition-all duration-300 min-w-0 ${
+            sidebarCollapsed ? "lg:ml-17" : "lg:ml-60"
+          }`}
         >
           {/* Top bar */}
-          <header className="h-16 bg-orange-500 border-b border-orange-600/80 flex items-center justify-between px-6 sticky top-0 z-30">
-            <div className="flex items-center gap-4">
+          <header className="h-16 bg-orange-500 border-b border-orange-600/80 flex items-center justify-between px-4 md:px-6 sticky top-0 z-30">
+            <div className="flex items-center gap-3 md:gap-4">
+              {/* Mobile menu toggle */}
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl bg-orange-600 text-white shadow-sm hover:bg-orange-700 transition-colors"
+              >
+                <div className="flex flex-col gap-1 w-4">
+                  <span className="block w-full h-0.5 bg-white rounded-full"></span>
+                  <span className="block w-full h-0.5 bg-white rounded-full"></span>
+                  <span className="block w-full h-0.5 bg-white rounded-full"></span>
+                </div>
+              </button>
               {/* Greeting */}
               <div className="hidden lg:block">
                 <p className="text-sm font-semibold text-white">
@@ -1408,7 +1436,7 @@ export default function DashboardLayout({
                       setSearchFocused(false);
                     }
                   }}
-                  className="pl-9 pr-8 py-2 bg-gray-50 hover:bg-gray-100 rounded-xl text-sm border border-gray-200/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/30 w-60 lg:w-72 transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-750"
+                  className="pl-9 pr-8 py-2 bg-gray-50 hover:bg-gray-100 rounded-xl text-sm border border-gray-200/60 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/30 w-full md:w-60 lg:w-72 transition-all dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-750"
                   autoComplete="off"
                   name="dashboard_search_uniqueness_v3"
                 />
@@ -1961,7 +1989,7 @@ export default function DashboardLayout({
           )}
 
           {/* Page content */}
-          <main className="p-6 dark:text-gray-100">
+          <main className="p-4 md:p-6 dark:text-gray-100">
             <Suspense fallback={<div>Loading...</div>}>
               {children}
             </Suspense>

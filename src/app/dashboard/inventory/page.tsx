@@ -951,19 +951,19 @@ export default function InventoryPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20">
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
-            <p className="text-[13px] text-gray-500">
-              Manage your products and categories
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Inventory</h1>
+            <p className="text-[11px] md:text-[13px] text-gray-500">
+              Manage products and categories
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             ref={importInputRef}
             type="file"
@@ -973,31 +973,34 @@ export default function InventoryPage() {
           />
           <button
             onClick={exportInventory}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
+            title="Export to CSV"
           >
-            <Download className="h-4 w-4" /> Export
+            <Download className="h-4 w-4" /> <span className="hidden md:inline">Export</span>
           </button>
           <button
             onClick={() => importInputRef.current?.click()}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
+            title="Import from CSV"
           >
-            <Upload className="h-4 w-4" /> Import
+            <Upload className="h-4 w-4" /> <span className="hidden md:inline">Import</span>
           </button>
           <button
             onClick={downloadImportTemplate}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
+            title="Download Template"
           >
-            <Download className="h-4 w-4" /> CSV Template
+            <Download className="h-4 w-4" /> <span className="hidden md:inline">Template</span>
           </button>
           <button
             onClick={() => setShowCatModal(true)}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
           >
-            <Tag className="h-4 w-4" /> Categories
+            <Tag className="h-4 w-4" /> <span className="hidden sm:inline">Categories</span>
           </button>
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
+            className="flex items-center gap-2 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-3 py-2 text-xs md:text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
           >
             <Plus className="h-4 w-4" /> Add Product
           </button>
@@ -1019,131 +1022,139 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-50">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search products..."
+              className="w-full rounded-xl border border-gray-200 bg-white px-10 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none"
+            />
+          </div>
+          <select
+            value={filterCategory}
             onChange={(e) => {
-              setSearch(e.target.value);
+              setFilterCategory(e.target.value);
               setPage(1);
             }}
-            placeholder="Search products by name, SKU, or barcode..."
-            className="w-full rounded-xl border border-gray-200 bg-white px-10 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-          />
-        </div>
-        <select
-          value={filterCategory}
-          onChange={(e) => {
-            setFilterCategory(e.target.value);
-            setPage(1);
-          }}
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-        >
-          <option value="">All Categories</option>
-          {categories.map((c) => (
-            <option key={c._id} value={c._id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        {/* Stock Level Filter */}
-        <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1">
-          {(
-            [
-              { key: "all", label: "All" },
-              { key: "in-stock", label: "In Stock" },
-              { key: "low", label: "Low Stock" },
-              { key: "out", label: "Out of Stock" },
-            ] as { key: typeof stockFilter; label: string }[]
-          ).map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setStockFilter(f.key)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                stockFilter === f.key
-                  ? "bg-orange-500 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <select
-          value={sizeFilter}
-          onChange={(e) => setSizeFilter(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-        >
-          <option value="all">All Sizes</option>
-          {attributeCatalog.sizes.map((size) => (
-            <option key={`size-${size}`} value={size}>
-              {size.toUpperCase()}
-            </option>
-          ))}
-        </select>
-        <select
-          value={colorFilter}
-          onChange={(e) => setColorFilter(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-        >
-          <option value="all">All Colors</option>
-          {attributeCatalog.colors.map((color) => (
-            <option key={`color-${color}`} value={color}>
-              {color}
-            </option>
-          ))}
-        </select>
-        <select
-          value={materialFilter}
-          onChange={(e) => setMaterialFilter(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-        >
-          <option value="all">All Materials</option>
-          {attributeCatalog.materials.map((material) => (
-            <option key={`material-${material}`} value={material}>
-              {material}
-            </option>
-          ))}
-        </select>
-        <select
-          value={storageFilter}
-          onChange={(e) => setStorageFilter(e.target.value)}
-          className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-        >
-          <option value="all">All Storage</option>
-          {attributeCatalog.storages.map((storage) => (
-            <option key={`storage-${storage}`} value={storage}>
-              {storage.toUpperCase()}
-            </option>
-          ))}
-        </select>
-        {(search ||
-          filterCategory ||
-          stockFilter !== "all" ||
-          sizeFilter !== "all" ||
-          colorFilter !== "all" ||
-          materialFilter !== "all" ||
-          storageFilter !== "all") && (
-          <button
-            onClick={() => {
-              setSearch("");
-              setFilterCategory("");
-              setStockFilter("all");
-              setSizeFilter("all");
-              setColorFilter("all");
-              setMaterialFilter("all");
-              setStorageFilter("all");
-              setPage(1);
-            }}
-            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-all focus:border-orange-400 focus:outline-none min-w-[160px]"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset
-          </button>
-        )}
+            <option value="">All Categories</option>
+            {categories.map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          {/* Stock Level Filter */}
+          <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white p-1 overflow-x-auto no-scrollbar">
+            {(
+              [
+                { key: "all", label: "All" },
+                { key: "in-stock", label: "In Stock" },
+                { key: "low", label: "Low" },
+                { key: "out", label: "Out" },
+              ] as { key: typeof stockFilter; label: string }[]
+            ).map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setStockFilter(f.key)}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all ${
+                  stockFilter === f.key
+                    ? "bg-orange-500 text-white shadow-sm"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={sizeFilter}
+              onChange={(e) => setSizeFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs shadow-sm focus:border-orange-400 focus:outline-none"
+            >
+              <option value="all">All Sizes</option>
+              {attributeCatalog.sizes.map((size) => (
+                <option key={`size-${size}`} value={size}>
+                  {size.toUpperCase()}
+                </option>
+              ))}
+            </select>
+            <select
+              value={colorFilter}
+              onChange={(e) => setColorFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs shadow-sm focus:border-orange-400 focus:outline-none"
+            >
+              <option value="all">All Colors</option>
+              {attributeCatalog.colors.map((color) => (
+                <option key={`color-${color}`} value={color}>
+                  {color}
+                </option>
+              ))}
+            </select>
+            <select
+              value={materialFilter}
+              onChange={(e) => setMaterialFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs shadow-sm focus:border-orange-400 focus:outline-none"
+            >
+              <option value="all">All Materials</option>
+              {attributeCatalog.materials.map((material) => (
+                <option key={`material-${material}`} value={material}>
+                  {material}
+                </option>
+              ))}
+            </select>
+            <select
+              value={storageFilter}
+              onChange={(e) => setStorageFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs shadow-sm focus:border-orange-400 focus:outline-none"
+            >
+              <option value="all">All Storage</option>
+              {attributeCatalog.storages.map((storage) => (
+                <option key={`storage-${storage}`} value={storage}>
+                  {storage.toUpperCase()}
+                </option>
+              ))}
+            </select>
+            
+            {(search ||
+              filterCategory ||
+              stockFilter !== "all" ||
+              sizeFilter !== "all" ||
+              colorFilter !== "all" ||
+              materialFilter !== "all" ||
+              storageFilter !== "all") && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setFilterCategory("");
+                  setStockFilter("all");
+                  setSizeFilter("all");
+                  setColorFilter("all");
+                  setMaterialFilter("all");
+                  setStorageFilter("all");
+                  setPage(1);
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {zeroStockCount > 0 && (
@@ -1160,31 +1171,31 @@ export default function InventoryPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-blue-100 bg-blue-50/60">
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="px-3 md:px-5 py-3.5 text-left text-xs md:text-[13px] font-semibold text-gray-600">
                   Product
                 </th>
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="hidden lg:table-cell px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
                   SKU
                 </th>
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="hidden sm:table-cell px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
                   Category
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                <th className="hidden md:table-cell px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
                   Cost
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                <th className="px-3 md:px-5 py-3.5 text-right text-xs md:text-[13px] font-semibold text-gray-600">
                   Price
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                <th className="hidden xl:table-cell px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
                   Margin %
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
-                  Quantity
+                <th className="px-3 md:px-5 py-3.5 text-right text-xs md:text-[13px] font-semibold text-gray-600">
+                  Qty
                 </th>
-                <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
+                <th className="hidden sm:table-cell px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
                   Status
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
+                <th className="px-3 md:px-5 py-3.5 text-right text-xs md:text-[13px] font-semibold text-gray-600"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -1284,12 +1295,12 @@ export default function InventoryPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="hidden lg:table-cell px-5 py-3.5">
                         <span className="rounded-lg bg-gray-100 px-2 py-1 font-mono text-xs font-semibold text-gray-600">
                           {p.sku}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="hidden sm:table-cell px-5 py-3.5">
                         {p.categoryId?.name ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-600/10">
                             <Layers className="h-3 w-3" /> {p.categoryId.name}
@@ -1298,13 +1309,13 @@ export default function InventoryPage() {
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right text-gray-500">
+                      <td className="hidden md:table-cell px-5 py-3.5 text-right text-gray-500">
                         {formatCurrency(p.costPrice, currency)}
                       </td>
-                      <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
+                      <td className="px-3 md:px-5 py-3.5 text-right font-semibold text-gray-900">
                         {formatCurrency(p.price, currency)}
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="hidden xl:table-cell px-5 py-3.5 text-right">
                         {p.price > 0 ? (
                           <span
                             className={`text-xs font-semibold ${(p.price - p.costPrice) / p.price >= 0.2 ? "text-emerald-600" : "text-amber-600"}`}
@@ -1319,9 +1330,9 @@ export default function InventoryPage() {
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-3 md:px-5 py-3.5 text-right">
                         <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          className={`inline-flex items-center rounded-full px-2 md:px-2.5 py-1 text-[10px] md:text-[11px] font-semibold ${
                             (p.stock ?? 0) === 0
                               ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
                               : (p.stock ?? 0) <= 10
@@ -1332,7 +1343,7 @@ export default function InventoryPage() {
                           {p.stock ?? 0}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="hidden sm:table-cell px-5 py-3.5 text-center">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                             p.isActive
@@ -1343,55 +1354,25 @@ export default function InventoryPage() {
                           {p.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
+                      <td className="px-3 md:px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-0.5 md:gap-1">
                           <button
                             onClick={(event) => {
                               event.stopPropagation();
                               setViewingProduct(p);
                             }}
-                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
-                            title="View Complete Item Details"
+                            className="rounded-lg p-1 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600"
                           >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openCopy(p);
-                            }}
-                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
-                            title="Create copy"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openQuickBarcodePanel(p);
-                            }}
-                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-orange-50 hover:text-orange-600"
-                            title="Generate and print barcode"
-                          >
-                            <BarcodeIcon className="h-4 w-4" />
+                            <Eye className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={(event) => {
                               event.stopPropagation();
                               openEdit(p);
                             }}
-                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                            className="rounded-lg p-1 text-gray-400 hover:bg-blue-50 hover:text-blue-600"
                           >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              deleteProduct(p._id);
-                            }}
-                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
+                            <Edit className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </td>
@@ -1712,11 +1693,11 @@ export default function InventoryPage() {
       {/* Viewing Complete Product Modal */}
       {viewingProduct && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-6"
           onClick={() => setViewingProduct(null)}
         >
           <div
-            className="w-full max-w-5xl rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            className="w-full h-full md:h-auto md:max-w-5xl md:rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-screen md:max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 bg-gray-50/80">
@@ -1905,33 +1886,33 @@ export default function InventoryPage() {
       )}
 
       {/* Product Modal */}
-
       {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-6"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+            className="w-full h-full md:h-auto md:max-w-2xl md:rounded-3xl bg-white shadow-2xl flex flex-col max-h-screen md:max-h-[95vh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-500/20">
-                  <Package className="h-4 w-4 text-white" />
-                </div>
-                <h2 className="font-bold text-gray-900">
-                  {editing ? "Edit Product" : "Add Product"}
-                </h2>
-              </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 sticky top-0 bg-white z-10">
+               <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-amber-600 shadow-md shadow-orange-500/20">
+                    <Package className="h-4 w-4 text-white" />
+                  </div>
+                  <h2 className="font-bold text-gray-900">
+                    {editing ? "Edit Product" : "Add New Product"}
+                  </h2>
+               </div>
+               <button
+                 onClick={() => setShowModal(false)}
+                 className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"
+               >
+                 <X className="h-5 w-5" />
+               </button>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 no-scrollbar">
               <div className="space-y-4">
                 <div>
                   <label className="text-[13px] font-semibold text-gray-700">

@@ -185,50 +185,50 @@ export default function ExpensesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-lg shadow-red-500/20">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-lg shadow-red-500/20">
             <TrendingDown className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
-            <p className="text-[13px] text-gray-500">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Expenses</h1>
+            <p className="text-[11px] md:text-[13px] text-gray-500">
               Track business expenses for P&L
             </p>
           </div>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
+          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
         >
           <Plus className="h-4 w-4" /> Add Expense
         </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <p className="text-[13px] font-medium text-gray-500">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-5">
+          <p className="text-xs md:text-[13px] font-medium text-gray-500">
             Total Expenses
           </p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">
+          <p className="text-lg md:text-2xl font-bold text-gray-900 mt-1">
             {formatCurrency(totalAmount, currency)}
           </p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <p className="text-[13px] font-medium text-gray-500">This Month</p>
-          <p className="text-2xl font-bold text-red-600 mt-1">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-5">
+          <p className="text-xs md:text-[13px] font-medium text-gray-500">This Month</p>
+          <p className="text-lg md:text-2xl font-bold text-red-600 mt-1">
             {formatCurrency(thisMonthTotal, currency)}
           </p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <p className="text-[13px] font-medium text-gray-500">Total Records</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{total}</p>
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-5 col-span-2 lg:col-span-1">
+          <p className="text-xs md:text-[13px] font-medium text-gray-500">Total Records</p>
+          <p className="text-lg md:text-2xl font-bold text-gray-900 mt-1">{total}</p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
@@ -257,7 +257,7 @@ export default function ExpensesPage() {
       </div>
 
       {/* Quick Add Expense */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm overflow-hidden hidden sm:block">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">
           Quick Add Expense
         </h3>
@@ -330,22 +330,22 @@ export default function ExpensesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-blue-100 bg-blue-50/60">
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="px-3 md:px-5 py-3.5 text-left text-xs md:text-[13px] font-semibold text-gray-600">
                   Description
                 </th>
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="hidden sm:table-cell px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
                   Category
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                <th className="px-3 md:px-5 py-3.5 text-right text-xs md:text-[13px] font-semibold text-gray-600">
                   Amount
                 </th>
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="hidden md:table-cell px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
                   Date
                 </th>
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="hidden lg:table-cell px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
                   Payment
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
+                <th className="px-3 md:px-5 py-3.5 text-right text-xs md:text-[13px] font-semibold text-gray-600"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -380,43 +380,43 @@ export default function ExpensesPage() {
                     key={e._id}
                     className="group transition-colors hover:bg-gray-50/80"
                   >
-                    <td className="px-5 py-3.5">
-                      <div>
-                        <div className="font-semibold text-gray-900">
+                    <td className="px-3 md:px-5 py-3.5">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-900 text-xs md:text-sm truncate">
                           {e.description}
                         </div>
                         {e.reference && (
-                          <div className="text-[11px] text-gray-400">
+                          <div className="text-[10px] md:text-[11px] text-gray-400 truncate">
                             Ref: {e.reference}
                           </div>
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="hidden sm:table-cell px-5 py-3.5">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${categoryColors[e.category] || "bg-gray-50 text-gray-700"}`}
                       >
                         {e.category}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-red-600">
+                    <td className="px-3 md:px-5 py-3.5 text-right font-semibold text-red-600 text-xs md:text-sm">
                       -{formatCurrency(e.amount, currency)}
                     </td>
-                    <td className="px-5 py-3.5 text-gray-500">
+                    <td className="hidden md:table-cell px-5 py-3.5 text-gray-500">
                       {formatDate(e.date)}
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="hidden lg:table-cell px-5 py-3.5">
                       <span className="inline-flex items-center gap-1 text-gray-500 capitalize">
                         {paymentIcon(e.paymentMethod)}
                         {e.paymentMethod.replace("_", " ")}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-right">
+                    <td className="px-3 md:px-5 py-3.5 text-right">
                       <button
                         onClick={() => handleDelete(e._id)}
-                        className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                        className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
                       </button>
                     </td>
                   </tr>
@@ -430,11 +430,11 @@ export default function ExpensesPage() {
       {/* Add Expense Modal */}
       {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-6"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+            className="w-full h-full md:h-auto md:max-w-lg md:rounded-2xl bg-white shadow-2xl flex flex-col md:max-h-[95vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">

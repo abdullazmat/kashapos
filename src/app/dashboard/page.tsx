@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "./layout";
@@ -256,6 +256,7 @@ export default function DashboardPage() {
       growth: data?.summary.salesGrowth || 0,
       icon: DollarSign,
       gradient: "from-orange-500 to-amber-600",
+      shadow: "shadow-orange-500/20",
     },
     {
       title: "Orders",
@@ -263,13 +264,15 @@ export default function DashboardPage() {
       growth: data?.summary.ordersGrowth || 0,
       icon: ShoppingCart,
       gradient: "from-blue-500 to-indigo-600",
+      shadow: "shadow-blue-500/20",
     },
     {
-      title: "Items in Stock",
+      title: "Stock",
       value: (data?.summary.totalStock || 0).toLocaleString(),
       growth: 0,
       icon: Package,
       gradient: "from-amber-500 to-orange-600",
+      shadow: "shadow-amber-500/20",
     },
     {
       title: "Customers",
@@ -277,6 +280,7 @@ export default function DashboardPage() {
       growth: 0,
       icon: Users,
       gradient: "from-violet-500 to-purple-600",
+      shadow: "shadow-violet-500/20",
     },
   ];
 
@@ -324,48 +328,48 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {summaryCards.map((card, i) => (
           <div
             key={i}
-            className="group relative bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-lg hover:shadow-gray-200/50 transition-all duration-300 overflow-hidden"
+            className="group relative bg-white rounded-2xl border border-gray-100 p-4 md:p-5 hover:shadow-lg transition-all duration-300 overflow-hidden"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 -mr-6 -mt-6 opacity-[0.07]">
+            <div className="absolute top-0 right-0 w-16 h-16 -mr-4 -mt-4 opacity-[0.05]">
               <div
                 className={`w-full h-full rounded-full bg-gradient-to-br ${card.gradient}`}
               />
             </div>
-            <div className="flex items-start justify-between relative">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between relative gap-2">
               <div>
-                <p className="text-[13px] font-medium text-gray-500">
+                <p className="text-[11px] md:text-[13px] font-medium text-gray-500 uppercase tracking-wider">
                   {card.title}
                 </p>
                 {loading ? (
-                  <div className="h-8 w-28 bg-gray-100 rounded-lg animate-pulse mt-2" />
+                  <div className="h-6 md:h-8 w-20 md:w-28 bg-gray-100 rounded-lg animate-pulse mt-2" />
                 ) : (
-                  <p className="text-2xl font-bold text-gray-900 mt-1 tracking-tight">
+                  <p className="text-lg md:text-2xl font-bold text-gray-900 mt-0.5 md:mt-1 tracking-tight truncate">
                     {card.value}
                   </p>
                 )}
-                {card.growth !== 0 && !loading && (
-                  <div
-                    className={`inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${card.growth > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
-                  >
-                    {card.growth > 0 ? (
-                      <TrendingUp className="w-3 h-3" />
-                    ) : (
-                      <TrendingDown className="w-3 h-3" />
-                    )}
-                    {Math.abs(card.growth)}% vs previous
-                  </div>
-                )}
               </div>
               <div
-                className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-lg`}
+                className={`w-9 h-9 md:w-11 md:h-11 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-lg shrink-0`}
               >
-                <card.icon className="w-5 h-5 text-white" />
+                <card.icon className="w-4 h-4 md:w-5 md:h-5 text-white" />
               </div>
             </div>
+            {card.growth !== 0 && !loading && (
+              <div
+                className={`inline-flex items-center gap-1 mt-3 px-2 py-0.5 rounded-full text-[10px] md:text-xs font-medium ${card.growth > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
+              >
+                {card.growth > 0 ? (
+                  <TrendingUp className="w-2.5 h-2.5" />
+                ) : (
+                  <TrendingDown className="w-2.5 h-2.5" />
+                )}
+                {Math.abs(card.growth)}%
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -530,19 +534,19 @@ export default function DashboardPage() {
         <h2 className="text-base font-semibold text-gray-900 mb-4">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
           {quickActions.map((action, i) => (
             <Link
               key={i}
               href={action.href}
-              className="flex flex-col items-center gap-2 rounded-xl p-4 border border-gray-100 hover:shadow-md hover:border-orange-200 transition-all group"
+              className="flex flex-col items-center gap-2 rounded-xl p-3 md:p-4 border border-gray-100 hover:shadow-md hover:border-orange-200 transition-all group"
             >
               <div
-                className={`w-10 h-10 ${action.bg} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}
+                className={`w-9 h-9 md:w-10 md:h-10 ${action.bg} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}
               >
-                <action.icon className={`w-5 h-5 ${action.color}`} />
+                <action.icon className={`w-4.5 h-4.5 md:w-5 md:h-5 ${action.color}`} />
               </div>
-              <span className="text-xs font-medium text-gray-700 text-center">
+              <span className="text-[10px] md:text-xs font-medium text-gray-700 text-center">
                 {action.label}
               </span>
             </Link>

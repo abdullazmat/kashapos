@@ -303,19 +303,19 @@ export default function CustomersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/20">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/20">
             <Users className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-            <p className="text-[13px] text-gray-500">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Customers</h1>
+            <p className="text-[11px] md:text-[13px] text-gray-500">
               Manage your customer database
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => {
               setPaymentCustomer(null);
@@ -327,21 +327,22 @@ export default function CustomersPage() {
               });
               setShowPaymentModal(true);
             }}
-            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50"
           >
-            <Wallet className="h-4 w-4" /> Add Payment
+            <Wallet className="h-4 w-4" /> <span className="hidden sm:inline">Add Payment</span>
           </button>
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg hover:shadow-orange-500/30"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-3 py-2 text-xs md:text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
           >
-            <Plus className="h-4 w-4" /> Add Customer
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Add Customer</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
         {[
           {
             label: "Total Customers",
@@ -374,19 +375,19 @@ export default function CustomersPage() {
         ].map((stat) => (
           <div
             key={stat.label}
-            className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
+            className="rounded-2xl border border-gray-100 bg-white p-4 transition-all hover:shadow-md"
           >
             <div className="flex items-center gap-3">
               <div
-                className={`flex h-9 w-9 items-center justify-center rounded-xl bg-${stat.color}-50`}
+                className={`flex h-8 w-8 md:h-9 md:w-9 shrink-0 items-center justify-center rounded-xl bg-${stat.color}-50`}
               >
-                <stat.icon className={`h-4 w-4 text-${stat.color}-600`} />
+                <stat.icon className={`h-3.5 w-3.5 md:h-4 md:w-4 text-${stat.color}-600`} />
               </div>
-              <div>
-                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+              <div className="min-w-0">
+                <p className="truncate text-[10px] md:text-[11px] font-medium text-gray-400 uppercase tracking-wider">
                   {stat.label}
                 </p>
-                <p className="text-lg font-bold text-gray-900">{stat.value}</p>
+                <p className="truncate text-base md:text-lg font-bold text-gray-900">{stat.value}</p>
               </div>
             </div>
           </div>
@@ -437,31 +438,31 @@ export default function CustomersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-blue-100 bg-blue-50/60">
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="px-3 md:px-5 py-3.5 text-left text-xs md:text-[13px] font-semibold text-gray-600">
                   Customer
                 </th>
-                <th className="px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
+                <th className="hidden sm:table-cell px-5 py-3.5 text-left text-[13px] font-semibold text-gray-600">
                   Contact
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                <th className="hidden md:table-cell px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
                   Purchases
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                <th className="px-3 md:px-5 py-3.5 text-right text-xs md:text-[13px] font-semibold text-gray-600">
                   Total Spent
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                <th className="px-3 md:px-5 py-3.5 text-right text-xs md:text-[13px] font-semibold text-gray-600">
                   Balance
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
+                <th className="hidden lg:table-cell px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600">
                   Credit Limit
                 </th>
-                <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
+                <th className="hidden lg:table-cell px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
                   Payment Status
                 </th>
-                <th className="px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
+                <th className="hidden sm:table-cell px-5 py-3.5 text-center text-[13px] font-semibold text-gray-600">
                   Last Payment
                 </th>
-                <th className="px-5 py-3.5 text-right text-[13px] font-semibold text-gray-600"></th>
+                <th className="px-3 md:px-5 py-3.5 text-right text-xs md:text-[13px] font-semibold text-gray-600"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -498,25 +499,25 @@ export default function CustomersPage() {
                     key={c._id}
                     className="group transition-colors hover:bg-gray-50/80"
                   >
-                    <td className="px-5 py-3.5">
+                    <td className="px-3 md:px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-purple-200 text-xs font-bold text-violet-700">
+                        <div className="hidden md:flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-purple-200 text-xs font-bold text-violet-700">
                           {c.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <div className="font-semibold text-gray-900">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-gray-900 text-xs md:text-sm truncate">
                             {c.name}
                           </div>
                           {c.address && (
-                            <div className="flex items-center gap-1 text-[11px] text-gray-400">
-                              <MapPin className="h-3 w-3" />
+                            <div className="flex items-center gap-1 text-[10px] md:text-[11px] text-gray-400 truncate max-w-[120px] md:max-w-none">
+                              <MapPin className="h-2.5 w-2.5 shrink-0" />
                               {c.address}
                             </div>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="hidden sm:table-cell px-5 py-3.5">
                       <div className="space-y-1">
                         {c.phone && (
                           <div className="flex items-center gap-1.5 text-[13px] text-gray-600">
@@ -535,27 +536,27 @@ export default function CustomersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-right">
+                    <td className="hidden md:table-cell px-5 py-3.5 text-right">
                       <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-600/10">
                         {c.totalPurchases} orders
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-gray-900">
+                    <td className="px-3 md:px-5 py-3.5 text-right font-semibold text-gray-900 text-xs md:text-sm">
                       {formatCurrency(c.totalSpent, currency)}
                     </td>
-                    <td className="px-5 py-3.5 text-right">
+                    <td className="px-3 md:px-5 py-3.5 text-right">
                       <span
-                        className={`font-semibold ${(c.outstandingBalance ?? 0) > 0 ? "text-red-600" : "text-gray-400"}`}
+                        className={`font-semibold text-xs md:text-sm ${(c.outstandingBalance ?? 0) > 0 ? "text-red-600" : "text-gray-400"}`}
                       >
                         {formatCurrency(c.outstandingBalance ?? 0, currency)}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-right text-gray-500">
+                    <td className="hidden lg:table-cell px-5 py-3.5 text-right text-gray-500">
                       {c.creditLimit
                         ? formatCurrency(c.creditLimit, currency)
                         : "—"}
                     </td>
-                    <td className="px-5 py-3.5 text-center">
+                    <td className="hidden lg:table-cell px-5 py-3.5 text-center">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                           c.paymentStatus === "overdue"
@@ -568,48 +569,32 @@ export default function CustomersPage() {
                         {c.paymentStatus || "cleared"}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-center text-[12px] text-gray-500">
+                    <td className="hidden sm:table-cell px-5 py-3.5 text-center text-[12px] text-gray-500">
                       {c.lastPaymentDate ? formatDate(c.lastPaymentDate) : "—"}
                     </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        {(c.outstandingBalance ?? 0) > 0 && c.email && (
-                          <button
-                            onClick={() => sendBalanceReminder(c)}
-                            disabled={sendingReminderCustomerId === c._id}
-                            className="rounded-lg px-2 py-1.5 text-[11px] font-semibold text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-50"
-                            title="Send balance reminder"
-                          >
-                            {sendingReminderCustomerId === c._id
-                              ? "Sending..."
-                              : "Remind"}
-                          </button>
-                        )}
+                    <td className="px-3 md:px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1 md:opacity-0 transition-opacity group-hover:opacity-100">
+                        {/* Mobile: Use more compact icons/buttons */}
                         <button
                           onClick={() => openHistory(c)}
-                          className="rounded-lg px-2 py-1.5 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                          className="rounded-lg p-1.5 md:px-2 md:py-1.5 text-[11px] font-semibold text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
                           title="View payment history"
                         >
-                          History
+                          <TrendingUp className="h-3.5 w-3.5 md:hidden" />
+                          <span className="hidden md:inline">History</span>
                         </button>
                         <button
                           onClick={() => openPayment(c)}
                           className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
                           title="Add Payment"
                         >
-                          <Wallet className="h-4 w-4" />
+                          <Wallet className="h-3.5 w-3.5 md:h-4 md:w-4" />
                         </button>
                         <button
                           onClick={() => openEdit(c)}
                           className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-violet-50 hover:text-violet-600"
                         >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteCustomer(c._id)}
-                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
+                          <Edit className="h-3.5 w-3.5 md:h-4 md:w-4" />
                         </button>
                       </div>
                     </td>
@@ -650,11 +635,11 @@ export default function CustomersPage() {
       {/* Modal */}
       {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-6"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+            className="w-full h-full md:h-auto md:max-w-md md:rounded-2xl bg-white shadow-2xl flex flex-col md:max-h-[95vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
@@ -764,11 +749,11 @@ export default function CustomersPage() {
       {/* Payment Modal */}
       {showPaymentModal && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-8"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm overflow-y-auto p-0 md:p-8 no-scrollbar"
           onClick={() => setShowPaymentModal(false)}
         >
           <div
-            className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl"
+            className="w-full h-full md:h-auto md:max-w-4xl md:rounded-2xl bg-white shadow-2xl flex flex-col md:max-h-[95vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">

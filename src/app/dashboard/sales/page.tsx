@@ -430,6 +430,100 @@ export default function SalesPage() {
     setProductSearch("");
   };
 
+  const printInvoice = (s: Sale) => {
+    printHtml(
+      `Invoice ${s.orderNumber}`,
+      `
+        <div class="receipt">
+          ${getPrintBrandingMarkup({
+            title: "TAX INVOICE",
+            subtitle: `${s.orderNumber} • ${new Date(s.createdAt).toLocaleString("en-UG")}`,
+          })}
+          <div class="summary">
+            <div class="summary-row"><span>Customer</span><span>${escapeHtml(s.customerId?.name || s.walkInName || "Walk-in")}</span></div>
+            <div class="summary-row"><span>Status</span><span>${s.status.toUpperCase()}</span></div>
+            <div class="summary-row"><span>Payment</span><span>${s.paymentMethod.toUpperCase()}</span></div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${s.items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.productName)}<br/><small>${item.sku}</small></td>
+                      <td>${item.quantity}</td>
+                      <td>${formatCurrency(item.unitPrice, currency)}</td>
+                      <td>${formatCurrency(item.total, currency)}</td>
+                    </tr>`,
+                )
+                .join("")}
+            </tbody>
+          </table>
+          <div class="summary">
+            <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(s.subtotal, currency)}</span></div>
+            ${s.totalTax > 0 ? `<div class="summary-row"><span>Tax</span><span>${formatCurrency(s.totalTax, currency)}</span></div>` : ""}
+            <div class="summary-row total"><span>Total Amount</span><span>${formatCurrency(s.total, currency)}</span></div>
+            <div class="summary-row"><span>Paid</span><span>${formatCurrency(s.amountPaid, currency)}</span></div>
+            <div class="summary-row balance"><span>Balance Due</span><span>${formatCurrency(s.remainingBalance, currency)}</span></div>
+          </div>
+          ${getPrintFooterMarkup()}
+        </div>
+      `,
+    );
+  };
+
+  const printDeliveryNote = (s: Sale) => {
+    printHtml(
+      `Delivery Note ${s.orderNumber}`,
+      `
+        <div class="receipt">
+          ${getPrintBrandingMarkup({
+            title: "DELIVERY NOTE",
+            subtitle: `${s.orderNumber} • ${new Date(s.createdAt).toLocaleString("en-UG")}`,
+          })}
+          <div class="summary">
+            <div class="summary-row"><span>Customer</span><span>${escapeHtml(s.customerId?.name || s.walkInName || "Walk-in")}</span></div>
+            <div class="summary-row"><span>Recipient Signature</span><span>_________________</span></div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${s.items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.productName)}<br/><small>${item.sku}</small></td>
+                      <td>${item.quantity}</td>
+                      <td>[ ] Received</td>
+                    </tr>`,
+                )
+                .join("")}
+            </tbody>
+          </table>
+          <div style="margin-top:40px; border-top:1px dashed #ccc; padding-top:10px; font-size:10px;">
+            <p>I confirm that I have received the above items in good condition.</p>
+            <p style="margin-top:20px;">Signature: __________________________  Date: ____/____/20__</p>
+          </div>
+          ${getPrintFooterMarkup()}
+        </div>
+      `,
+    );
+  };
+
   const updateItemQty = (idx: number, qty: number) => {
     if (qty < 1) return;
     setOrderItems(
@@ -968,19 +1062,19 @@ export default function SalesPage() {
           {pageError}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4">
-        <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+      <div className="flex flex-col md:flex-row md:items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4">
+        <div className="flex items-center gap-1 self-start rounded-xl bg-gray-100 p-1">
           {(["all", "today", "custom"] as const).map((f) => (
             <button
               key={f}
               onClick={() => handleQuickFilter(f)}
-              className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-all ${quickFilter === f ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={`rounded-lg px-3.5 py-1.5 text-xs md:text-sm font-semibold transition-all ${quickFilter === f ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
             >
               {f === "all" ? "All" : f === "today" ? "Today" : "Custom"}
             </button>
           ))}
         </div>
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1 md:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             value={searchQuery}
@@ -1004,8 +1098,8 @@ export default function SalesPage() {
           <option value="voided">Voided</option>
         </select>
         {quickFilter === "custom" && (
-          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-1.5">
-            <Calendar className="h-4 w-4 text-gray-400" />
+          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-1.5 overflow-x-auto whitespace-nowrap">
+            <Calendar className="h-4 w-4 text-gray-400 shrink-0" />
             <input
               type="date"
               value={fromDate}
@@ -1037,7 +1131,7 @@ export default function SalesPage() {
               setPage(1);
               setQuickFilter("all");
             }}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 md:ml-auto"
           >
             Clear all
           </button>
@@ -1245,15 +1339,15 @@ export default function SalesPage() {
       {/* Sale Detail Modal */}
       {viewSale && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-0 md:p-6"
           onClick={() => setViewSale(null)}
         >
           <div
-            className="w-full max-w-6xl rounded-3xl bg-gray-50/90 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+            className="w-full h-full md:h-auto md:max-w-6xl md:rounded-3xl bg-gray-50/90 shadow-2xl flex flex-col max-h-screen md:max-h-[90vh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Area */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-10">
+            <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-10">
                <div className="flex items-start gap-4">
                   <button 
                     onClick={() => setViewSale(null)}
@@ -1261,84 +1355,85 @@ export default function SalesPage() {
                   >
                      <ChevronLeft className="w-4 h-4" /> Back
                   </button>
-                  <div>
-                    <div className="flex items-center gap-3">
-                       <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-                         Sales Order #{viewSale.orderNumber}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                       <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tight truncate">
+                         Order #{viewSale.orderNumber}
                        </h2>
                        <span
-                         className={`inline-flex rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${statusColor[viewSale.status]}`}
+                         className={`inline-flex rounded-lg px-2 py-0.5 md:px-2.5 md:py-1 text-[9px] md:text-[10px] font-black uppercase tracking-widest ${statusColor[viewSale.status]}`}
                        >
                          {viewSale.status}
                        </span>
                     </div>
-                    <p className="text-sm font-medium text-gray-400 mt-1">
-                      Order details and payment information
+                    <p className="text-[11px] md:text-sm font-medium text-gray-400 mt-0.5 md:mt-1">
+                      Order details and payment
                     </p>
                   </div>
                </div>
                
                {/* Action Toolbar */}
-               <div className="flex flex-wrap items-center gap-2">
-                  <button className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
-                    <FileText className="w-3.5 h-3.5" /> Invoice PDF
+               <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
+                  <button onClick={() => printInvoice(viewSale)} className="shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm">
+                    <FileText className="w-3.5 h-3.5" /> Invoice
                   </button>
-                  <button className="flex items-center gap-1.5 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
-                    <Truck className="w-3.5 h-3.5" /> Delivery Note
+                  <button onClick={() => printDeliveryNote(viewSale)} className="shrink-0 flex items-center gap-1.5 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm">
+                    <Truck className="w-3.5 h-3.5" /> Delivery
                   </button>
-                  <button onClick={sendReceiptEmail} disabled={sendingReceipt} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50">
-                    <Printer className="w-3.5 h-3.5" /> {sendingReceipt ? "Sending..." : "Print Receipt"}
+                  <button onClick={() => printReceipt(viewSale)} className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm">
+                    <Printer className="w-3.5 h-3.5" /> Print
                   </button>
-                  <button onClick={deleteSale} disabled={actionLoading} className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50">
-                    <Trash2 className="w-3.5 h-3.5" /> Delete Sale
+                  <button onClick={deleteSale} disabled={actionLoading} className="shrink-0 flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm disabled:opacity-50">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
                   </button>
-                  <button className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white border border-blue-700 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
-                    <Plus className="w-3.5 h-3.5" /> Add Payment
+                  <button 
+                    onClick={() => {
+                        setViewSale(null);
+                        editSale(viewSale);
+                    }}
+                    className="shrink-0 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white border border-blue-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Edit
                   </button>
                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
                
                {/* Info Grid */}
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center gap-4">
-                     <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                       <User className="w-5 h-5 text-blue-500" />
+               <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                  <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4">
+                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                       <User className="w-4 h-4 md:w-5 md:h-5 text-blue-500" />
                      </div>
-                     <div>
-                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Customer</p>
-                       <p className="text-sm font-black text-gray-800 line-clamp-1">{getSaleCustomerName(viewSale)}</p>
-                     </div>
-                  </div>
-                  <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center gap-4">
-                     <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                       <Building2 className="w-5 h-5 text-emerald-500" />
-                     </div>
-                     <div>
-                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Branch</p>
-                       <p className="text-sm font-black text-gray-800 line-clamp-1">Main Branch</p>
+                     <div className="min-w-0">
+                       <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">Customer</p>
+                       <p className="text-[11px] md:text-sm font-black text-gray-800 truncate">{getSaleCustomerName(viewSale)}</p>
                      </div>
                   </div>
-                  <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center gap-4">
-                     <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
-                       <CreditCard className="w-5 h-5 text-indigo-500" />
+                  <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4">
+                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                       <Building2 className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
                      </div>
-                     <div>
-                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Payment Method</p>
-                       <p className="text-sm font-black text-gray-800 flex items-center gap-1.5 capitalize line-clamp-1">
+                     <div className="min-w-0">
+                       <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">Branch</p>
+                       <p className="text-[11px] md:text-sm font-black text-gray-800 truncate">Main Branch</p>
+                     </div>
+                  </div>
+                  <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4">
+                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
+                       <CreditCard className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
+                     </div>
+                     <div className="min-w-0">
+                       <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">Payment</p>
+                       <p className="text-[11px] md:text-sm font-black text-gray-800 flex items-center gap-1.5 capitalize truncate">
                          {paymentLabel[viewSale.paymentMethod] || viewSale.paymentMethod}
                        </p>
                      </div>
                   </div>
-                  <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex items-center gap-4">
-                     <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
-                       <Wallet className="w-5 h-5 text-amber-500" />
-                     </div>
-                     <div>
-                       <p className="text-[11px] font-black text-gray-800 mb-0.5">Paid: <span className="text-emerald-600">{formatCurrency(viewSale.total - viewSale.remainingBalance, currency)}</span></p>
-                       <p className="text-[11px] font-black text-gray-800">Due: <span className="text-rose-500">{formatCurrency(viewSale.remainingBalance, currency)}</span></p>
-                     </div>
+                  <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex flex-col justify-center gap-1">
+                     <p className="text-[10px] md:text-[11px] font-black text-gray-800 leading-none">Paid: <span className="text-emerald-600">{formatCurrency(viewSale.total - viewSale.remainingBalance, currency)}</span></p>
+                     <p className="text-[10px] md:text-[11px] font-black text-gray-800 leading-none">Due: <span className="text-rose-500">{formatCurrency(viewSale.remainingBalance, currency)}</span></p>
                   </div>
                </div>
 
