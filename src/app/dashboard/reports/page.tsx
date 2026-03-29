@@ -187,7 +187,7 @@ export default function ReportsPage() {
         fetch(`/api/dashboard?period=${period}`),
         fetch(`/api/invoices?limit=100`),
         fetch(`/api/purchases?limit=100`),
-        fetch(`/api/activity-logs?limit=50`),
+        fetch(`/api/activity-logs?limit=200`),
       ]);
       if (dashRes.ok) setData(await dashRes.json());
       if (invRes.ok) setInvoiceData(await invRes.json());

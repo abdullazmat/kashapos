@@ -27,13 +27,17 @@ import {
   Wallet,
   FileText,
   Truck,
-  Printer
+  Printer,
+  Pencil,
 } from "lucide-react";
 import {
   formatCurrency,
   formatDateTime,
   formatDate,
   printHtml,
+  getPrintBrandingMarkup,
+  escapeHtml,
+  getPrintFooterMarkup,
 } from "@/lib/utils";
 import { useSession } from "../layout";
 
@@ -62,6 +66,9 @@ interface Sale {
   total: number;
   remainingBalance: number;
   paymentMethod: string;
+  amountPaid: number;
+  dueDate?: string;
+  branchId?: string;
   status: string;
   notes: string;
   createdAt: string;
@@ -183,6 +190,7 @@ export default function SalesPage() {
   const [newOrderCustomerName, setNewOrderCustomerName] = useState("");
   const [newOrderCustomerPhone, setNewOrderCustomerPhone] = useState("");
   const [newOrderCustomerEmail, setNewOrderCustomerEmail] = useState("");
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [quickFilter, setQuickFilter] = useState<"all" | "today" | "custom">(
     "all",
   );
@@ -297,8 +305,88 @@ export default function SalesPage() {
     setNewOrderCustomerName("");
     setNewOrderCustomerPhone("");
     setNewOrderCustomerEmail("");
+    setEditingSaleId(null);
     fetchFormData();
     setShowCreateModal(true);
+  };
+
+  const editSale = (s: Sale) => {
+    setEditingSaleId(s._id);
+    setOrderItems(
+      s.items.map((item) => ({
+        lineKey: `${item.productId}:${item.sku}`,
+        productId: String(item.productId),
+        productName: item.productName,
+        sku: item.sku,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        tax: item.tax,
+        total: item.total,
+      })),
+    );
+    setOrderCustomer(s.customerId?._id || "");
+    setOrderBranch(String(s.branchId || ""));
+    setOrderPaymentMethod(s.paymentMethod);
+    setOrderAmountPaid(String(s.amountPaid));
+    setOrderNotes(s.notes || "");
+    setOrderDueDate(s.dueDate ? new Date(s.dueDate).toISOString().split("T")[0] : "");
+    setOrderError("");
+    fetchFormData();
+    setShowCreateModal(true);
+  };
+
+  const printReceipt = (s: Sale) => {
+    const paymentLabel =
+      s.paymentMethod === "mobile_money"
+        ? "Mobile Money"
+        : s.paymentMethod[0].toUpperCase() + s.paymentMethod.slice(1);
+
+    printHtml(
+      `Receipt ${s.orderNumber}`,
+      `
+        <div class="receipt">
+          ${getPrintBrandingMarkup({
+            title: "Sales Order",
+            subtitle: `${s.orderNumber} • ${new Date(s.createdAt).toLocaleString("en-UG")}`,
+          })}
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${s.items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.productName)}</td>
+                      <td>${item.quantity}</td>
+                      <td>${formatCurrency(item.total, currency)}</td>
+                    </tr>`,
+                )
+                .join("")}
+            </tbody>
+          </table>
+          <div class="summary">
+            <div class="summary-row"><span>Customer</span><span>${escapeHtml(s.customerId?.name || s.walkInName || "Walk-in")}</span></div>
+            <div class="summary-row"><span>Payment</span><span>${paymentLabel}</span></div>
+            <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(s.subtotal, currency)}</span></div>
+            ${s.totalTax > 0 ? `<div class="summary-row"><span>Tax</span><span>${formatCurrency(s.totalTax, currency)}</span></div>` : ""}
+            ${s.totalDiscount > 0 ? `<div class="summary-row"><span>Discount</span><span>- ${formatCurrency(s.totalDiscount, currency)}</span></div>` : ""}
+            <div class="summary-row total"><span>Total</span><span>${formatCurrency(s.total, currency)}</span></div>
+            <div class="summary-row"><span>Paid</span><span>${formatCurrency(s.amountPaid, currency)}</span></div>
+             <div class="summary-row" style="color:${s.remainingBalance > 0 ? "#dc2626" : "#059669"}">
+              <span>Balance</span><span>${formatCurrency(s.remainingBalance, currency)}</span>
+            </div>
+          </div>
+          ${getPrintFooterMarkup()}
+        </div>
+      `,
+    );
   };
 
   const addProduct = (
@@ -524,8 +612,8 @@ export default function SalesPage() {
               }
             : undefined;
 
-      const res = await fetch("/api/sales", {
-        method: "POST",
+      const res = await fetch(editingSaleId ? `/api/sales/${editingSaleId}` : "/api/sales", {
+        method: editingSaleId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           branchId: orderBranch,
@@ -559,10 +647,11 @@ export default function SalesPage() {
       });
       if (res.ok) {
         setShowCreateModal(false);
+        setEditingSaleId(null);
         fetchSales();
       } else {
         const d = await res.json();
-        setOrderError(d.error || "Failed to create order");
+        setOrderError(d.error || `Failed to ${editingSaleId ? "update" : "create"} order`);
       }
     } catch {
       setOrderError("Failed to create order");
@@ -973,9 +1062,6 @@ export default function SalesPage() {
                 <th className="px-4 py-3.5 text-right text-[12px] font-semibold uppercase tracking-wider text-gray-500">
                   Financial
                 </th>
-                <th className="px-4 py-3.5 text-right text-[12px] font-semibold uppercase tracking-wider text-gray-500">
-                  Balance
-                </th>
                 <th className="px-4 py-3.5 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">
                   Payment
                 </th>
@@ -990,7 +1076,7 @@ export default function SalesPage() {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center">
+                  <td colSpan={7} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-gray-200 border-t-orange-500" />
                       <span className="text-sm text-gray-400">
@@ -1001,7 +1087,7 @@ export default function SalesPage() {
                 </tr>
               ) : filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center">
+                  <td colSpan={7} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                         <TrendingUp className="h-6 w-6 text-gray-400" />
@@ -1056,39 +1142,31 @@ export default function SalesPage() {
                         {s.items.map((i) => i.productName).join(", ")}
                       </p>
                     </td>
-                    <td className="relative px-4 py-3 text-right">
-                      <div className="group/fin inline-flex items-center justify-end gap-1.5">
-                        <p className="font-semibold text-gray-900">
-                          {formatCurrency(s.total, currency)}
-                        </p>
-                        <Info className="h-3.5 w-3.5 text-gray-300" />
-                        <div className="pointer-events-none invisible absolute z-10 w-52 -translate-x-2 translate-y-7 rounded-lg border border-gray-200 bg-white p-2 text-left text-[11px] text-gray-600 shadow-lg group-hover/fin:visible">
-                          <p>
-                            Subtotal: {formatCurrency(s.subtotal, currency)}
-                          </p>
-                          <p>
-                            Discount:{" "}
-                            {formatCurrency(s.totalDiscount || 0, currency)}
-                          </p>
-                          <p>
-                            Tax: {formatCurrency(s.totalTax || 0, currency)}
-                          </p>
+                    <td className="px-4 py-3 text-right">
+                      <div className="inline-flex flex-col items-end gap-1 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-gray-400">Cost:</span>
+                          <div className="group/fin inline-flex items-center gap-1">
+                            <span className="font-bold text-gray-900">{formatCurrency(s.total, currency)}</span>
+                            <Info className="h-3 w-3 text-gray-300" />
+                            <div className="pointer-events-none invisible absolute z-10 w-48 -translate-x-full rounded-lg border border-gray-200 bg-white p-2 text-left text-[11px] text-gray-600 shadow-lg group-hover/fin:visible">
+                              <p>Subtotal: {formatCurrency(s.subtotal, currency)}</p>
+                              <p>Discount: {formatCurrency(s.totalDiscount || 0, currency)}</p>
+                              <p>Tax: {formatCurrency(s.totalTax || 0, currency)}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-gray-400">Paid:</span>
+                          <span className="font-bold text-emerald-600">{formatCurrency(s.total - s.remainingBalance, currency)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-gray-400">Due:</span>
+                          <span className={`font-bold ${s.remainingBalance > 0 ? "text-red-600" : "text-gray-900"}`}>
+                            {formatCurrency(s.remainingBalance, currency)}
+                          </span>
                         </div>
                       </div>
-                      {s.totalDiscount > 0 && (
-                        <p className="text-[11px] text-red-500">
-                          -{formatCurrency(s.totalDiscount, currency)} disc
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span
-                        className={`text-[13px] font-semibold ${s.remainingBalance > 0 ? "text-red-600" : "text-gray-400"}`}
-                      >
-                        {s.remainingBalance > 0
-                          ? formatCurrency(s.remainingBalance, currency)
-                          : "—"}
-                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 text-gray-600">
@@ -1107,12 +1185,29 @@ export default function SalesPage() {
                       {formatDate(s.createdAt)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => setViewSale(s)}
-                        className="rounded-lg p-1.5 text-gray-400 transition-all hover:bg-orange-50 hover:text-orange-600 opacity-0 group-hover:opacity-100"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => setViewSale(s)}
+                          className="rounded-lg bg-emerald-500 p-1.5 text-white shadow-sm transition-all hover:bg-emerald-600"
+                          title="View Details"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => editSale(s)}
+                          className="rounded-lg bg-blue-500 p-1.5 text-white shadow-sm transition-all hover:bg-blue-600"
+                          title="Edit Order"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => printReceipt(s)}
+                          className="rounded-lg bg-gray-500 p-1.5 text-white shadow-sm transition-all hover:bg-gray-600"
+                          title="Print Receipt"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -2000,7 +2095,13 @@ export default function SalesPage() {
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-orange-500/25 hover:shadow-lg disabled:opacity-50"
               >
                 <Save className="h-4 w-4" />
-                {savingOrder ? "Creating..." : "Create Order"}
+                {savingOrder
+                  ? editingSaleId
+                    ? "Updating..."
+                    : "Creating..."
+                  : editingSaleId
+                    ? "Update Order"
+                    : "Create Order"}
               </button>
             </div>
           </div>

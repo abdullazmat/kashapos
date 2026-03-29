@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Branch from "@/models/Branch";
+import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -35,6 +36,17 @@ export async function POST(request: NextRequest) {
       code,
       tenantId: auth.tenantId,
     });
+
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "create",
+      module: "settings",
+      description: `Added new branch/warehouse: ${branch.name}`,
+      metadata: { branchId: branch._id },
+    });
+
     return apiSuccess(branch, 201);
   } catch (error: unknown) {
     console.error("Branches POST error:", error);
@@ -62,6 +74,17 @@ export async function PUT(request: NextRequest) {
       { new: true },
     );
     if (!branch) return apiError("Branch not found", 404);
+
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "update",
+      module: "settings",
+      description: `Updated branch/warehouse: ${branch.name}`,
+      metadata: { branchId: branch._id },
+    });
+
     return apiSuccess(branch);
   } catch (error) {
     console.error("Branches PUT error:", error);
@@ -83,6 +106,17 @@ export async function DELETE(request: NextRequest) {
       { new: true },
     );
     if (!branch) return apiError("Branch not found", 404);
+
+    await ActivityLog.create({
+      tenantId: auth.tenantId,
+      userId: auth.userId,
+      userName: auth.name || "Unknown",
+      action: "delete",
+      module: "settings",
+      description: `Deactivated branch/warehouse: ${branch.name}`,
+      metadata: { branchId: branch._id },
+    });
+
     return apiSuccess({ message: "Branch deactivated" });
   } catch (error) {
     console.error("Branches DELETE error:", error);

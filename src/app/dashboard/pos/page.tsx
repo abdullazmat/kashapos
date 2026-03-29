@@ -231,6 +231,13 @@ function parseVariantAttributes(name: string) {
 
 export default function POSTerminalPage() {
   const { tenant, user } = useSession();
+
+  const formatInputNumber = (val: string) => {
+    if (!val) return "";
+    const parts = val.split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join(".");
+  };
   const currency = tenant?.settings?.currency || "UGX";
   const supportedCurrencies = new Set([
     "UGX",
@@ -1096,7 +1103,7 @@ export default function POSTerminalPage() {
     );
   }
 
-  const change = parseFloat(amountPaid) - orderGrandTotal;
+  const change = (parseFloat(amountPaid) || 0) - orderGrandTotal;
   const selectedCustomerRecord = customers.find(
     (customer) => customer._id === selectedCustomer,
   );
@@ -1967,7 +1974,14 @@ export default function POSTerminalPage() {
                   {availablePaymentOptions.map((m) => (
                     <button
                       key={m.key}
-                      onClick={() => setPaymentMethod(m.key)}
+                      onClick={() => {
+                        setPaymentMethod(m.key);
+                        if (m.key !== "split" && m.key !== "credit") {
+                          setAmountPaid(orderGrandTotal.toString());
+                        } else if (m.key === "credit") {
+                          setAmountPaid("");
+                        }
+                      }}
                       className={`flex flex-col items-center gap-1 rounded-xl border-2 px-1 py-2.5 transition-all ${
                         paymentMethod === m.key
                           ? m.key === "credit"
@@ -2317,13 +2331,15 @@ export default function POSTerminalPage() {
                         <option value="bank_transfer">Bank</option>
                       </select>
                       <input
-                        type="number"
-                        min={0}
-                        value={row.amount}
+                        type="text"
+                        value={formatInputNumber(row.amount)}
                         onChange={(e) => {
-                          const next = [...splitPayments];
-                          next[idx] = { ...row, amount: e.target.value };
-                          setSplitPayments(next);
+                          const clean = e.target.value.replace(/,/g, "");
+                          if (clean === "" || /^\d*\.?\d*$/.test(clean)) {
+                            const next = [...splitPayments];
+                            next[idx] = { ...row, amount: clean };
+                            setSplitPayments(next);
+                          }
                         }}
                         placeholder="Amount"
                         className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2.5 text-sm text-gray-800"
@@ -2372,24 +2388,33 @@ export default function POSTerminalPage() {
                         : "Amount"}
                   </label>
                   <input
-                    type="number"
-                    value={amountPaid}
-                    onChange={(e) => setAmountPaid(e.target.value)}
-                    min={0}
+                    type="text"
+                    value={formatInputNumber(amountPaid)}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/,/g, "");
+                      if (clean === "" || /^\d*\.?\d*$/.test(clean)) {
+                        setAmountPaid(clean);
+                      }
+                    }}
+                    placeholder="0"
                     className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3 text-center text-lg font-bold text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                   />
-                  {paymentMethod === "cash" &&
-                    change >= 0 &&
-                    parseFloat(amountPaid) > 0 && (
-                      <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-2.5">
-                        <span className="text-sm font-medium text-emerald-700">
-                          Change
-                        </span>
-                        <span className="text-lg font-bold text-emerald-600">
-                          {formatCurrency(change, currency)}
-                        </span>
-                      </div>
-                    )}
+                  {paymentMethod === "cash" && (
+                    <div
+                      className={`mt-3 flex items-center justify-between rounded-xl px-4 py-2.5 ${change >= 0 ? "bg-emerald-50" : "bg-red-50"}`}
+                    >
+                      <span
+                        className={`text-sm font-medium ${change >= 0 ? "text-emerald-700" : "text-red-700"}`}
+                      >
+                        {change >= 0 ? "Change" : "Balance Due"}
+                      </span>
+                      <span
+                        className={`text-lg font-bold ${change >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                      >
+                        {formatCurrency(Math.abs(change), currency)}
+                      </span>
+                    </div>
+                  )}
                   {paymentMethod === "credit" && (
                     <div className="mt-3 flex items-center justify-between rounded-xl bg-amber-50 px-4 py-2.5">
                       <span className="text-sm font-medium text-amber-700">
