@@ -5,10 +5,19 @@ import Tenant from "@/models/Tenant";
 import ActivityLog from "@/models/ActivityLog";
 import { verifyPassword, setSession } from "@/lib/auth";
 import { apiError, apiSuccess } from "@/lib/api-helpers";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
+    
+    // IP-based Rate Limiting (Prevent Brute Force)
+    const ip = request.headers.get("x-forwarded-for") || "unknown";
+    const rl = checkRateLimit({ key: `signin_${ip}`, limit: 30, windowMs: 15 * 60 * 1000 });
+    if (!rl.allowed) {
+      return apiError(`Too many login attempts. Try again in ${rl.retryAfterSeconds}s`, 429);
+    }
+
     const { email, phone, password } = await request.json();
 
     if ((!email && !phone) || !password) {
@@ -20,12 +29,30 @@ export async function POST(request: NextRequest) {
       : { phone: phone.replace(/\s+/g, "") };
     const user = await User.findOne(query);
     if (!user) {
+      // Generic error handling (Checklist #8): Return identical responses for wrong user/pass
       return apiError("Invalid credentials", 401);
+    }
+
+    // Account Lockout verification (Checklist #1)
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      return apiError("Account temporarily locked due to multiple failed login attempts. Try again later.", 403);
     }
 
     const isValid = await verifyPassword(password, user.password);
     if (!isValid) {
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      // Lock accounts after 5 consecutive failed login attempts
+      if (user.failedLoginAttempts >= 5) {
+        user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // Lock for 15 minutes
+      }
+      await user.save();
       return apiError("Invalid credentials", 401);
+    }
+
+    // Reset failed login attempts on successful login
+    if (user.failedLoginAttempts && user.failedLoginAttempts > 0) {
+      user.failedLoginAttempts = 0;
+      user.lockedUntil = undefined;
     }
 
     if (!user.isActive) {

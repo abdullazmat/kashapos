@@ -21,6 +21,72 @@ function parsePort(value: unknown, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+export async function sendSystemEmail({
+  to,
+  subject,
+  html,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+}) {
+  // Future-proof explicit check: you can lock it by setting EMAIL_PROVIDER="smtp" or "resend"
+  const provider = process.env.EMAIL_PROVIDER;
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  // Try SMTP if explicitly set to smtp, OR if explicitly not set to resend and variables exist
+  if (provider === "smtp" || (provider !== "resend" && host && user && pass)) {
+    const port = parsePort(process.env.SMTP_PORT, 587);
+    const fromEmail = process.env.SMTP_FROM || user;
+    const fromName = "Meka PoS";
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465, // true for 465, false for other ports
+      auth: { user, pass },
+    });
+
+    await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to,
+      subject,
+      html,
+    });
+    return { id: "smtp-success", mock: false };
+  }
+
+  // Fallback to Resend API
+  const apiKey = process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
+  const resend = new Resend(apiKey);
+  
+  const fromEmail = process.env.SMTP_FROM || "onboarding@resend.dev";
+  const fromName = "Meka PoS";
+  let resendFrom = `${fromName} <${fromEmail}>`;
+  
+  if (/@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail) || fromEmail.includes("example.com")) {
+    resendFrom = `${fromName} <onboarding@resend.dev>`;
+  }
+
+  const { data, error } = await resend.emails.send({
+    from: resendFrom,
+    to: [to],
+    subject,
+    html,
+  });
+
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[MOCK EMAIL] To: ${to}\nSubject: ${subject}\nBody: ${html}`);
+      return { id: "mock-success", mock: true };
+    }
+    throw new Error(`Resend delivery failed: ${error.message}`);
+  }
+  return data;
+}
+
 export async function sendTenantEmail(input: SendTenantEmailInput) {
   const tenant = await Tenant.findById(input.tenantId).lean();
   if (!tenant) {

@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/lib/db";
 import Sale from "@/models/Sale";
 import Expense from "@/models/Expense";
 import PurchaseOrder from "@/models/PurchaseOrder";
 import CustomerPayment from "@/models/CustomerPayment";
+import Return from "@/models/Return";
 import { getAuthContext, apiError, apiSuccess } from "@/lib/api-helpers";
 
 type PeriodKey = "today" | "week" | "month" | "year" | "custom";
@@ -75,16 +77,17 @@ export async function GET(request: NextRequest) {
 
     const { start, end } = getDateRange(period, startDateParam, endDateParam);
 
-    const branchMatch = auth.branchId ? { branchId: auth.branchId } : {};
+    const tenantObjectId = new mongoose.Types.ObjectId(auth.tenantId);
+    const branchMatch = auth.branchId ? { branchId: new mongoose.Types.ObjectId(auth.branchId) } : {};
 
     const baseSalesMatch: Record<string, unknown> = {
-      tenantId: auth.tenantId,
+      tenantId: tenantObjectId,
       status: "completed",
       ...branchMatch,
     };
 
     const baseExpenseMatch: Record<string, unknown> = {
-      tenantId: auth.tenantId,
+      tenantId: tenantObjectId,
       ...branchMatch,
     };
 
@@ -97,6 +100,8 @@ export async function GET(request: NextRequest) {
       periodExpensesAgg,
       periodPurchasesAgg,
       periodCustomerPaymentsAgg,
+      openingReturnsAgg,
+      periodReturnsAgg,
     ] = await Promise.all([
       Sale.aggregate([
         {
@@ -120,7 +125,7 @@ export async function GET(request: NextRequest) {
       PurchaseOrder.aggregate([
         {
           $match: {
-            tenantId: auth.tenantId,
+            tenantId: tenantObjectId,
             ...branchMatch,
             createdAt: { $lt: start },
           },
@@ -130,7 +135,7 @@ export async function GET(request: NextRequest) {
       CustomerPayment.aggregate([
         {
           $match: {
-            tenantId: auth.tenantId,
+            tenantId: tenantObjectId,
             createdAt: { $lt: start },
           },
         },
@@ -158,7 +163,7 @@ export async function GET(request: NextRequest) {
       PurchaseOrder.aggregate([
         {
           $match: {
-            tenantId: auth.tenantId,
+            tenantId: tenantObjectId,
             ...branchMatch,
             createdAt: { $gte: start, $lte: end },
           },
@@ -168,11 +173,35 @@ export async function GET(request: NextRequest) {
       CustomerPayment.aggregate([
         {
           $match: {
-            tenantId: auth.tenantId,
+            tenantId: tenantObjectId,
             createdAt: { $gte: start, $lte: end },
           },
         },
         { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
+      Return.aggregate([
+        {
+          $match: {
+            tenantId: tenantObjectId,
+            ...branchMatch,
+            type: "sales_return",
+            status: "completed",
+            createdAt: { $lt: start },
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$total" } } },
+      ]),
+      Return.aggregate([
+        {
+          $match: {
+            tenantId: tenantObjectId,
+            ...branchMatch,
+            type: "sales_return",
+            status: "completed",
+            createdAt: { $gte: start, $lte: end },
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$total" } } },
       ]),
     ]);
 
@@ -190,10 +219,13 @@ export async function GET(request: NextRequest) {
       periodCustomerPaymentsAgg[0]?.total || 0,
     );
 
+    const openingReturns = Number(openingReturnsAgg[0]?.total || 0);
+    const periodReturns = Number(periodReturnsAgg[0]?.total || 0);
+
     const openingBalance =
-      openingSales + openingCustomerPayments - openingExpenses - openingPurchases;
+      openingSales + openingCustomerPayments - openingExpenses - openingPurchases - openingReturns;
     const totalInflows = periodSales + periodCustomerPayments;
-    const totalOutflows = periodExpenses + periodPurchases;
+    const totalOutflows = periodExpenses + periodPurchases + periodReturns;
     const netCashFlow = totalInflows - totalOutflows;
     const closingBalance = openingBalance + netCashFlow;
 
@@ -207,7 +239,7 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     if (includeDetails) {
-      const [sales, expenses, purchases, payments] = await Promise.all([
+      const [sales, expenses, purchases, payments, returns] = await Promise.all([
         Sale.find({
           ...baseSalesMatch,
           customerId: null,
@@ -226,7 +258,7 @@ export async function GET(request: NextRequest) {
           .limit(100)
           .lean(),
         PurchaseOrder.find({
-          tenantId: auth.tenantId,
+          tenantId: tenantObjectId,
           ...branchMatch,
           createdAt: { $gte: start, $lte: end },
           amountPaid: { $gt: 0 },
@@ -236,12 +268,23 @@ export async function GET(request: NextRequest) {
           .limit(100)
           .lean(),
         CustomerPayment.find({
-          tenantId: auth.tenantId,
+          tenantId: tenantObjectId,
           createdAt: { $gte: start, $lte: end },
         })
           .populate("customerId", "name")
           .sort({ createdAt: -1 })
           .limit(150)
+          .lean(),
+        Return.find({
+          tenantId: tenantObjectId,
+          ...branchMatch,
+          type: "sales_return",
+          status: "completed",
+          createdAt: { $gte: start, $lte: end },
+        })
+          .select("_id createdAt returnNumber total")
+          .sort({ createdAt: -1 })
+          .limit(100)
           .lean(),
       ]);
 
@@ -281,11 +324,21 @@ export async function GET(request: NextRequest) {
         amount: Number(expense.amount || 0),
       }));
 
+      const returnOutflows = returns.map((ret: any) => ({
+        id: String(ret._id),
+        date: new Date(ret.createdAt).toISOString(),
+        description: `Sales Return ${ret.returnNumber}`,
+        type: "refund",
+        direction: "outflow" as const,
+        amount: Number(ret.total || 0),
+      }));
+
       transactions = [
         ...saleInflows,
         ...paymentInflows,
         ...purchaseOutflows,
         ...expenseOutflows,
+        ...returnOutflows,
       ]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 250);

@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import User from "@/models/User";
 import Tenant from "@/models/Tenant";
 import Branch from "@/models/Branch";
+import OTP from "@/models/OTP";
 import { hashPassword, setSession } from "@/lib/auth";
 import { validatePasswordPolicy } from "@/lib/security";
 import { slugify } from "@/lib/utils";
@@ -11,12 +12,12 @@ import { apiError, apiSuccess } from "@/lib/api-helpers";
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
-    const { businessName, email, password, name, phone, saasProduct } =
+    const { businessName, email, password, name, phone, saasProduct, otp } =
       await request.json();
 
-    if (!businessName || (!email && !phone) || !password || !name) {
+    if (!businessName || (!email && !phone) || !password || !name || !otp) {
       return apiError(
-        "Business name, contact (email or phone), password, and name are required",
+        "Business name, contact (email or phone), password, name, and OTP are required",
         400,
       );
     }
@@ -37,6 +38,14 @@ export async function POST(request: NextRequest) {
     const existingUser = await User.findOne(query);
     if (existingUser) {
       return apiError(email ? "Email already registered" : "Phone number already registered", 409);
+    }
+
+    const identifier = email ? email.toLowerCase() : phone.replace(/\s+/g, "");
+    
+    // Verify OTP
+    const validOtp = await OTP.findOne({ identifier, otp });
+    if (!validOtp) {
+      return apiError("Invalid or expired OTP", 400);
     }
 
     // Create tenant
@@ -109,6 +118,9 @@ export async function POST(request: NextRequest) {
       branchId: branch._id.toString(),
       name: user.name,
     });
+
+    // Delete OTP after successful signup
+    await OTP.deleteOne({ _id: validOtp._id });
 
     return apiSuccess(
       {

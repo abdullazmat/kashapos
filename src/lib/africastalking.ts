@@ -1,61 +1,77 @@
-/**
- * Africa's Talking Service for SMS
- */
-
-const USERNAME = process.env.AT_USERNAME || "";
-const API_KEY = process.env.AT_API_KEY || "";
+const AT_USERNAME = process.env.AT_USERNAME || "sandbox";
+const AT_API_KEY = process.env.AT_API_KEY || "";
 
 class AfricasTalkingService {
-  private isEnabled() {
-    return !!(USERNAME && API_KEY);
+  private sms: any;
+  private isConfigured: boolean = false;
+
+  constructor() {
+    if (AT_USERNAME && AT_API_KEY) {
+      try {
+        // Safe require since there are no official types
+        const africastalking = require('africastalking');
+        const at = africastalking({
+          apiKey: AT_API_KEY,
+          username: AT_USERNAME,
+        });
+        this.sms = at.SMS;
+        this.isConfigured = true;
+      } catch (error) {
+        console.error("Failed to initialize Africa's Talking SDK", error);
+      }
+    }
   }
 
-  /**
-   * Send SMS via Africa's Talking
-   */
-  async sendSMS(to: string, message: string, credentials?: { atUsername?: string, atApiKey?: string }) {
-    const user = (credentials?.atUsername && credentials.atUsername !== "********") ? credentials.atUsername : USERNAME;
-    const key = (credentials?.atApiKey && credentials.atApiKey !== "********") ? credentials.atApiKey : API_KEY;
+  private getSmsClient(credentials?: {
+    atUsername?: string;
+    atApiKey?: string;
+  }) {
+    const username = (credentials?.atUsername && credentials.atUsername !== "********") ? credentials.atUsername : AT_USERNAME;
+    const apiKey = (credentials?.atApiKey && credentials.atApiKey !== "********") ? credentials.atApiKey : AT_API_KEY;
 
-    if (!user || !key) {
+    if (username && apiKey) {
+        try {
+            const africastalking = require('africastalking');
+            const at = africastalking({
+                apiKey: apiKey,
+                username: username,
+            });
+            return at.SMS;
+        } catch (error) {
+            console.error("Failed to initialize Africa's Talking SDK with provided credentials", error);
+        }
+    }
+    return this.sms;
+  }
+
+  async sendSMS(to: string, message: string, credentials?: any) {
+    const smsClient = this.getSmsClient(credentials);
+    if (!smsClient && !this.isConfigured) {
       console.warn("Africa's Talking not configured, SMS not sent to:", to);
       return { success: false, message: "Africa's Talking not configured" };
     }
 
-    if (!to) {
-      return { success: false, message: "Phone number is required" };
-    }
-
     try {
-      // Numbers must be in international format (e.g. +256...)
-      const formattedTo = to.startsWith("+") ? to : `+${to}`;
+      const options = {
+        to: [to],
+        message: message,
+      };
 
-      const params = new URLSearchParams();
-      params.append("username", user);
-      params.append("to", formattedTo);
-      params.append("message", message);
+      const response = await smsClient.send(options);
+      
+      console.log("[Africa's Talking Response]:", JSON.stringify(response, null, 2));
 
-      const response = await fetch("https://api.africastalking.com/version1/messaging", {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/x-www-form-urlencoded",
-          "apiKey": key,
-        },
-        body: params.toString(),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        return { success: true, data };
-      } else {
-        console.error("Africa's Talking SMS failed:", data);
-        return { success: false, error: data };
+      if (response && response.SMSMessageData && response.SMSMessageData.Recipients) {
+        const recipient = response.SMSMessageData.Recipients[0];
+        if (recipient.status !== "Success" && recipient.status !== "Sent") {
+            throw new Error(`Africa's Talking SMS Delivery Failed with status: ${recipient.status} (Cost: ${recipient.cost || 'unknown'})`);
+        }
       }
+
+      return { success: true, data: response };
     } catch (error: any) {
-      console.error("Africa's Talking fetch error:", error);
-      throw new Error(`Africa's Talking SMS failed: ${error.message}`);
+      console.error("Africa's Talking SMS failed:", error);
+      throw new Error(`Africa's Talking SMS failed: ${error.message || JSON.stringify(error)}`);
     }
   }
 }

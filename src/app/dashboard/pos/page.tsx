@@ -2335,8 +2335,8 @@ export default function POSTerminalPage() {
                             prev.filter((_, i) => i !== idx),
                           )
                         }
-                        className="rounded-xl border border-red-200 px-3 py-2.5 text-xs font-semibold text-red-600"
-                        disabled={splitPayments.length <= 2}
+                        className="rounded-xl border border-red-200 px-3 py-2.5 text-xs font-semibold text-red-600 disabled:opacity-50"
+                        disabled={splitPayments.length <= 1}
                       >
                         Remove
                       </button>

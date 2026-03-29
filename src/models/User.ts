@@ -15,6 +15,8 @@ export interface IUser extends Document {
   isActive: boolean;
   avatar?: string;
   lastLogin?: Date;
+  failedLoginAttempts?: number;
+  lockedUntil?: Date;
   emailVerified: boolean;
   emailVerificationToken?: string;
   createdAt: Date;
@@ -48,6 +50,8 @@ const UserSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: true },
     avatar: { type: String },
     lastLogin: { type: Date },
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockedUntil: { type: Date },
     emailVerified: { type: Boolean, default: false },
     emailVerificationToken: { type: String },
   },

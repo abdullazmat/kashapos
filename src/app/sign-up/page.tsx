@@ -41,6 +41,8 @@ export default function SignUpPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showOtpField, setShowOtpField] = useState(false);
+  const [otp, setOtp] = useState("");
 
   const validateForm = () => {
     const errors: Record<string, string> = {};
@@ -81,7 +83,7 @@ export default function SignUpPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -90,10 +92,52 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
+      const identifier = signupMethod === "email" ? form.email : (signupMethod === "whatsapp" ? form.whatsapp : form.phone);
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, method: signupMethod }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to send verification code");
+        return;
+      }
+      
+      if (data.mock) {
+        alert(`[DEV MODE] Your verification code is: ${data.mockOtp}`);
+      }
+      
+      setShowOtpField(true);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!showOtpField) {
+      return handleSendOtp(e);
+    }
+
+    if (!otp || otp.length < 6) {
+      setError("Please enter the 6-digit verification code");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
       const payload = {
         ...form,
         phone: signupMethod === "whatsapp" ? form.whatsapp : form.phone,
         signupMethod,
+        otp,
       };
       const res = await fetch("/api/auth/sign-up", {
         method: "POST",
@@ -107,7 +151,7 @@ export default function SignUpPage() {
         return;
       }
 
-      // Instant login for all methods in development
+      // Success
       router.push("/dashboard");
     } catch {
       setError("Something went wrong. Please try again.");
@@ -229,7 +273,7 @@ export default function SignUpPage() {
             )}
 
             {/* Signup Method Toggle */}
-            <div className="flex rounded-xl border overflow-hidden mb-6">
+            <div className={`flex rounded-xl border overflow-hidden mb-6 ${showOtpField ? "opacity-50 pointer-events-none" : ""}`}>
               {[
                 { key: "email", icon: Mail, label: "Email" },
                 { key: "phone", icon: Phone, label: "Phone" },
@@ -255,6 +299,35 @@ export default function SignUpPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {showOtpField ? (
+                <div className="bg-orange-50 border border-orange-200 p-6 rounded-2xl mb-4 text-center">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Verify your account</h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    We&apos;ve sent a 6-digit code to <span className="font-semibold text-gray-900">{signupMethod === "email" ? form.email : (signupMethod === "whatsapp" ? form.whatsapp : form.phone)}</span>.
+                  </p>
+                  <div>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                      className="w-full text-center px-4 py-3 text-2xl tracking-[0.5em] font-mono border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 bg-white"
+                      placeholder="••••••"
+                      required
+                    />
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowOtpField(false)}
+                      className="text-sm text-orange-600 hover:underline"
+                    >
+                      Use a different {signupMethod}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Business Name
@@ -431,13 +504,15 @@ export default function SignUpPage() {
                   <option value="clinic">Clinic POS</option>
                 </select>
               </div>
+              </>
+              )}
 
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-orange-500 text-white py-3 rounded-xl font-medium text-sm hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? "Creating account..." : "Create Account"}
+                {loading ? (showOtpField ? "Verifying..." : "Sending code...") : (showOtpField ? "Verify & Create Account" : "Create Account")}
               </button>
             </form>
 

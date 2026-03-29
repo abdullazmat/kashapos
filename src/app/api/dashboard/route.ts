@@ -5,6 +5,7 @@ import Sale from "@/models/Sale";
 import Product from "@/models/Product";
 import Stock from "@/models/Stock";
 import Customer from "@/models/Customer";
+import Return from "@/models/Return";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -88,6 +89,8 @@ export async function GET(request: NextRequest) {
       totalStock,
       totalCustomers,
       weeklySales,
+      todayReturns,
+      yesterdayReturns,
     ] = await Promise.all([
       Sale.aggregate([
         {
@@ -144,6 +147,29 @@ export async function GET(request: NextRequest) {
         },
         { $sort: { _id: 1 } },
       ]),
+      // Missing Returns arrays
+      Return.aggregate([
+        {
+          $match: {
+            ...aggregateSalesQuery,
+            createdAt: { $gte: todayStart },
+            status: "completed",
+            type: "sales_return"
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$total" } } },
+      ]),
+      Return.aggregate([
+        {
+          $match: {
+            ...aggregateSalesQuery,
+            createdAt: { $gte: yesterdayStart, $lt: todayStart },
+            status: "completed",
+            type: "sales_return"
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$total" } } },
+      ]),
     ]);
 
     // Low stock alerts
@@ -171,12 +197,17 @@ export async function GET(request: NextRequest) {
           totalRevenue: { $sum: "$items.total" },
         },
       },
-      { $sort: { totalRevenue: -1 } },
       { $limit: 10 },
     ]);
 
-    const todayTotal = todaySales[0]?.total || 0;
-    const yesterdayTotal = yesterdaySales[0]?.total || 0;
+    const todayGross = todaySales[0]?.total || 0;
+    const yesterdayGross = yesterdaySales[0]?.total || 0;
+    const todayReturnsTotal = todayReturns[0]?.total || 0;
+    const yesterdayReturnsTotal = yesterdayReturns[0]?.total || 0;
+
+    const todayTotal = Math.max(0, todayGross - todayReturnsTotal);
+    const yesterdayTotal = Math.max(0, yesterdayGross - yesterdayReturnsTotal);
+
     const salesGrowth =
       yesterdayTotal > 0
         ? (((todayTotal - yesterdayTotal) / yesterdayTotal) * 100).toFixed(1)

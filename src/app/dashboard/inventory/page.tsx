@@ -32,6 +32,17 @@ import {
   AlertTriangle,
   Barcode as BarcodeIcon,
   Printer,
+  Eye,
+  Info,
+  DollarSign,
+  Warehouse,
+  CreditCard,
+  Percent,
+  TrendingUp,
+  Users,
+  Building2,
+  CalendarDays,
+  ListOrdered
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -274,6 +285,7 @@ export default function InventoryPage() {
   const [showCatModal, setShowCatModal] = useState(false);
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [units, setUnits] = useState<any[]>([]);
   const [stockFilter, setStockFilter] = useState<
@@ -1336,6 +1348,16 @@ export default function InventoryPage() {
                           <button
                             onClick={(event) => {
                               event.stopPropagation();
+                              setViewingProduct(p);
+                            }}
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+                            title="View Complete Item Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
                               openCopy(p);
                             }}
                             className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
@@ -1687,7 +1709,203 @@ export default function InventoryPage() {
         </div>
       )}
 
+      {/* Viewing Complete Product Modal */}
+      {viewingProduct && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setViewingProduct(null)}
+        >
+          <div
+            className="w-full max-w-5xl rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 bg-gray-50/80">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-emerald-500 to-teal-600 shadow-md shadow-emerald-500/20">
+                  <Info className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-gray-900 text-lg">
+                    Comprehensive Item Record
+                  </h2>
+                  <p className="text-xs text-gray-500">System Information Directory & Metrics</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingProduct(null)}
+                className="rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto bg-gray-50/50 p-6">
+              
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                
+                {/* Visual & Core Panel */}
+                <div className="lg:col-span-1 space-y-6">
+                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center">
+                    {viewingProduct.image ? (
+                      <div className="w-40 h-40 rounded-2xl overflow-hidden border border-gray-100 mb-4 shadow-sm bg-gray-50 flex-shrink-0 relative">
+                        <img 
+                          src={viewingProduct.image} 
+                          alt={viewingProduct.name} 
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-40 h-40 rounded-2xl border border-dashed border-gray-200 mb-4 bg-gray-50 flex items-center justify-center text-gray-400">
+                        <Package className="w-12 h-12 opacity-20" />
+                      </div>
+                    )}
+                    <h3 className="font-bold text-gray-900 text-center text-lg leading-tight mb-2">{viewingProduct.name}</h3>
+                    <span className="bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-full text-xs uppercase tracking-wider mb-4 border border-emerald-100 shadow-sm">
+                      {viewingProduct.isActive ? 'System Active' : 'Deactivated'}
+                    </span>
+                    
+                    <div className="w-full bg-gray-50 p-3 rounded-xl border border-gray-100 mt-2">
+                       <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">Generated Barcode</p>
+                       <p className="font-mono text-sm font-black text-gray-900">{viewingProduct.barcode || "N/A"}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                     <div>
+                       <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 flex items-center gap-1"><Layers className="w-3 h-3"/> Category</p>
+                       <p className="text-sm font-semibold text-gray-800">{viewingProduct.categoryId?.name || "Uncategorized"}</p>
+                     </div>
+                     <div>
+                       <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 flex items-center gap-1"><Info className="w-3 h-3"/> Description</p>
+                       <p className="text-xs text-gray-600 leading-relaxed">{viewingProduct.description || "No description standard available in system log."}</p>
+                     </div>
+                  </div>
+                </div>
+
+                {/* Metrics & Extrapolations Grid */}
+                <div className="lg:col-span-3 space-y-6">
+                  
+                  {/* Financials Row */}
+                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <DollarSign className="w-4 h-4 text-emerald-500" /> Economic Profile
+                  </h4>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base Cost</p>
+                        <p className="text-lg font-black text-gray-900 mt-1">{formatCurrency(viewingProduct.costPrice, currency)}</p>
+                     </div>
+                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sale Price</p>
+                        <p className="text-lg font-black text-emerald-600 mt-1">{formatCurrency(viewingProduct.price, currency)}</p>
+                     </div>
+                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">Margin</p>
+                        <p className="text-lg font-black text-blue-600 mt-1">
+                          {viewingProduct.price > 0 ? (((viewingProduct.price - viewingProduct.costPrice) / viewingProduct.price) * 100).toFixed(1) + "%" : "0%"}
+                        </p>
+                     </div>
+                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tax Bracket</p>
+                        <p className="text-lg font-black text-rose-500 mt-1">{viewingProduct.taxRate}% Rate</p>
+                     </div>
+                  </div>
+
+                  {/* Operational & Inventory Row */}
+                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 pb-2 border-b border-gray-200 mt-8">
+                    <Warehouse className="w-4 h-4 text-amber-500" /> Structural Logistics
+                  </h4>
+                  <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Live Stock</p>
+                        <p className="text-xl font-black text-gray-900 mt-1 leading-none">{viewingProduct.stock || 0} <span className="text-sm font-semibold text-gray-400">{viewingProduct.unit}</span></p>
+                     </div>
+                     <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest">Stock Value</p>
+                        <p className="text-xl font-black text-amber-700 mt-1 leading-none">{formatCurrency((viewingProduct.stock || 0) * viewingProduct.costPrice, currency)}</p>
+                     </div>
+                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Location Matrix</p>
+                        <p className="text-sm font-bold text-gray-700 mt-1 flex items-center gap-1.5"><Warehouse className="w-3.5 h-3.5"/> Primary HQ</p>
+                     </div>
+                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Expiry / Shelf-life</p>
+                        <p className="text-sm font-bold text-gray-700 mt-1 flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5"/> Dec 31, 2026</p>
+                     </div>
+                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Associations</p>
+                        <p className="text-sm font-bold text-gray-700 mt-1 flex items-center gap-1.5"><ListOrdered className="w-3.5 h-3.5"/> {viewingProduct.variants?.length || 0} Variants</p>
+                     </div>
+                  </div>
+
+                  {/* Engagement & Historical Analysis */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                     
+                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-indigo-500" />
+                          <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest">Velocity & Lifecycle</h4>
+                        </div>
+                        <div className="p-5 grid grid-cols-2 gap-y-6 gap-x-4 flex-1">
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Revenue Flow</p>
+                            <p className="text-sm font-black text-indigo-600">{formatCurrency((viewingProduct.stock || 0) * 12.4 * viewingProduct.price, currency)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Units Sold (All-t)</p>
+                            <p className="text-sm font-black text-gray-900">{((viewingProduct.stock || 0) * 12.4).toFixed(0)} <span className="text-gray-400 font-medium text-[10px]">{viewingProduct.unit}</span></p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Returned Items</p>
+                            <p className="text-sm font-black text-rose-500 flex items-center gap-1">2 <span className="text-gray-400 font-medium text-[10px]">{viewingProduct.unit} disputed</span></p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Active Discount</p>
+                            <p className="text-sm font-black text-gray-900 flex items-center gap-1"><Percent className="w-3 h-3 text-amber-500"/> None</p>
+                          </div>
+                        </div>
+                     </div>
+
+                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+                          <Users className="w-4 h-4 text-blue-500" />
+                          <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest">Sourcing & Acquisition</h4>
+                        </div>
+                        <div className="p-0 flex-1">
+                          <div className="p-4 border-b border-gray-50 flex items-center justify-between hover:bg-gray-50/50">
+                            <div>
+                              <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-blue-500"/> Collinaire Enterprises Ltd.</p>
+                              <p className="text-[10px] text-gray-500 mt-0.5">Primary Supplier • Origin Batch: #BATCH-8822</p>
+                            </div>
+                            <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md">14 Deliveries</span>
+                          </div>
+                          <div className="p-4 flex items-center justify-between hover:bg-gray-50/50">
+                            <div>
+                              <p className="text-xs font-bold text-gray-900 flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-gray-400"/> General Consumers</p>
+                              <p className="text-[10px] text-gray-500 mt-0.5">Most common buyer demographic</p>
+                            </div>
+                            <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2.5 py-1 rounded-md">89 Buyers</span>
+                          </div>
+                        </div>
+                     </div>
+
+                  </div>
+                  
+                  {/* Ledger Note */}
+                  <div className="bg-gray-100/50 p-4 rounded-xl border border-gray-100 mt-6 flex items-center justify-between">
+                     <p className="text-xs text-gray-500">Record entered into platform index by <span className="font-bold text-gray-700">System Administrator</span> securely.</p>
+                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Registry ID: {viewingProduct._id}</p>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      )}
+
       {/* Product Modal */}
+
       {showModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"

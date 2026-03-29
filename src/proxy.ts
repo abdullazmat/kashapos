@@ -26,6 +26,9 @@ const publicPaths = [
   "/api/v1/auth/sign-up",
   "/api/seed",
   "/api/v1/seed",
+  "/admin-login",
+  "/api/admin/setup",
+  "/api/admin/auth/sign-in",
 ];
 
 function getClientIp(request: NextRequest) {

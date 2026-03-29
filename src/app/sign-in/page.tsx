@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { COUNTRY_CODES } from "@/lib/countries";
 
 function SignInForm() {
   const router = useRouter();
@@ -29,21 +30,25 @@ function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // Forgot Password States
+  const [mode, setMode] = useState<"signin" | "forgot" | "reset">("signin");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  const countryCodes = [
-    { code: "+256", country: "UG", flag: "🇺🇬" },
-    { code: "+254", country: "KE", flag: "🇰🇪" },
-    { code: "+255", country: "TZ", flag: "🇹🇿" },
-    { code: "+250", country: "RW", flag: "🇷🇼" },
-    { code: "+257", country: "BI", flag: "🇧🇮" },
-    { code: "+243", country: "CD", flag: "🇨🇩" },
-    { code: "+211", country: "SS", flag: "🇸🇸" },
-    { code: "+234", country: "NG", flag: "🇳🇬" },
-    { code: "+233", country: "GH", flag: "🇬🇭" },
-    { code: "+27", country: "ZA", flag: "🇿🇦" },
-    { code: "+1", country: "US", flag: "🇺🇸" },
-    { code: "+44", country: "UK", flag: "🇬🇧" },
-  ];
+  const handlePhoneChange = (val: string) => {
+    if (val.startsWith("+")) {
+      const sortedByLength = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+      const matched = sortedByLength.find((c) => val.startsWith(c.code));
+      if (matched) {
+        setCountryCode(matched.code);
+        setPhone(val.slice(matched.code.length).replace(/[^\d]/g, ""));
+        return;
+      }
+    }
+    setPhone(val.replace(/[^\d]/g, ""));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +80,75 @@ function SignInForm() {
       router.push("/dashboard");
     } catch {
       setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const isEmail = loginMethod === "email";
+      const identifier = isEmail ? email : countryCode + phone.replace(/^0+/, "");
+      
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identifier,
+          method: loginMethod,
+          purpose: "reset",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to send reset code");
+        return;
+      }
+
+      setMode("reset");
+      if (data.mock) {
+        alert(`DEVELOPMENT MOCK\nOTP Code: ${data.otp}`);
+      }
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const isEmail = loginMethod === "email";
+      const identifier = isEmail ? email : countryCode + phone.replace(/^0+/, "");
+      
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, otp, newPassword }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to reset password");
+        return;
+      }
+
+      setSuccessMsg("Password reset successfully! You can now sign in.");
+      setMode("signin");
+      setPassword("");
+      setOtp("");
+      setNewPassword("");
+    } catch {
+      setError("Network error. Try again.");
     } finally {
       setLoading(false);
     }
@@ -136,13 +210,29 @@ function SignInForm() {
             </Link>
           </div>
 
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {mode === "signin"
+              ? "Welcome back"
+              : mode === "forgot"
+              ? "Reset Password"
+              : "Enter Code"}
+          </h1>
           <p className="mt-2 text-sm text-gray-600 mb-6">
-            Sign in to your account
+            {mode === "signin"
+              ? "Sign in to your account"
+              : mode === "forgot"
+              ? "Enter your phone or email to receive a reset code"
+              : "Enter the OTP sent to you and your new password"}
           </p>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-            {isVerified && (
+            {successMsg && (
+              <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                {successMsg}
+              </div>
+            )}
+            {isVerified && !successMsg && (
               <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                 Email verified successfully! You can now sign in.
@@ -156,152 +246,205 @@ function SignInForm() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Login Method Toggle */}
-              <div className="flex rounded-xl border overflow-hidden">
-                {[
-                  { key: "email", icon: Mail, label: "Email" },
-                  { key: "phone", icon: Phone, label: "Phone" },
-                  { key: "whatsapp", icon: MessageCircle, label: "WhatsApp" },
-                ].map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => setLoginMethod(m.key as typeof loginMethod)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
-                      loginMethod === m.key
-                        ? m.key === "whatsapp"
-                          ? "bg-green-500 text-white"
-                          : "bg-orange-500 text-white"
-                        : "bg-gray-50 text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    <m.icon className="w-3.5 h-3.5" />
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+            <form
+              onSubmit={
+                mode === "signin"
+                  ? handleSubmit
+                  : mode === "forgot"
+                  ? handleSendOtp
+                  : handleResetPassword
+              }
+              className="space-y-4"
+            >
+              {/* Common Account Inputs for Sign In and Forgot Password */}
+              {mode !== "reset" && (
+                <>
+                  <div className="flex rounded-xl border overflow-hidden">
+                    {[
+                      { key: "email", icon: Mail, label: "Email" },
+                      { key: "phone", icon: Phone, label: "Phone" },
+                      { key: "whatsapp", icon: MessageCircle, label: "WhatsApp" },
+                    ].map((m) => (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => setLoginMethod(m.key as typeof loginMethod)}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${
+                          loginMethod === m.key
+                            ? m.key === "whatsapp"
+                              ? "bg-green-500 text-white"
+                              : "bg-orange-500 text-white"
+                            : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        <m.icon className="w-3.5 h-3.5" />
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
 
-              {loginMethod === "email" ? (
+                  {loginMethod === "email" ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                        placeholder="you@example.com"
+                        required
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <span className="flex items-center gap-1.5">
+                          {loginMethod === "whatsapp" && (
+                            <MessageCircle className="w-3.5 h-3.5 text-green-600" />
+                          )}
+                          {loginMethod === "whatsapp"
+                            ? "WhatsApp Number"
+                            : "Phone Number"}
+                        </span>
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          value={countryCode}
+                          onChange={(e) => setCountryCode(e.target.value)}
+                          className={`w-28 px-2 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
+                        >
+                          {COUNTRY_CODES.map((c) => (
+                            <option key={`${c.country}-${c.code}`} value={c.code}>
+                              {c.flag} {c.code}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => handlePhoneChange(e.target.value)}
+                          className={`flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
+                          placeholder="7XX XXX XXX (or paste +92...)"
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Specific inputs for Sign In */}
+              {mode === "signin" && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
-                    placeholder="you@example.com"
-                    required
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <span className="flex items-center gap-1.5">
-                      {loginMethod === "whatsapp" && (
-                        <MessageCircle className="w-3.5 h-3.5 text-green-600" />
-                      )}
-                      {loginMethod === "whatsapp"
-                        ? "WhatsApp Number"
-                        : "Phone Number"}
-                    </span>
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      className={`w-28 px-2 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setMode("forgot")}
+                      className="text-xs font-semibold text-orange-600 hover:underline"
                     >
-                      {countryCodes.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.flag} {c.code}
-                        </option>
-                      ))}
-                    </select>
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
                     <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className={`flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 ${loginMethod === "whatsapp" ? "focus:ring-green-500/30 focus:border-green-500" : "focus:ring-orange-500/30 focus:border-orange-500"}`}
-                      placeholder="7XX XXX XXX"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 pr-10"
+                      placeholder="••••••••"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
-                  {loginMethod === "whatsapp" && (
-                    <p className="mt-1 text-xs text-gray-400">
-                      Login alert will be sent to this WhatsApp number
-                    </p>
-                  )}
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 pr-10"
-                    placeholder="••••••••"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
+              {/* Specific inputs for Resetting Password */}
+              {mode === "reset" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      OTP Code
+                    </label>
+                    <input
+                      type="text"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 text-center tracking-widest font-bold"
+                      placeholder="XXXXXX"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                      placeholder="At least 6 characters"
+                      required
+                    />
+                  </div>
+                </>
+              )}
 
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-orange-500 text-white py-3 rounded-xl font-medium text-sm hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading
+                  ? "Processing..."
+                  : mode === "signin"
+                  ? "Sign In"
+                  : mode === "forgot"
+                  ? "Send Reset OTP"
+                  : "Change Password"}
               </button>
             </form>
 
-            <div className="mt-6 text-center text-sm text-gray-600">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/sign-up"
-                className="text-orange-600 font-medium hover:underline"
-              >
-                Start free trial
-              </Link>
+            <div className="mt-6 flex flex-col items-center gap-2 text-sm text-gray-600">
+              {mode !== "signin" && (
+                <button
+                  type="button"
+                  onClick={() => setMode("signin")}
+                  className="font-semibold text-orange-600 hover:underline"
+                >
+                  &larr; Back to sign in
+                </button>
+              )}
+              <div>
+                Don&apos;t have an account?{" "}
+                <Link
+                  href="/sign-up"
+                  className="text-orange-600 font-medium hover:underline"
+                >
+                  Start free trial
+                </Link>
+              </div>
             </div>
           </div>
 
-          {/* Demo Credentials */}
-          <div className="mt-6 bg-orange-50 border border-orange-200 rounded-xl p-4">
-            <p className="text-sm font-medium text-orange-900 mb-2">
-              Demo Accounts
-            </p>
-            <div className="space-y-1 text-xs text-orange-800">
-              <p>
-                <strong>Basic:</strong> basic@poscloud.me / basic123
-              </p>
-              <p>
-                <strong>Pro:</strong> pro@poscloud.com / pro123
-              </p>
-              <p>
-                <strong>Enterprise:</strong> enterprise@poscloud.com /
-                enterprise23
-              </p>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import dbConnect from "@/lib/db";
 import Return from "@/models/Return";
 import Stock from "@/models/Stock";
 import Branch from "@/models/Branch";
+import Customer from "@/models/Customer";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -130,6 +131,32 @@ export async function POST(request: NextRequest) {
       processedBy: auth.userId,
     });
 
+    // If completed immediately, apply effects
+    if (body.status === "completed") {
+      returnDoc.status = "completed";
+      
+      // Stock update
+      for (const item of returnDoc.items) {
+        await Stock.findOneAndUpdate(
+          { tenantId: auth.tenantId, branchId, productId: item.productId },
+          { $inc: { quantity: body.type === "sales_return" ? item.quantity : -item.quantity } },
+          { upsert: true }
+        );
+      }
+
+      // Customer update (for sales returns)
+      if (body.type === "sales_return" && body.customerId) {
+        await Customer.findByIdAndUpdate(body.customerId, {
+          $inc: { 
+            totalSpent: -returnDoc.total,
+            outstandingBalance: body.refundMethod === "credit" ? -returnDoc.total : 0 
+          }
+        });
+      }
+      
+      await returnDoc.save();
+    }
+
     return apiSuccess(returnDoc, 201);
   } catch (error: unknown) {
     console.error("Returns POST error:", error);
@@ -158,40 +185,39 @@ export async function PATCH(request: NextRequest) {
     });
     if (!returnDoc) return apiError("Return not found", 404);
 
-    // If approving/completing a sales return, add stock back
-    if (
-      status === "completed" &&
-      returnDoc.status !== "completed" &&
-      returnDoc.type === "sales_return"
-    ) {
-      for (const item of returnDoc.items) {
-        await Stock.findOneAndUpdate(
-          {
-            tenantId: auth.tenantId,
-            branchId: auth.branchId,
-            productId: item.productId,
-          },
-          { $inc: { quantity: item.quantity } },
-          { upsert: true },
-        );
-      }
-    }
-
-    // If completing a purchase return, subtract stock
-    if (
-      status === "completed" &&
-      returnDoc.status !== "completed" &&
-      returnDoc.type === "purchase_return"
-    ) {
-      for (const item of returnDoc.items) {
-        await Stock.findOneAndUpdate(
-          {
-            tenantId: auth.tenantId,
-            branchId: auth.branchId,
-            productId: item.productId,
-          },
-          { $inc: { quantity: -item.quantity } },
-        );
+    // If approving/completing a sales return, add customer balance adjustment too
+    if (status === "completed" && returnDoc.status !== "completed") {
+      if (returnDoc.type === "sales_return") {
+        for (const item of returnDoc.items) {
+          await Stock.findOneAndUpdate(
+            {
+              tenantId: auth.tenantId,
+              branchId: returnDoc.branchId || auth.branchId, // Use the branch saved on return
+              productId: item.productId,
+            },
+            { $inc: { quantity: item.quantity } },
+            { upsert: true },
+          );
+        }
+        if (returnDoc.customerId) {
+          await Customer.findByIdAndUpdate(returnDoc.customerId, {
+            $inc: {
+              totalSpent: -returnDoc.total,
+              outstandingBalance: returnDoc.refundMethod === "credit" ? -returnDoc.total : 0
+            }
+          });
+        }
+      } else if (returnDoc.type === "purchase_return") {
+        for (const item of returnDoc.items) {
+          await Stock.findOneAndUpdate(
+            {
+              tenantId: auth.tenantId,
+              branchId: returnDoc.branchId || auth.branchId,
+              productId: item.productId,
+            },
+            { $inc: { quantity: -item.quantity } },
+          );
+        }
       }
     }
 
