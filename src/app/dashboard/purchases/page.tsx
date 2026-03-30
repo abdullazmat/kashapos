@@ -62,7 +62,12 @@ interface Product {
   barcode?: string;
   costPrice: number;
   unit?: string;
-  variants?: { name: string; sku: string; barcode?: string; costPrice: number }[];
+  variants?: {
+    name: string;
+    sku: string;
+    barcode?: string;
+    costPrice: number;
+  }[];
 }
 interface Branch {
   _id: string;
@@ -92,11 +97,15 @@ export default function PurchasesPage() {
   const [formError, setFormError] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [units, setUnits] = useState<{ _id?: string; name: string; shortName: string }[]>([]);
+  const [units, setUnits] = useState<
+    { _id?: string; name: string; shortName: string }[]
+  >([]);
   const [showAddUnit, setShowAddUnit] = useState(false);
   const [newUnit, setNewUnit] = useState({ name: "", shortName: "" });
   const [savingUnit, setSavingUnit] = useState(false);
-  const [barcodeMatches, setBarcodeMatches] = useState<{ product: Product; variant?: any }[]>([]);
+  const [barcodeMatches, setBarcodeMatches] = useState<
+    { product: Product; variant?: any }[]
+  >([]);
   const [showBarcodeDropdown, setShowBarcodeDropdown] = useState(false);
 
   const [newOrder, setNewOrder] = useState({
@@ -243,16 +252,22 @@ export default function PurchasesPage() {
         (item) => !item.productId && !item.productName.trim(),
       );
       const targetIndex = emptyIndex >= 0 ? emptyIndex : nextItems.length;
-      
+
       const nextItem = {
         productId: match.product._id,
         productName: match.product.name,
         sku: match.variant?.sku || match.product.sku,
         unit: match.product.unit || "pcs",
-        quantity: targetIndex < nextItems.length ? nextItems[targetIndex].quantity || 1 : 1,
+        quantity:
+          targetIndex < nextItems.length
+            ? nextItems[targetIndex].quantity || 1
+            : 1,
         unitCost: match.product.costPrice,
         receivedQuantity: 0,
-        total: (targetIndex < nextItems.length ? nextItems[targetIndex].quantity || 1 : 1) * match.product.costPrice,
+        total:
+          (targetIndex < nextItems.length
+            ? nextItems[targetIndex].quantity || 1
+            : 1) * match.product.costPrice,
       };
 
       if (targetIndex < nextItems.length) {
@@ -267,7 +282,7 @@ export default function PurchasesPage() {
     setBarcodeMatches([]);
     setShowBarcodeDropdown(false);
     setFormError("");
-    
+
     void logBarcodeScanEvent({
       value,
       context: "receiving",
@@ -645,7 +660,9 @@ export default function PurchasesPage() {
             <ShoppingBag className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Purchases</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">
+              Purchases
+            </h1>
             <p className="text-[11px] md:text-[13px] text-gray-500">
               Manage purchase orders from suppliers
             </p>
@@ -656,7 +673,8 @@ export default function PurchasesPage() {
             onClick={() => setShowAddUnit(true)}
             className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
           >
-            <Layers className="h-4 w-4 text-blue-500" /> <span className="hidden sm:inline">Manage Units</span>
+            <Layers className="h-4 w-4 text-blue-500" />{" "}
+            <span className="hidden sm:inline">Manage Units</span>
           </button>
           <button
             onClick={() => {
@@ -665,7 +683,8 @@ export default function PurchasesPage() {
             }}
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-3 py-2 text-xs md:text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg"
           >
-            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New Purchase Order</span>
+            <Plus className="h-4 w-4" />{" "}
+            <span className="hidden sm:inline">New Purchase Order</span>
             <span className="sm:hidden">New PO</span>
           </button>
         </div>
@@ -685,8 +704,12 @@ export default function PurchasesPage() {
                 <card.icon className="h-3.5 w-3.5 md:h-4 md:w-4 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-xs md:text-[13px] text-gray-500">{card.label}</p>
-                <p className="truncate text-base md:text-lg font-bold text-gray-900">{card.value}</p>
+                <p className="truncate text-xs md:text-[13px] text-gray-500">
+                  {card.label}
+                </p>
+                <p className="truncate text-base md:text-lg font-bold text-gray-900">
+                  {card.value}
+                </p>
               </div>
             </div>
           </div>
@@ -812,9 +835,14 @@ export default function PurchasesPage() {
                     <td className="hidden md:table-cell px-5 py-3.5">
                       <div className="flex flex-col gap-0.5 max-w-[200px]">
                         {o.items.slice(0, 2).map((item, idx) => (
-                          <div key={idx} className="flex justify-between text-[11px] md:text-[12px] text-gray-600 truncate">
+                          <div
+                            key={idx}
+                            className="flex justify-between text-[11px] md:text-[12px] text-gray-600 truncate"
+                          >
                             <span>{item.productName}</span>
-                            <span className="ml-2 font-semibold text-orange-600">x{item.quantity}</span>
+                            <span className="ml-2 font-semibold text-orange-600">
+                              x{item.quantity}
+                            </span>
                           </div>
                         ))}
                         {o.items.length > 2 && (
@@ -982,588 +1010,634 @@ export default function PurchasesPage() {
 
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 h-full">
-              {/* Left: Form */}
-              <div className="lg:col-span-2 px-6 py-5">
-                <div className="space-y-5">
-                  {formError && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {formError}
-                    </div>
-                  )}
+                {/* Left: Form */}
+                <div className="lg:col-span-2 px-6 py-5">
+                  <div className="space-y-5">
+                    {formError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {formError}
+                      </div>
+                    )}
 
-                  {/* Supplier & Store Row */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
-                        <Truck className="h-4 w-4 text-gray-400" />
-                        Supplier *
-                      </label>
-                      {showAddVendor ? (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={newVendorName}
-                            onChange={(e) => setNewVendorName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                void addNewVendor();
+                    {/* Supplier & Store Row */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
+                          <Truck className="h-4 w-4 text-gray-400" />
+                          Supplier *
+                        </label>
+                        {showAddVendor ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newVendorName}
+                              onChange={(e) => setNewVendorName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  void addNewVendor();
+                                }
+                              }}
+                              placeholder="New supplier name"
+                              className={inputClass + " flex-1"}
+                            />
+                            <button
+                              onClick={() => void addNewVendor()}
+                              disabled={savingVendor}
+                              className="rounded-xl bg-emerald-500 px-3 text-white text-sm font-medium hover:bg-emerald-600 disabled:opacity-60"
+                            >
+                              {savingVendor ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowAddVendor(false);
+                                setNewVendorName("");
+                              }}
+                              className="rounded-xl border border-gray-200 px-3 text-gray-500 text-sm hover:bg-gray-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <select
+                              value={newOrder.vendorId}
+                              onChange={(e) =>
+                                setNewOrder({
+                                  ...newOrder,
+                                  vendorId: e.target.value,
+                                })
                               }
-                            }}
-                            placeholder="New supplier name"
-                            className={inputClass + " flex-1"}
-                          />
-                          <button
-                            onClick={() => void addNewVendor()}
-                            disabled={savingVendor}
-                            className="rounded-xl bg-emerald-500 px-3 text-white text-sm font-medium hover:bg-emerald-600 disabled:opacity-60"
-                          >
-                            {savingVendor ? "Saving..." : "Save"}
-                          </button>
+                              className={inputClass + " flex-1"}
+                            >
+                              <option value="">Type or select supplier</option>
+                              {vendors.map((v) => (
+                                <option key={v._id} value={v._id}>
+                                  {v.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => setShowAddVendor(true)}
+                              className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 self-end"
+                              title="Add new supplier"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
+                          <Store className="h-4 w-4 text-gray-400" />
+                          Store *
+                        </label>
+                        <select
+                          value={newOrder.branchId}
+                          onChange={(e) =>
+                            setNewOrder({
+                              ...newOrder,
+                              branchId: e.target.value,
+                            })
+                          }
+                          className={inputClass}
+                        >
+                          <option value="">Select a store</option>
+                          {branches.map((b) => (
+                            <option key={b._id} value={b._id}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-[10px] text-gray-400">
+                          Select a store for this purchase order
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Due Date, Status & Currency Row */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
+                          <Calendar className="h-4 w-4 text-gray-400" />
+                          Due Date
+                        </label>
+                        <input
+                          type="date"
+                          value={newOrder.dueDate}
+                          onChange={(e) =>
+                            setNewOrder({
+                              ...newOrder,
+                              dueDate: e.target.value,
+                            })
+                          }
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
+                          Status *
+                        </label>
+                        <select
+                          value={newOrder.status}
+                          onChange={(e) =>
+                            setNewOrder({ ...newOrder, status: e.target.value })
+                          }
+                          className={inputClass}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="ordered">Ordered</option>
+                          <option value="received">
+                            Received (Updates Stock)
+                          </option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[13px] font-semibold text-gray-700 mb-1.5 block">
+                          Currency
+                        </label>
+                        <div className="mt-1.5 rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-2.5 text-sm text-gray-600 font-medium text-center">
+                          {currency}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order Items */}
+                    <div>
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="text-[14px] font-bold text-gray-800">
+                          Order Items
+                        </h3>
+                        <button
+                          onClick={addItem}
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add Item
+                        </button>
+                      </div>
+
+                      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 p-3">
+                        <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2">
+                          <BarcodeIcon className="h-4 w-4 text-orange-500" />
+                          <div className="relative flex-1">
+                            <input
+                              value={purchaseBarcodeInput}
+                              onChange={(event) =>
+                                handleBarcodeChange(event.target.value)
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  void handlePurchaseBarcodeScan();
+                                }
+                              }}
+                              placeholder="Scan barcode to add item"
+                              className="w-full bg-transparent text-sm outline-none"
+                              onFocus={() => {
+                                if (barcodeMatches.length > 0)
+                                  setShowBarcodeDropdown(true);
+                              }}
+                            />
+                            {showBarcodeDropdown && (
+                              <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-xl border border-gray-100 bg-white p-1 shadow-xl">
+                                {barcodeMatches.map((m, idx) => (
+                                  <button
+                                    key={`${m.product._id}-${idx}`}
+                                    onClick={() => {
+                                      setPurchaseBarcodeInput(
+                                        m.variant?.barcode ||
+                                          m.product.barcode ||
+                                          "",
+                                      );
+                                      setTimeout(
+                                        () => void handlePurchaseBarcodeScan(),
+                                        50,
+                                      );
+                                    }}
+                                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-orange-50"
+                                  >
+                                    <div>
+                                      <p className="text-sm font-bold text-gray-800">
+                                        {m.product.name}{" "}
+                                        {m.variant ? `- ${m.variant.name}` : ""}
+                                      </p>
+                                      <p className="text-[11px] text-gray-500">
+                                        {m.variant?.sku || m.product.sku}
+                                      </p>
+                                    </div>
+                                    <span className="text-[11px] font-mono font-bold text-orange-600">
+                                      {m.variant?.barcode || m.product.barcode}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                           <button
                             onClick={() => {
-                              setShowAddVendor(false);
-                              setNewVendorName("");
+                              /* Placeholder for camera scan */ alert(
+                                "Opening camera scanner...",
+                              );
                             }}
-                            className="rounded-xl border border-gray-200 px-3 text-gray-500 text-sm hover:bg-gray-50"
+                            className="rounded-lg p-1.5 text-gray-400 hover:bg-orange-100 hover:text-orange-600"
+                            title="Open camera scanner"
                           >
-                            Cancel
+                            <Scan className="h-4 w-4" />
                           </button>
                         </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <select
-                            value={newOrder.vendorId}
-                            onChange={(e) =>
-                              setNewOrder({
-                                ...newOrder,
-                                vendorId: e.target.value,
-                              })
-                            }
-                            className={inputClass + " flex-1"}
+                        <button
+                          onClick={() => void handlePurchaseBarcodeScan()}
+                          className="rounded-lg bg-orange-500 px-4 py-2 text-xs font-bold text-white hover:bg-orange-600"
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {/* Items Header */}
+                      {newOrder.items.length > 0 && (
+                        <div className="grid grid-cols-12 gap-2 px-3 mb-1.5">
+                          <span className="col-span-4 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                            Item
+                          </span>
+                          <span className="col-span-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                            Unit
+                          </span>
+                          <span className="col-span-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                            Quantity
+                          </span>
+                          <span className="col-span-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                            Unit Price
+                          </span>
+                          <span className="col-span-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                            Total
+                          </span>
+                          <span className="col-span-1"></span>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <datalist id="purchase-item-options">
+                          {products.map((p) => (
+                            <option key={p._id} value={p.name} />
+                          ))}
+                        </datalist>
+                        {newOrder.items.map((item, i) => (
+                          <div
+                            key={i}
+                            className="grid grid-cols-12 gap-2 items-center rounded-xl border border-gray-100 bg-gray-50/50 p-2.5"
                           >
-                            <option value="">Type or select supplier</option>
-                            {vendors.map((v) => (
-                              <option key={v._id} value={v._id}>
-                                {v.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => setShowAddVendor(true)}
-                            className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 self-end"
-                            title="Add new supplier"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
+                            <input
+                              type="text"
+                              list="purchase-item-options"
+                              value={item.productName}
+                              onChange={(e) =>
+                                updateItem(i, "productName", e.target.value)
+                              }
+                              className="col-span-4 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
+                              placeholder="Type/select item or enter description"
+                            />
+                            <div className="col-span-2 flex items-center gap-1.5">
+                              <select
+                                value={item.unit || "pcs"}
+                                onChange={(e) => {
+                                  if (e.target.value === "ADD_NEW") {
+                                    setShowAddUnit(true);
+                                  } else {
+                                    updateItem(i, "unit", e.target.value);
+                                  }
+                                }}
+                                className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
+                              >
+                                {units.map((u) => (
+                                  <option key={u.name} value={u.shortName}>
+                                    {u.name} ({u.shortName})
+                                  </option>
+                                ))}
+                                <option value="ADD_NEW">+ Create New...</option>
+                              </select>
+                              <button
+                                onClick={() => setShowAddUnit(true)}
+                                className="rounded-lg border border-gray-200 bg-white p-2 text-blue-600 hover:bg-blue-50"
+                                title="Add new unit"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                updateItem(
+                                  i,
+                                  "quantity",
+                                  parseFloat(e.target.value) || 0,
+                                )
+                              }
+                              className="col-span-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
+                              placeholder="Qty"
+                              min="0.01"
+                              step="any"
+                            />
+                            <input
+                              type="number"
+                              value={item.unitCost}
+                              onChange={(e) =>
+                                updateItem(
+                                  i,
+                                  "unitCost",
+                                  parseFloat(e.target.value) || 0,
+                                )
+                              }
+                              className="col-span-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
+                              placeholder="Enter"
+                            />
+                            <span className="col-span-1 text-sm font-semibold text-gray-700 text-right">
+                              {formatCurrency(item.total, currency)}
+                            </span>
+                            <div className="col-span-1 flex justify-center">
+                              {!item.productId && item.productName.trim() ? (
+                                <button
+                                  onClick={() => void saveItemToCatalog(i)}
+                                  disabled={savingCatalogItemIndex !== null}
+                                  className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                                  title="Save as catalog item"
+                                >
+                                  {savingCatalogItemIndex === i ? (
+                                    <span className="text-[10px] font-semibold">
+                                      ...
+                                    </span>
+                                  ) : (
+                                    <Plus className="h-4 w-4" />
+                                  )}
+                                </button>
+                              ) : null}
+                              <button
+                                onClick={() => removeItem(i)}
+                                className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {newOrder.items.length === 0 && (
+                        <div className="flex flex-col items-center gap-1 py-8 text-center">
+                          <Package className="h-8 w-8 text-gray-300" />
+                          <p className="text-sm text-gray-400">
+                            No items added yet
+                          </p>
                         </div>
                       )}
                     </div>
+                    {/* Notes */}
                     <div>
-                      <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
-                        <Store className="h-4 w-4 text-gray-400" />
-                        Store *
+                      <label className="text-[13px] font-semibold text-gray-700 font-bold mb-1.5 block">
+                        Notes
                       </label>
-                      <select
-                        value={newOrder.branchId}
+                      <textarea
+                        value={newOrder.notes}
                         onChange={(e) =>
-                          setNewOrder({ ...newOrder, branchId: e.target.value })
+                          setNewOrder({ ...newOrder, notes: e.target.value })
                         }
+                        rows={2}
                         className={inputClass}
-                      >
-                        <option value="">Select a store</option>
-                        {branches.map((b) => (
-                          <option key={b._id} value={b._id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1 text-[10px] text-gray-400">
-                        Select a store for this purchase order
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Due Date, Status & Currency Row */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        Due Date
-                      </label>
-                      <input
-                        type="date"
-                        value={newOrder.dueDate}
-                        onChange={(e) =>
-                          setNewOrder({ ...newOrder, dueDate: e.target.value })
-                        }
-                        className={inputClass}
+                        placeholder="Add any additional information about this order..."
                       />
                     </div>
-                    <div>
-                      <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700 mb-1.5">
-                        Status *
-                      </label>
-                      <select
-                        value={newOrder.status}
-                        onChange={(e) =>
-                          setNewOrder({ ...newOrder, status: e.target.value })
-                        }
-                        className={inputClass}
-                      >
-                        <option value="draft">Draft</option>
-                        <option value="ordered">Ordered</option>
-                        <option value="received">Received (Updates Stock)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[13px] font-semibold text-gray-700 mb-1.5 block">
-                        Currency
-                      </label>
-                      <div className="mt-1.5 rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-2.5 text-sm text-gray-600 font-medium text-center">
-                        {currency}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Order Items */}
-                  <div>
-                    <div className="mb-3 flex items-center justify-between">
-                      <h3 className="text-[14px] font-bold text-gray-800">
-                        Order Items
-                      </h3>
-                      <button
-                        onClick={addItem}
-                        className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add Item
-                      </button>
-                    </div>
-
-                    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 p-3">
-                      <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2">
-                        <BarcodeIcon className="h-4 w-4 text-orange-500" />
-                        <div className="relative flex-1">
-                          <input
-                            value={purchaseBarcodeInput}
-                            onChange={(event) =>
-                              handleBarcodeChange(event.target.value)
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void handlePurchaseBarcodeScan();
+                    {/* Add Unit Modal Small Overlay */}
+                    {showAddUnit && (
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-5 space-y-4 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                            <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wider">
+                              Create New Unit
+                            </h4>
+                          </div>
+                          <button
+                            onClick={() => setShowAddUnit(false)}
+                            className="rounded-lg p-1 text-blue-400 hover:bg-blue-100 hover:text-blue-600 transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-blue-700/60 uppercase ml-1">
+                              Unit Name
+                            </label>
+                            <input
+                              placeholder="e.g. Gram"
+                              value={newUnit.name}
+                              onChange={(e) =>
+                                setNewUnit({ ...newUnit, name: e.target.value })
                               }
-                            }}
-                            placeholder="Scan barcode to add item"
-                            className="w-full bg-transparent text-sm outline-none"
-                            onFocus={() => { if (barcodeMatches.length > 0) setShowBarcodeDropdown(true); }}
-                          />
-                          {showBarcodeDropdown && (
-                            <div className="absolute left-0 top-full z-10 mt-1 w-full rounded-xl border border-gray-100 bg-white p-1 shadow-xl">
-                              {barcodeMatches.map((m, idx) => (
-                                <button
-                                  key={`${m.product._id}-${idx}`}
-                                  onClick={() => {
-                                    setPurchaseBarcodeInput(m.variant?.barcode || m.product.barcode || "");
-                                    setTimeout(() => void handlePurchaseBarcodeScan(), 50);
-                                  }}
-                                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-orange-50"
-                                >
-                                  <div>
-                                    <p className="text-sm font-bold text-gray-800">
-                                      {m.product.name} {m.variant ? `- ${m.variant.name}` : ""}
-                                    </p>
-                                    <p className="text-[11px] text-gray-500">{m.variant?.sku || m.product.sku}</p>
-                                  </div>
-                                  <span className="text-[11px] font-mono font-bold text-orange-600">{m.variant?.barcode || m.product.barcode}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                              className={
+                                inputClass +
+                                " bg-white/80 border-blue-100 focus:border-blue-300 focus:ring-blue-100"
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-blue-700/60 uppercase ml-1">
+                              Short Code
+                            </label>
+                            <input
+                              placeholder="e.g. g"
+                              value={newUnit.shortName}
+                              onChange={(e) =>
+                                setNewUnit({
+                                  ...newUnit,
+                                  shortName: e.target.value,
+                                })
+                              }
+                              className={
+                                inputClass +
+                                " bg-white/80 border-blue-100 focus:border-blue-300 focus:ring-blue-100"
+                              }
+                            />
+                          </div>
                         </div>
                         <button
-                          onClick={() => { /* Placeholder for camera scan */ alert("Opening camera scanner..."); }}
-                          className="rounded-lg p-1.5 text-gray-400 hover:bg-orange-100 hover:text-orange-600"
-                          title="Open camera scanner"
+                          onClick={addNewUnit}
+                          disabled={savingUnit}
+                          className="w-full rounded-xl bg-blue-600 py-3 text-xs font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/30 transition-all disabled:opacity-50 active:scale-[0.98]"
                         >
-                          <Scan className="h-4 w-4" />
+                          {savingUnit ? "Creating..." : "Save Unit of Measure"}
                         </button>
-                      </div>
-                      <button
-                        onClick={() => void handlePurchaseBarcodeScan()}
-                        className="rounded-lg bg-orange-500 px-4 py-2 text-xs font-bold text-white hover:bg-orange-600"
-                      >
-                        Add
-                      </button>
-                    </div>
-
-                    {/* Items Header */}
-                    {newOrder.items.length > 0 && (
-                      <div className="grid grid-cols-12 gap-2 px-3 mb-1.5">
-                        <span className="col-span-4 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                          Item
-                        </span>
-                        <span className="col-span-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                          Unit
-                        </span>
-                        <span className="col-span-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                          Quantity
-                        </span>
-                        <span className="col-span-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                          Unit Price
-                        </span>
-                        <span className="col-span-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                          Total
-                        </span>
-                        <span className="col-span-1"></span>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <datalist id="purchase-item-options">
-                        {products.map((p) => (
-                          <option key={p._id} value={p.name} />
-                        ))}
-                      </datalist>
-                      {newOrder.items.map((item, i) => (
-                        <div
-                          key={i}
-                          className="grid grid-cols-12 gap-2 items-center rounded-xl border border-gray-100 bg-gray-50/50 p-2.5"
-                        >
-                          <input
-                            type="text"
-                            list="purchase-item-options"
-                            value={item.productName}
-                            onChange={(e) =>
-                              updateItem(i, "productName", e.target.value)
-                            }
-                            className="col-span-4 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
-                            placeholder="Type/select item or enter description"
-                          />
-                          <div className="col-span-2 flex items-center gap-1.5">
-                            <select
-                              value={item.unit || "pcs"}
-                              onChange={(e) => {
-                                if (e.target.value === "ADD_NEW") {
-                                  setShowAddUnit(true);
-                                } else {
-                                  updateItem(i, "unit", e.target.value);
-                                }
-                              }}
-                              className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
-                            >
-                              {units.map((u) => (
-                                <option key={u.name} value={u.shortName}>
-                                  {u.name} ({u.shortName})
-                                </option>
-                              ))}
-                              <option value="ADD_NEW">+ Create New...</option>
-                            </select>
-                            <button
-                              onClick={() => setShowAddUnit(true)}
-                              className="rounded-lg border border-gray-200 bg-white p-2 text-blue-600 hover:bg-blue-50"
-                              title="Add new unit"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(
-                                i,
-                                "quantity",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="col-span-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
-                            placeholder="Qty"
-                            min="0.01"
-                            step="any"
-                          />
-                          <input
-                            type="number"
-                            value={item.unitCost}
-                            onChange={(e) =>
-                              updateItem(
-                                i,
-                                "unitCost",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="col-span-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm"
-                            placeholder="Enter"
-                          />
-                          <span className="col-span-1 text-sm font-semibold text-gray-700 text-right">
-                            {formatCurrency(item.total, currency)}
-                          </span>
-                          <div className="col-span-1 flex justify-center">
-                            {!item.productId && item.productName.trim() ? (
-                              <button
-                                onClick={() => void saveItemToCatalog(i)}
-                                disabled={savingCatalogItemIndex !== null}
-                                className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
-                                title="Save as catalog item"
-                              >
-                                {savingCatalogItemIndex === i ? (
-                                  <span className="text-[10px] font-semibold">
-                                    ...
-                                  </span>
-                                ) : (
-                                  <Plus className="h-4 w-4" />
-                                )}
-                              </button>
-                            ) : null}
-                            <button
-                              onClick={() => removeItem(i)}
-                              className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {newOrder.items.length === 0 && (
-                      <div className="flex flex-col items-center gap-1 py-8 text-center">
-                        <Package className="h-8 w-8 text-gray-300" />
-                        <p className="text-sm text-gray-400">
-                          No items added yet
-                        </p>
                       </div>
                     )}
                   </div>
-                  {/* Notes */}
-                  <div>
-                    <label className="text-[13px] font-semibold text-gray-700 font-bold mb-1.5 block">
-                      Notes
+                </div>
+
+                {/* Right: Payment & Summary */}
+                <div className="border-l border-gray-100 px-5 py-5 space-y-5">
+                  {/* Payment Method */}
+                  <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                    <label className="text-[13px] font-semibold text-gray-700 mb-2 block">
+                      Payment Method
                     </label>
-                    <textarea
-                      value={newOrder.notes}
+                    <select
+                      value={newOrder.paymentMethod}
                       onChange={(e) =>
-                        setNewOrder({ ...newOrder, notes: e.target.value })
+                        setNewOrder({
+                          ...newOrder,
+                          paymentMethod: e.target.value,
+                        })
                       }
-                      rows={2}
                       className={inputClass}
-                      placeholder="Add any additional information about this order..."
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="bank">Bank Transfer</option>
+                      <option value="mobile_money">Mobile Money</option>
+                      <option value="cheque">Cheque</option>
+                      <option value="credit">Credit</option>
+                    </select>
+
+                    <label className="text-[13px] font-semibold text-gray-700 mt-3 mb-1.5 block">
+                      Amount Paid
+                    </label>
+                    <input
+                      type="number"
+                      value={newOrder.amountPaid}
+                      onChange={(e) =>
+                        setNewOrder({ ...newOrder, amountPaid: e.target.value })
+                      }
+                      placeholder="Enter amount paid"
+                      className={inputClass}
                     />
                   </div>
 
-                  {/* Add Unit Modal Small Overlay */}
-                  {showAddUnit && (
-                    <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-5 space-y-4 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                          <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wider">Create New Unit</h4>
-                        </div>
-                        <button 
-                          onClick={() => setShowAddUnit(false)} 
-                          className="rounded-lg p-1 text-blue-400 hover:bg-blue-100 hover:text-blue-600 transition-colors"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                  {/* Order Summary */}
+                  <div className="rounded-xl border border-red-100 bg-red-50/50 p-4">
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3">
+                      <DollarSign className="h-4 w-4 text-red-500" />
+                      Order Summary
+                    </h3>
+                    <div className="space-y-2.5 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Total Amount</span>
+                        <span className="font-bold text-gray-900">
+                          {formatCurrency(orderTotal, currency)}
+                        </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-bold text-blue-700/60 uppercase ml-1">Unit Name</label>
-                          <input
-                            placeholder="e.g. Gram"
-                            value={newUnit.name}
-                            onChange={e => setNewUnit({...newUnit, name: e.target.value})}
-                            className={inputClass + " bg-white/80 border-blue-100 focus:border-blue-300 focus:ring-blue-100"}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-bold text-blue-700/60 uppercase ml-1">Short Code</label>
-                          <input
-                            placeholder="e.g. g"
-                            value={newUnit.shortName}
-                            onChange={e => setNewUnit({...newUnit, shortName: e.target.value})}
-                            className={inputClass + " bg-white/80 border-blue-100 focus:border-blue-300 focus:ring-blue-100"}
-                          />
-                        </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Amount Paid</span>
+                        <span className="font-bold text-red-600">
+                          {formatCurrency(
+                            parseFloat(newOrder.amountPaid) || 0,
+                            currency,
+                          )}
+                        </span>
                       </div>
-                      <button
-                        onClick={addNewUnit}
-                        disabled={savingUnit}
-                        className="w-full rounded-xl bg-blue-600 py-3 text-xs font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-blue-600/30 transition-all disabled:opacity-50 active:scale-[0.98]"
-                      >
-                        {savingUnit ? "Creating..." : "Save Unit of Measure"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right: Payment & Summary */}
-              <div className="border-l border-gray-100 px-5 py-5 space-y-5">
-                {/* Payment Method */}
-                <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-                  <label className="text-[13px] font-semibold text-gray-700 mb-2 block">
-                    Payment Method
-                  </label>
-                  <select
-                    value={newOrder.paymentMethod}
-                    onChange={(e) =>
-                      setNewOrder({
-                        ...newOrder,
-                        paymentMethod: e.target.value,
-                      })
-                    }
-                    className={inputClass}
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="bank">Bank Transfer</option>
-                    <option value="mobile_money">Mobile Money</option>
-                    <option value="cheque">Cheque</option>
-                    <option value="credit">Credit</option>
-                  </select>
-
-                  <label className="text-[13px] font-semibold text-gray-700 mt-3 mb-1.5 block">
-                    Amount Paid
-                  </label>
-                  <input
-                    type="number"
-                    value={newOrder.amountPaid}
-                    onChange={(e) =>
-                      setNewOrder({ ...newOrder, amountPaid: e.target.value })
-                    }
-                    placeholder="Enter amount paid"
-                    className={inputClass}
-                  />
-                </div>
-
-                {/* Order Summary */}
-                <div className="rounded-xl border border-red-100 bg-red-50/50 p-4">
-                  <h3 className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-3">
-                    <DollarSign className="h-4 w-4 text-red-500" />
-                    Order Summary
-                  </h3>
-                  <div className="space-y-2.5 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Total Amount</span>
-                      <span className="font-bold text-gray-900">
-                        {formatCurrency(orderTotal, currency)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Amount Paid</span>
-                      <span className="font-bold text-red-600">
-                        {formatCurrency(
-                          parseFloat(newOrder.amountPaid) || 0,
-                          currency,
-                        )}
-                      </span>
-                    </div>
-                    <div className="border-t border-red-200 pt-2 flex justify-between">
-                      <span className="font-semibold text-gray-700">
-                        Balance Due
-                      </span>
-                      <span className="font-bold text-gray-900">
-                        {formatCurrency(orderBalance, currency)}
-                      </span>
+                      <div className="border-t border-red-200 pt-2 flex justify-between">
+                        <span className="font-semibold text-gray-700">
+                          Balance Due
+                        </span>
+                        <span className="font-bold text-gray-900">
+                          {formatCurrency(orderBalance, currency)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="rounded-xl border border-gray-100 bg-white p-4">
-                  <h3 className="text-sm font-bold text-gray-800 mb-2">
-                    Selected Inventory Table
-                  </h3>
-                  <div className="max-h-40 overflow-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-gray-500">
-                          <th className="py-1">Item</th>
-                          <th className="py-1 text-right">Qty</th>
-                          <th className="py-1 text-right">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedInventoryRows.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={3}
-                              className="py-3 text-center text-gray-400"
-                            >
-                              No selected items yet
-                            </td>
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <h3 className="text-sm font-bold text-gray-800 mb-2">
+                      Selected Inventory Table
+                    </h3>
+                    <div className="max-h-40 overflow-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-gray-500">
+                            <th className="py-1">Item</th>
+                            <th className="py-1 text-right">Qty</th>
+                            <th className="py-1 text-right">Total</th>
                           </tr>
-                        ) : (
-                          selectedInventoryRows.map((row) => (
-                            <tr
-                              key={row.id}
-                              className="border-t border-gray-50"
-                            >
-                              <td className="py-1 text-gray-700">
-                                {row.name || "-"}
-                              </td>
-                              <td className="py-1 text-right text-gray-600">
-                                {row.quantity}
-                              </td>
-                              <td className="py-1 text-right font-medium text-gray-800">
-                                {formatCurrency(row.total, currency)}
+                        </thead>
+                        <tbody>
+                          {selectedInventoryRows.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={3}
+                                className="py-3 text-center text-gray-400"
+                              >
+                                No selected items yet
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            selectedInventoryRows.map((row) => (
+                              <tr
+                                key={row.id}
+                                className="border-t border-gray-50"
+                              >
+                                <td className="py-1 text-gray-700">
+                                  {row.name || "-"}
+                                </td>
+                                <td className="py-1 text-right text-gray-600">
+                                  {row.quantity}
+                                </td>
+                                <td className="py-1 text-right font-medium text-gray-800">
+                                  {formatCurrency(row.total, currency)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
 
-                <div className="rounded-xl border border-gray-100 bg-white p-4">
-                  <h3 className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
-                    <CreditCard className="h-4 w-4 text-gray-500" />
-                    Purchase History Table
-                  </h3>
-                  <div className="max-h-40 overflow-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-gray-500">
-                          <th className="py-1">Order</th>
-                          <th className="py-1">Vendor</th>
-                          <th className="py-1 text-right">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedPurchaseHistoryRows.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={3}
-                              className="py-3 text-center text-gray-400"
-                            >
-                              Select items to view history
-                            </td>
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
+                      <CreditCard className="h-4 w-4 text-gray-500" />
+                      Purchase History Table
+                    </h3>
+                    <div className="max-h-40 overflow-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-gray-500">
+                            <th className="py-1">Order</th>
+                            <th className="py-1">Vendor</th>
+                            <th className="py-1 text-right">Total</th>
                           </tr>
-                        ) : (
-                          selectedPurchaseHistoryRows.map((row) => (
-                            <tr
-                              key={row.id}
-                              className="border-t border-gray-50"
-                            >
-                              <td className="py-1 text-gray-700">
-                                {row.orderNumber}
-                              </td>
-                              <td className="py-1 text-gray-600">
-                                {row.vendor}
-                              </td>
-                              <td className="py-1 text-right font-medium text-gray-800">
-                                {formatCurrency(row.total, currency)}
+                        </thead>
+                        <tbody>
+                          {selectedPurchaseHistoryRows.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={3}
+                                className="py-3 text-center text-gray-400"
+                              >
+                                Select items to view history
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            selectedPurchaseHistoryRows.map((row) => (
+                              <tr
+                                key={row.id}
+                                className="border-t border-gray-50"
+                              >
+                                <td className="py-1 text-gray-700">
+                                  {row.orderNumber}
+                                </td>
+                                <td className="py-1 text-gray-600">
+                                  {row.vendor}
+                                </td>
+                                <td className="py-1 text-right font-medium text-gray-800">
+                                  {formatCurrency(row.total, currency)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
@@ -1703,7 +1777,9 @@ export default function PurchasesPage() {
                     disabled={updatingStatus}
                     className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 hover:shadow-emerald-600/30 disabled:opacity-50"
                   >
-                    {updatingStatus ? "Updating..." : "Mark as Received & Update Stock"}
+                    {updatingStatus
+                      ? "Updating..."
+                      : "Mark as Received & Update Stock"}
                   </button>
                 </div>
               )}
