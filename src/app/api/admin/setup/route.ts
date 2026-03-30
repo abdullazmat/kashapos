@@ -25,24 +25,32 @@ export async function GET() {
           currency: "UGX",
           taxRate: 0,
           lowStockThreshold: 10,
-        }
+        },
       });
     }
 
-    // 2. Create Super Admin if not exists
+    // 2. Ensure Super Admin exists and is aligned
     const adminEmail = "admin@kashapos.com";
-    let admin = await User.findOne({ email: adminEmail });
+    const adminPassword = "adminpassword";
+    const hashedAdminPassword = await hashPassword(adminPassword);
+
+    let admin = await User.findOne({ email: adminEmail.toLowerCase() });
     if (!admin) {
-      const password = await hashPassword("admin123");
       admin = await User.create({
         tenantId: systemTenant._id,
         name: "Master Admin",
         email: adminEmail,
-        password: password,
+        password: hashedAdminPassword,
         role: "super_admin",
         isActive: true,
-        emailVerified: true
+        emailVerified: true,
       });
+    } else {
+      admin.tenantId = systemTenant._id;
+      admin.role = "super_admin";
+      admin.isActive = true;
+      admin.password = hashedAdminPassword;
+      await admin.save();
     }
 
     // 3. Seed initial Plans from user's screenshot
@@ -53,42 +61,63 @@ export async function GET() {
           name: "Basic",
           price: 50000,
           description: "Basic plan for small businesses",
-          features: ["7-day free trial", "Up to 1 user", "Up to 1 branch", "Inventory tracking", "Sales management"],
+          features: [
+            "7-day free trial",
+            "Up to 1 user",
+            "Up to 1 branch",
+            "Inventory tracking",
+            "Sales management",
+          ],
           isPopular: true,
           order: 1,
           maxUsers: 1,
-          maxBranches: 1
+          maxBranches: 1,
         },
         {
           name: "Premium",
           price: 100000,
           description: "Premium plan with unlimited features",
-          features: ["7-day free trial", "Unlimited users", "Unlimited branches", "Advanced security"],
+          features: [
+            "7-day free trial",
+            "Unlimited users",
+            "Unlimited branches",
+            "Advanced security",
+          ],
           isPopular: false,
           order: 2,
           maxUsers: null,
-          maxBranches: null
+          maxBranches: null,
         },
         {
           name: "Corporate",
           price: null, // Custom
-          description: "Corporate plan for medium to large businesses with Payment integration",
-          features: ["Payment integration", "eFris integration", "Up to 4 branches"],
+          description:
+            "Corporate plan for medium to large businesses with Payment integration",
+          features: [
+            "Payment integration",
+            "eFris integration",
+            "Up to 4 branches",
+          ],
           isPopular: false,
           order: 3,
           maxUsers: null,
-          maxBranches: 4
+          maxBranches: 4,
         },
         {
           name: "Enterprise",
           price: null, // Custom
-          description: "Enterprise plan with full capabilities and dedicated support",
-          features: ["Priority support", "Custom integrations", "Dedicated account manager"],
+          description:
+            "Enterprise plan with full capabilities and dedicated support",
+          features: [
+            "Priority support",
+            "Custom integrations",
+            "Dedicated account manager",
+          ],
           isPopular: false,
           order: 4,
           maxUsers: null,
-          maxBranches: 7
-        }
+          maxBranches: 7,
+        },
       ];
 
       await Plan.insertMany(initialPlans);
@@ -98,8 +127,8 @@ export async function GET() {
       message: "System initialized successfully!",
       adminDetails: {
         email: adminEmail,
-        password: "admin123 (Please change this immediately)"
-      }
+        password: `${adminPassword} (Please change this immediately)`,
+      },
     });
   } catch (error: any) {
     console.error("Setup error:", error);

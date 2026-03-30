@@ -604,12 +604,12 @@ export default function TemplatesPage() {
 
     const wrapperClass =
       template.type === "email"
-        ? "rounded-[28px] border border-purple-100 bg-gradient-to-br from-white to-purple-50/40 p-6 shadow-[0_24px_60px_-28px_rgba(88,28,135,0.35)]"
-        : "rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#fff,rgba(248,250,252,0.96))] p-6 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.22)]";
+        ? "rounded-[28px] border border-purple-100 bg-gradient-to-br from-white to-purple-50/40 p-6 shadow-[0_24px_60px_-28px_rgba(88,28,135,0.35)] dark:border-purple-900/40 dark:from-slate-900 dark:to-purple-950/30"
+        : "rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#fff,rgba(248,250,252,0.96))] p-6 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.22)] dark:border-slate-700 dark:bg-none dark:bg-slate-900";
 
     return (
       <div className={wrapperClass}>
-        <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+        <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-700">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
               {template.type.replace("_", " ")}
@@ -621,7 +621,7 @@ export default function TemplatesPage() {
               {template.description}
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 text-right shadow-sm">
+          <div className="rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 text-right shadow-sm dark:border-slate-700 dark:bg-slate-800/70">
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
               Preview
             </p>
@@ -654,10 +654,10 @@ export default function TemplatesPage() {
               return (
                 <div
                   key={index}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
                 >
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-slate-500">
+                    <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                       <tr>
                         {header.map((cell) => (
                           <th
@@ -673,7 +673,7 @@ export default function TemplatesPage() {
                       {body.map((row, rowIndex) => (
                         <tr
                           key={rowIndex}
-                          className="border-t border-slate-100"
+                          className="border-t border-slate-100 dark:border-slate-700"
                         >
                           {row.map((cell, cellIndex) => (
                             <td
@@ -718,10 +718,10 @@ export default function TemplatesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 dark:text-slate-100">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.14),transparent_34%),radial-gradient(circle_at_top_right,rgba(79,70,229,0.12),transparent_28%),linear-gradient(180deg,#ffffff,#f8fafc)] px-7 py-8">
-        <div className="absolute right-5 top-5 rounded-2xl border border-white/60 bg-white/75 px-3 py-2 backdrop-blur">
+      <div className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.14),transparent_34%),radial-gradient(circle_at_top_right,rgba(79,70,229,0.12),transparent_28%),linear-gradient(180deg,#ffffff,#f8fafc)] px-7 py-8 dark:border-slate-700 dark:bg-none dark:bg-slate-900">
+        <div className="absolute right-5 top-5 rounded-2xl border border-white/60 bg-white/75 px-3 py-2 backdrop-blur dark:border-slate-600 dark:bg-slate-800/80">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
             <Sparkles className="h-4 w-4 text-orange-500" />
             Live business previews
@@ -734,21 +734,21 @@ export default function TemplatesPage() {
                 <FileStack className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                   Templates
                 </h1>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
                   Real document previews for receipts, invoices, purchase
                   orders, and emails
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-300">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/80 dark:ring-slate-600">
                 <CalendarDays className="h-4 w-4 text-indigo-500" />
                 Updated for {tenant?.name || "your business"}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/80 dark:ring-slate-600">
                 <ShieldCheck className="h-4 w-4 text-amber-500" />
                 Dynamic fields resolved in preview
               </span>
@@ -772,7 +772,7 @@ export default function TemplatesPage() {
             placeholder="Search templates..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-2xl bg-white/90 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+            className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-2xl bg-white/90 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -783,7 +783,7 @@ export default function TemplatesPage() {
               className={`rounded-full px-4 py-2 text-sm capitalize transition-all ${
                 filterType === t
                   ? "bg-slate-900 text-white shadow-md"
-                  : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                  : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800"
               }`}
             >
               {t === "all"
@@ -809,9 +809,9 @@ export default function TemplatesPage() {
           return (
             <div
               key={template.id}
-              className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-30px_rgba(15,23,42,0.3)]"
+              className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-30px_rgba(15,23,42,0.3)] dark:border-slate-700 dark:bg-slate-900"
             >
-              <div className="border-b border-slate-100 bg-[linear-gradient(180deg,rgba(248,250,252,0.95),#fff)] px-5 py-4">
+              <div className="border-b border-slate-100 bg-[linear-gradient(180deg,rgba(248,250,252,0.95),#fff)] px-5 py-4 dark:border-slate-700 dark:bg-none dark:bg-slate-900">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div
@@ -842,18 +842,18 @@ export default function TemplatesPage() {
                     </div>
                   </div>
                   {template.isDefault && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                       <Check className="w-3 h-3" /> Default
                     </span>
                   )}
                 </div>
-                <p className="mt-3 text-sm text-slate-500">
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-300">
                   {template.description}
                 </p>
               </div>
 
               <div className="p-5">
-                <div className="rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#fff,rgba(248,250,252,0.92))] p-4 shadow-inner">
+                <div className="rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#fff,rgba(248,250,252,0.92))] p-4 shadow-inner dark:border-slate-700 dark:bg-none dark:bg-slate-900">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                       Live Preview
@@ -881,19 +881,19 @@ export default function TemplatesPage() {
                 <div className="mt-4 flex items-center gap-1">
                   <button
                     onClick={() => previewTemplate(template)}
-                    className="flex-1 flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200"
+                    className="flex-1 flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     <Eye className="w-3.5 h-3.5" /> Preview
                   </button>
                   <button
                     onClick={() => openEdit(template)}
-                    className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => duplicateTemplate(template)}
-                    className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                   >
                     <Copy className="w-4 h-4" />
                   </button>
@@ -901,14 +901,14 @@ export default function TemplatesPage() {
                     <>
                       <button
                         onClick={() => setDefault(template.id)}
-                        className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600"
+                        className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:text-slate-300 dark:hover:bg-orange-900/20 dark:hover:text-orange-300"
                         title="Set as default"
                       >
                         <Check className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => deleteTemplate(template.id)}
-                        className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                        className="rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-300 dark:hover:bg-red-900/20 dark:hover:text-red-300"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -920,7 +920,7 @@ export default function TemplatesPage() {
           );
         })}
         {filtered.length === 0 && (
-          <div className="col-span-full rounded-[28px] border border-dashed border-slate-300 bg-white/80 py-20 text-center text-slate-500">
+          <div className="col-span-full rounded-[28px] border border-dashed border-slate-300 bg-white/80 py-20 text-center text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
             No templates found
           </div>
         )}
@@ -929,26 +929,26 @@ export default function TemplatesPage() {
       {/* Edit/Create Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900 dark:border dark:border-slate-700">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">
               {selectedTemplate ? "Edit Template" : "New Template"}
             </h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">
                     Name
                   </label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     placeholder="Template name"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">
                     Type
                   </label>
                   <select
@@ -959,7 +959,7 @@ export default function TemplatesPage() {
                         type: e.target.value as Template["type"],
                       })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="receipt">Receipt</option>
                     <option value="invoice">Invoice</option>
@@ -969,7 +969,7 @@ export default function TemplatesPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">
                   Description
                 </label>
                 <input
@@ -978,16 +978,16 @@ export default function TemplatesPage() {
                   onChange={(e) =>
                     setForm({ ...form, description: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   placeholder="Brief description"
                 />
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
                     Content
                   </label>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-400 dark:text-slate-400">
                     Use {"{{variable}}"} for dynamic values
                   </span>
                 </div>
@@ -996,13 +996,13 @@ export default function TemplatesPage() {
                   onChange={(e) =>
                     setForm({ ...form, content: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   rows={16}
                   placeholder="Template content with {{variables}}"
                 />
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-xs font-medium text-gray-600 mb-1">
+              <div className="bg-gray-50 rounded-lg p-3 dark:bg-slate-800/70">
+                <p className="text-xs font-medium text-gray-600 mb-1 dark:text-slate-300">
                   Available Variables:
                 </p>
                 <div className="flex flex-wrap gap-1">
@@ -1023,7 +1023,7 @@ export default function TemplatesPage() {
                   ].map((v) => (
                     <code
                       key={v}
-                      className="text-[10px] bg-white px-1.5 py-0.5 rounded border text-gray-600 cursor-pointer hover:bg-orange-50"
+                      className="text-[10px] bg-white px-1.5 py-0.5 rounded border text-gray-600 cursor-pointer hover:bg-orange-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                       onClick={() =>
                         setForm({ ...form, content: form.content + `{{${v}}}` })
                       }
@@ -1037,7 +1037,7 @@ export default function TemplatesPage() {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 Cancel
               </button>
@@ -1056,7 +1056,7 @@ export default function TemplatesPage() {
       {/* Preview Modal */}
       {showPreview && selectedTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-3xl rounded-[30px] bg-white p-6 shadow-[0_30px_90px_-30px_rgba(15,23,42,0.55)] max-h-[92vh] overflow-y-auto">
+          <div className="w-full max-w-3xl rounded-[30px] bg-white p-6 shadow-[0_30px_90px_-30px_rgba(15,23,42,0.55)] max-h-[92vh] overflow-y-auto dark:bg-slate-900 dark:border dark:border-slate-700">
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">
@@ -1078,7 +1078,7 @@ export default function TemplatesPage() {
             <div className="flex justify-end mt-4">
               <button
                 onClick={() => setShowPreview(false)}
-                className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200"
+                className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 Close
               </button>

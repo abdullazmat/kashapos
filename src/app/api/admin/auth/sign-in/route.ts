@@ -8,15 +8,19 @@ import { apiError, apiSuccess } from "@/lib/api-helpers";
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
-    
-    const { email, password } = await request.json();
+
+    const body = await request.json();
+    const email = String(body?.email || "")
+      .trim()
+      .toLowerCase();
+    const password = String(body?.password || body?.securityKey || "").trim();
 
     if (!email || !password) {
       return apiError("Email and password are required", 400);
     }
 
-    const user = await User.findOne({ email: email.toLowerCase(), role: "super_admin" });
-    
+    const user = await User.findOne({ email, role: "super_admin" });
+
     if (!user) {
       return apiError("Invalid admin credentials", 401);
     }
@@ -46,7 +50,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         email: user.email,
         role: user.role,
-      }
+      },
     });
   } catch (error) {
     console.error("Admin sign in error:", error);

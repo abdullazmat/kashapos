@@ -79,53 +79,55 @@ export async function GET(request: NextRequest) {
       expensesStats,
       cogsStats,
       stockValueStats,
+      salesCreditStats,
       customerDebtStats,
       totalCustomers,
       totalProducts,
       weeklySales,
-      lowStockData
+      lowStockData,
     ] = await Promise.all([
       // Sales Total
       Sale.aggregate([
-        { 
-          $match: { 
-            ...aggregateSalesQuery, 
-            createdAt: { $gte: startDate }, 
-            status: "completed" 
-          } 
+        {
+          $match: {
+            ...aggregateSalesQuery,
+            createdAt: { $gte: startDate },
+            status: "completed",
+          },
         },
-        { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }
+        {
+          $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } },
+        },
       ]),
       // Purchases Total
       PurchaseOrder.aggregate([
-        { 
-          $match: { 
-            ...aggregateSalesQuery, 
-            createdAt: { $gte: startDate }, 
-            status: { $in: ["received", "partially_received", "billed"] } 
-          } 
+        {
+          $match: {
+            ...aggregateSalesQuery,
+            createdAt: { $gte: startDate },
+            status: { $in: ["received", "partial"] },
+          },
         },
-        { $group: { _id: null, total: { $sum: "$total" } } }
+        { $group: { _id: null, total: { $sum: "$total" } } },
       ]),
       // Expenses Total
       Expense.aggregate([
-        { 
-          $match: { 
-            ...aggregateSalesQuery, 
-            expenseDate: { $gte: startDate }, 
-            status: "paid" 
-          } 
+        {
+          $match: {
+            ...aggregateSalesQuery,
+            date: { $gte: startDate },
+          },
         },
-        { $group: { _id: null, total: { $sum: "$amount" } } }
+        { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
       // COGS (Cost of Goods Sold)
       Sale.aggregate([
-        { 
-          $match: { 
-            ...aggregateSalesQuery, 
-            createdAt: { $gte: startDate }, 
-            status: "completed" 
-          } 
+        {
+          $match: {
+            ...aggregateSalesQuery,
+            createdAt: { $gte: startDate },
+            status: "completed",
+          },
         },
         { $unwind: "$items" },
         {
@@ -133,16 +135,18 @@ export async function GET(request: NextRequest) {
             from: "products",
             localField: "items.productId",
             foreignField: "_id",
-            as: "product"
-          }
+            as: "product",
+          },
         },
         { $unwind: "$product" },
-        { 
-          $group: { 
-            _id: null, 
-            total: { $sum: { $multiply: ["$items.quantity", "$product.costPrice"] } } 
-          } 
-        }
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: { $multiply: ["$items.quantity", "$product.costPrice"] },
+            },
+          },
+        },
       ]),
       // Stock Value (Asset Valuation)
       Stock.aggregate([
@@ -152,22 +156,33 @@ export async function GET(request: NextRequest) {
             from: "products",
             localField: "productId",
             foreignField: "_id",
-            as: "product"
-          }
+            as: "product",
+          },
         },
         { $unwind: "$product" },
-        { 
-          $group: { 
-            _id: null, 
+        {
+          $group: {
+            _id: null,
             total: { $sum: { $multiply: ["$quantity", "$product.costPrice"] } },
-            count: { $sum: "$quantity" }
-          } 
-        }
+            count: { $sum: "$quantity" },
+          },
+        },
+      ]),
+      // Credit Balance (open receivables from sales)
+      Sale.aggregate([
+        {
+          $match: {
+            ...aggregateSalesQuery,
+            status: "completed",
+            remainingBalance: { $gt: 0 },
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$remainingBalance" } } },
       ]),
       // Customer Debt (Credit Balance)
       Customer.aggregate([
         { $match: aggregateTenantQuery },
-        { $group: { _id: null, total: { $sum: "$balance" } } }
+        { $group: { _id: null, total: { $sum: "$balance" } } },
       ]),
       Customer.countDocuments({ ...tenantQuery, isActive: true }),
       Product.countDocuments({ ...tenantQuery, isActive: true }),
@@ -191,7 +206,10 @@ export async function GET(request: NextRequest) {
         },
         { $sort: { _id: 1 } },
       ]),
-      Stock.find(salesQuery).populate("productId", "name sku reorderLevel").limit(10).lean()
+      Stock.find(salesQuery)
+        .populate("productId", "name sku reorderLevel")
+        .limit(10)
+        .lean(),
     ]);
 
     const salesTotal = salesStats[0]?.total || 0;
@@ -200,7 +218,13 @@ export async function GET(request: NextRequest) {
     const cogsTotal = cogsStats[0]?.total || 0;
     const stockValue = stockValueStats[0]?.total || 0;
     const totalStock = stockValueStats[0]?.count || 0;
-    const creditBalance = customerDebtStats[0]?.total || 0;
+    const creditBalanceFromSales = salesCreditStats[0]?.total || 0;
+    const creditBalanceFromCustomers = customerDebtStats[0]?.total || 0;
+    // Prefer live receivables from sales; fallback to customer balance for legacy data.
+    const creditBalance =
+      creditBalanceFromSales > 0
+        ? creditBalanceFromSales
+        : creditBalanceFromCustomers;
     const grossProfit = salesTotal - cogsTotal;
     const netProfit = grossProfit - expensesTotal;
 
@@ -240,11 +264,13 @@ export async function GET(request: NextRequest) {
         totalProducts,
         todaySales: salesTotal, // Legacy fields
         todayOrders: salesStats[0]?.count || 0,
-        salesGrowth: 0, 
+        salesGrowth: 0,
         ordersGrowth: 0,
       },
       weeklySales,
-      lowStockAlerts: lowStockData.filter((s: any) => s.quantity <= (s.productId?.reorderLevel || 0)),
+      lowStockAlerts: lowStockData.filter(
+        (s: any) => s.quantity <= (s.productId?.reorderLevel || 0),
+      ),
       topProducts,
     });
   } catch (error) {

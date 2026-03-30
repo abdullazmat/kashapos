@@ -330,7 +330,9 @@ export default function SalesPage() {
     setOrderPaymentMethod(s.paymentMethod);
     setOrderAmountPaid(String(s.amountPaid));
     setOrderNotes(s.notes || "");
-    setOrderDueDate(s.dueDate ? new Date(s.dueDate).toISOString().split("T")[0] : "");
+    setOrderDueDate(
+      s.dueDate ? new Date(s.dueDate).toISOString().split("T")[0] : "",
+    );
     setOrderError("");
     fetchFormData();
     setShowCreateModal(true);
@@ -706,46 +708,51 @@ export default function SalesPage() {
               }
             : undefined;
 
-      const res = await fetch(editingSaleId ? `/api/sales/${editingSaleId}` : "/api/sales", {
-        method: editingSaleId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          branchId: orderBranch,
-          customerId: orderCustomer || undefined,
-          items: orderItems.map((i) => ({
-            productId: i.productId,
-            productName: i.productName,
-            sku: i.sku,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            discount: i.discount,
-            tax: i.tax,
-            total: i.total,
-          })),
-          paymentMethod: orderPaymentMethod,
-          amountPaid: parsedAmountPaid,
-          ...(paymentDetails ? { paymentDetails } : {}),
-          status:
-            orderPaymentMethod === "credit" || remainingBalance > 0
-              ? "pending"
-              : orderStatus,
-          ...(orderDueDate && { dueDate: orderDueDate }),
-          notes: orderNotes,
-          ...(orderCustomer
-            ? {}
-            : {
-                walkInName: orderWalkInName.trim(),
-                walkInPhone: orderWalkInPhone.trim(),
-              }),
-        }),
-      });
+      const res = await fetch(
+        editingSaleId ? `/api/sales/${editingSaleId}` : "/api/sales",
+        {
+          method: editingSaleId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            branchId: orderBranch,
+            customerId: orderCustomer || undefined,
+            items: orderItems.map((i) => ({
+              productId: i.productId,
+              productName: i.productName,
+              sku: i.sku,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              discount: i.discount,
+              tax: i.tax,
+              total: i.total,
+            })),
+            paymentMethod: orderPaymentMethod,
+            amountPaid: parsedAmountPaid,
+            ...(paymentDetails ? { paymentDetails } : {}),
+            status:
+              orderPaymentMethod === "credit" || remainingBalance > 0
+                ? "pending"
+                : orderStatus,
+            ...(orderDueDate && { dueDate: orderDueDate }),
+            notes: orderNotes,
+            ...(orderCustomer
+              ? {}
+              : {
+                  walkInName: orderWalkInName.trim(),
+                  walkInPhone: orderWalkInPhone.trim(),
+                }),
+          }),
+        },
+      );
       if (res.ok) {
         setShowCreateModal(false);
         setEditingSaleId(null);
         fetchSales();
       } else {
         const d = await res.json();
-        setOrderError(d.error || `Failed to ${editingSaleId ? "update" : "create"} order`);
+        setOrderError(
+          d.error || `Failed to ${editingSaleId ? "update" : "create"} order`,
+        );
       }
     } catch {
       setOrderError("Failed to create order");
@@ -1239,24 +1246,46 @@ export default function SalesPage() {
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex flex-col items-end gap-1 text-[11px]">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-gray-400">Cost:</span>
+                          <span className="font-medium text-gray-400">
+                            Cost:
+                          </span>
                           <div className="group/fin inline-flex items-center gap-1">
-                            <span className="font-bold text-gray-900">{formatCurrency(s.total, currency)}</span>
+                            <span className="font-bold text-gray-900">
+                              {formatCurrency(s.total, currency)}
+                            </span>
                             <Info className="h-3 w-3 text-gray-300" />
                             <div className="pointer-events-none invisible absolute z-10 w-48 -translate-x-full rounded-lg border border-gray-200 bg-white p-2 text-left text-[11px] text-gray-600 shadow-lg group-hover/fin:visible">
-                              <p>Subtotal: {formatCurrency(s.subtotal, currency)}</p>
-                              <p>Discount: {formatCurrency(s.totalDiscount || 0, currency)}</p>
-                              <p>Tax: {formatCurrency(s.totalTax || 0, currency)}</p>
+                              <p>
+                                Subtotal: {formatCurrency(s.subtotal, currency)}
+                              </p>
+                              <p>
+                                Discount:{" "}
+                                {formatCurrency(s.totalDiscount || 0, currency)}
+                              </p>
+                              <p>
+                                Tax: {formatCurrency(s.totalTax || 0, currency)}
+                              </p>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-gray-400">Paid:</span>
-                          <span className="font-bold text-emerald-600">{formatCurrency(s.total - s.remainingBalance, currency)}</span>
+                          <span className="font-medium text-gray-400">
+                            Paid:
+                          </span>
+                          <span className="font-bold text-emerald-600">
+                            {formatCurrency(
+                              s.total - s.remainingBalance,
+                              currency,
+                            )}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-gray-400">Due:</span>
-                          <span className={`font-bold ${s.remainingBalance > 0 ? "text-red-600" : "text-gray-900"}`}>
+                          <span className="font-medium text-gray-400">
+                            Due:
+                          </span>
+                          <span
+                            className={`font-bold ${s.remainingBalance > 0 ? "text-red-600" : "text-gray-900"}`}
+                          >
                             {formatCurrency(s.remainingBalance, currency)}
                           </span>
                         </div>
@@ -1343,207 +1372,293 @@ export default function SalesPage() {
           onClick={() => setViewSale(null)}
         >
           <div
-            className="w-full h-full md:h-auto md:max-w-6xl md:rounded-3xl bg-gray-50/90 shadow-2xl flex flex-col max-h-screen md:max-h-[90vh] overflow-hidden"
+            className="w-full h-full md:h-auto md:max-w-6xl md:rounded-3xl bg-gray-50/90 shadow-2xl flex flex-col max-h-screen md:max-h-[90vh] overflow-hidden dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Area */}
-            <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-10">
-               <div className="flex items-start gap-4">
-                  <button 
-                    onClick={() => setViewSale(null)}
-                    className="flex mt-1 items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-full text-xs font-bold transition-colors shadow-sm"
-                  >
-                     <ChevronLeft className="w-4 h-4" /> Back
-                  </button>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                       <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tight truncate">
-                         Order #{viewSale.orderNumber}
-                       </h2>
-                       <span
-                         className={`inline-flex rounded-lg px-2 py-0.5 md:px-2.5 md:py-1 text-[9px] md:text-[10px] font-black uppercase tracking-widest ${statusColor[viewSale.status]}`}
-                       >
-                         {viewSale.status}
-                       </span>
-                    </div>
-                    <p className="text-[11px] md:text-sm font-medium text-gray-400 mt-0.5 md:mt-1">
-                      Order details and payment
-                    </p>
+            <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-10 dark:bg-slate-900 dark:border-slate-700">
+              <div className="flex items-start gap-4">
+                <button
+                  onClick={() => setViewSale(null)}
+                  className="flex mt-1 items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-full text-xs font-bold transition-colors shadow-sm"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Back
+                </button>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                    <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tight truncate dark:text-slate-100">
+                      Order #{viewSale.orderNumber}
+                    </h2>
+                    <span
+                      className={`inline-flex rounded-lg px-2 py-0.5 md:px-2.5 md:py-1 text-[9px] md:text-[10px] font-black uppercase tracking-widest ${statusColor[viewSale.status]}`}
+                    >
+                      {viewSale.status}
+                    </span>
                   </div>
-               </div>
-               
-               {/* Action Toolbar */}
-               <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
-                  <button onClick={() => printInvoice(viewSale)} className="shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm">
-                    <FileText className="w-3.5 h-3.5" /> Invoice
-                  </button>
-                  <button onClick={() => printDeliveryNote(viewSale)} className="shrink-0 flex items-center gap-1.5 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm">
-                    <Truck className="w-3.5 h-3.5" /> Delivery
-                  </button>
-                  <button onClick={() => printReceipt(viewSale)} className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm">
-                    <Printer className="w-3.5 h-3.5" /> Print
-                  </button>
-                  <button onClick={deleteSale} disabled={actionLoading} className="shrink-0 flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm disabled:opacity-50">
-                    <Trash2 className="w-3.5 h-3.5" /> Delete
-                  </button>
-                  <button 
-                    onClick={() => {
-                        setViewSale(null);
-                        editSale(viewSale);
-                    }}
-                    className="shrink-0 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white border border-blue-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Edit
-                  </button>
-               </div>
+                  <p className="text-[11px] md:text-sm font-medium text-gray-400 mt-0.5 md:mt-1 dark:text-slate-400">
+                    Order details and payment
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
+                <button
+                  onClick={() => printInvoice(viewSale)}
+                  className="shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Invoice
+                </button>
+                <button
+                  onClick={() => printDeliveryNote(viewSale)}
+                  className="shrink-0 flex items-center gap-1.5 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm dark:bg-slate-900 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/20"
+                >
+                  <Truck className="w-3.5 h-3.5" /> Delivery
+                </button>
+                <button
+                  onClick={() => printReceipt(viewSale)}
+                  className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print
+                </button>
+                <button
+                  onClick={deleteSale}
+                  disabled={actionLoading}
+                  className="shrink-0 flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+                <button
+                  onClick={() => {
+                    setViewSale(null);
+                    editSale(viewSale);
+                  }}
+                  className="shrink-0 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white border border-blue-700 px-3 py-2 rounded-xl text-[11px] md:text-xs font-bold transition-all shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Edit
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
-               
-               {/* Info Grid */}
-               <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                  <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4">
-                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                       <User className="w-4 h-4 md:w-5 md:h-5 text-blue-500" />
-                     </div>
-                     <div className="min-w-0">
-                       <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">Customer</p>
-                       <p className="text-[11px] md:text-sm font-black text-gray-800 truncate">{getSaleCustomerName(viewSale)}</p>
-                     </div>
+              {/* Info Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4 dark:bg-slate-900 dark:border-slate-700">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 md:w-5 md:h-5 text-blue-500" />
                   </div>
-                  <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4">
-                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                       <Building2 className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
-                     </div>
-                     <div className="min-w-0">
-                       <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">Branch</p>
-                       <p className="text-[11px] md:text-sm font-black text-gray-800 truncate">Main Branch</p>
-                     </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">
+                      Customer
+                    </p>
+                    <p className="text-[11px] md:text-sm font-black text-gray-800 truncate">
+                      {getSaleCustomerName(viewSale)}
+                    </p>
                   </div>
-                  <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4">
-                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
-                       <CreditCard className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
-                     </div>
-                     <div className="min-w-0">
-                       <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">Payment</p>
-                       <p className="text-[11px] md:text-sm font-black text-gray-800 flex items-center gap-1.5 capitalize truncate">
-                         {paymentLabel[viewSale.paymentMethod] || viewSale.paymentMethod}
-                       </p>
-                     </div>
+                </div>
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4 dark:bg-slate-900 dark:border-slate-700">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                    <Building2 className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
                   </div>
-                  <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex flex-col justify-center gap-1">
-                     <p className="text-[10px] md:text-[11px] font-black text-gray-800 leading-none">Paid: <span className="text-emerald-600">{formatCurrency(viewSale.total - viewSale.remainingBalance, currency)}</span></p>
-                     <p className="text-[10px] md:text-[11px] font-black text-gray-800 leading-none">Due: <span className="text-rose-500">{formatCurrency(viewSale.remainingBalance, currency)}</span></p>
+                  <div className="min-w-0">
+                    <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">
+                      Branch
+                    </p>
+                    <p className="text-[11px] md:text-sm font-black text-gray-800 truncate">
+                      Main Branch
+                    </p>
                   </div>
-               </div>
+                </div>
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex items-center gap-3 md:gap-4 dark:bg-slate-900 dark:border-slate-700">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
+                    <CreditCard className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">
+                      Payment
+                    </p>
+                    <p className="text-[11px] md:text-sm font-black text-gray-800 flex items-center gap-1.5 capitalize truncate">
+                      {paymentLabel[viewSale.paymentMethod] ||
+                        viewSale.paymentMethod}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-gray-200 shadow-sm flex flex-col justify-center gap-1 dark:bg-slate-900 dark:border-slate-700">
+                  <p className="text-[10px] md:text-[11px] font-black text-gray-800 leading-none">
+                    Paid:{" "}
+                    <span className="text-emerald-600">
+                      {formatCurrency(
+                        viewSale.total - viewSale.remainingBalance,
+                        currency,
+                      )}
+                    </span>
+                  </p>
+                  <p className="text-[10px] md:text-[11px] font-black text-gray-800 leading-none">
+                    Due:{" "}
+                    <span className="text-rose-500">
+                      {formatCurrency(viewSale.remainingBalance, currency)}
+                    </span>
+                  </p>
+                </div>
+              </div>
 
-               <div className="flex flex-col lg:flex-row gap-6">
-                  
-                  {/* Left Column - Order Items */}
-                  <div className="flex-1 space-y-6">
-                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-                           <ShoppingCart className="w-5 h-5 text-gray-400" />
-                           <h3 className="text-sm font-bold text-gray-800">Order Items</h3>
-                        </div>
-                        <div className="overflow-x-auto">
-                           <table className="w-full text-sm">
-                             <thead className="bg-gray-50/50">
-                               <tr className="border-b border-gray-100">
-                                 <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400">Item</th>
-                                 <th className="px-6 py-3.5 text-center text-[10px] font-bold uppercase tracking-widest text-gray-400">Quantity</th>
-                                 <th className="px-6 py-3.5 text-center text-[10px] font-bold uppercase tracking-widest text-gray-400">UOM</th>
-                                 <th className="px-6 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-gray-400">Unit Price</th>
-                                 <th className="px-6 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-gray-400">Total</th>
-                               </tr>
-                             </thead>
-                             <tbody className="divide-y divide-gray-50">
-                               {viewSale.items.map((item, i) => (
-                                 <tr key={i} className="hover:bg-gray-50/30">
-                                   <td className="px-6 py-4">
-                                     <p className="font-bold text-gray-800 text-xs">{item.productName}</p>
-                                     <p className="text-[10px] text-gray-400 font-mono mt-0.5">Code: {item.sku}</p>
-                                   </td>
-                                   <td className="px-6 py-4 text-center font-semibold text-gray-600">
-                                     {item.quantity.toFixed(1)}
-                                   </td>
-                                   <td className="px-6 py-4 text-center text-xs text-gray-500">
-                                     Piece
-                                   </td>
-                                   <td className="px-6 py-4 text-right font-medium text-gray-600">
-                                     {formatCurrency(item.unitPrice, currency)}
-                                   </td>
-                                   <td className="px-6 py-4 text-right font-black text-gray-900">
-                                     {formatCurrency(item.total, currency)}
-                                   </td>
-                                 </tr>
-                               ))}
-                             </tbody>
-                           </table>
-                        </div>
-                     </div>
+              <div className="flex flex-col lg:flex-row gap-6">
+                {/* Left Column - Order Items */}
+                <div className="flex-1 space-y-6">
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden dark:bg-slate-900 dark:border-slate-700">
+                    <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 dark:border-slate-700">
+                      <ShoppingCart className="w-5 h-5 text-gray-400" />
+                      <h3 className="text-sm font-bold text-gray-800">
+                        Order Items
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50/50 dark:bg-slate-800/60">
+                          <tr className="border-b border-gray-100 dark:border-slate-700">
+                            <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                              Item
+                            </th>
+                            <th className="px-6 py-3.5 text-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                              Quantity
+                            </th>
+                            <th className="px-6 py-3.5 text-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                              UOM
+                            </th>
+                            <th className="px-6 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                              Unit Price
+                            </th>
+                            <th className="px-6 py-3.5 text-right text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                              Total
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
+                          {viewSale.items.map((item, i) => (
+                            <tr
+                              key={i}
+                              className="hover:bg-gray-50/30 dark:hover:bg-slate-800/40"
+                            >
+                              <td className="px-6 py-4">
+                                <p className="font-bold text-gray-800 text-xs dark:text-slate-100">
+                                  {item.productName}
+                                </p>
+                                <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                                  Code: {item.sku}
+                                </p>
+                              </td>
+                              <td className="px-6 py-4 text-center font-semibold text-gray-600">
+                                {item.quantity.toFixed(1)}
+                              </td>
+                              <td className="px-6 py-4 text-center text-xs text-gray-500">
+                                Piece
+                              </td>
+                              <td className="px-6 py-4 text-right font-medium text-gray-600">
+                                {formatCurrency(item.unitPrice, currency)}
+                              </td>
+                              <td className="px-6 py-4 text-right font-black text-gray-900">
+                                {formatCurrency(item.total, currency)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
+                </div>
 
-                  {/* Right Column - Status & Summary */}
-                  <div className="w-full lg:w-[360px] flex flex-col gap-6">
-                     
-                     {/* Payment Status */}
-                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-6">
-                        <div className="flex items-center gap-2">
-                           <CreditCard className="w-4 h-4 text-gray-400" />
-                           <h3 className="text-sm font-bold text-gray-800">Payment Status</h3>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-gray-50 pb-4">
-                           <span className="text-sm text-gray-500">Status:</span>
-                           <span className={`inline-flex rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${statusColor[viewSale.status]}`}>
-                              {viewSale.status}
-                           </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                           <span className="text-sm text-gray-500">Amount Paid:</span>
-                           <span className="text-sm font-black text-gray-900 leading-none">
-                              {formatCurrency(viewSale.total - viewSale.remainingBalance, currency)}
-                           </span>
-                        </div>
-                     </div>
-
-                     {/* Order Summary */}
-                     <div className="bg-gray-200/40 rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/40 blur-3xl -mr-16 -mt-16 rounded-full pointer-events-none" />
-                        
-                        <div className="flex items-center gap-2 relative z-10 mb-2">
-                           <Banknote className="w-4 h-4 text-gray-500" />
-                           <h3 className="text-sm font-bold text-gray-800">Order Summary</h3>
-                        </div>
-                        
-                        <div className="flex justify-between items-center relative z-10">
-                           <span className="text-sm font-medium text-gray-600">Subtotal:</span>
-                           <span className="text-sm font-bold text-gray-700">{formatCurrency(viewSale.subtotal, currency)}</span>
-                        </div>
-                        
-                        <div className="flex justify-between items-center pb-4 border-b border-gray-300/50 relative z-10">
-                           <span className="text-sm font-medium text-gray-600">Tax:</span>
-                           <span className="text-sm font-bold text-gray-700">{formatCurrency(viewSale.totalTax, currency)}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center relative z-10 pt-2">
-                           <span className="text-sm font-black text-gray-900">Total:</span>
-                           <span className="text-sm font-black text-gray-900">{formatCurrency(viewSale.total, currency)}</span>
-                        </div>
-                        <div className="flex justify-between items-center relative z-10 mt-1">
-                           <span className="text-sm font-black text-gray-900">Paid:</span>
-                           <span className="text-sm font-black text-gray-900">{formatCurrency(viewSale.total - viewSale.remainingBalance, currency)}</span>
-                        </div>
-                        {viewSale.remainingBalance > 0 && (
-                          <div className="flex justify-between items-center relative z-10 mt-1">
-                             <span className="text-sm font-black text-gray-900">Balance:</span>
-                             <span className="text-sm font-black text-rose-600">{formatCurrency(viewSale.remainingBalance, currency)}</span>
-                          </div>
+                {/* Right Column - Status & Summary */}
+                <div className="w-full lg:w-[360px] flex flex-col gap-6">
+                  {/* Payment Status */}
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-6 dark:bg-slate-900 dark:border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-gray-400" />
+                      <h3 className="text-sm font-bold text-gray-800">
+                        Payment Status
+                      </h3>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-gray-50 pb-4 dark:border-slate-700">
+                      <span className="text-sm text-gray-500">Status:</span>
+                      <span
+                        className={`inline-flex rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${statusColor[viewSale.status]}`}
+                      >
+                        {viewSale.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500">
+                        Amount Paid:
+                      </span>
+                      <span className="text-sm font-black text-gray-900 leading-none">
+                        {formatCurrency(
+                          viewSale.total - viewSale.remainingBalance,
+                          currency,
                         )}
-                     </div>
-
+                      </span>
+                    </div>
                   </div>
-               </div>
+
+                  {/* Order Summary */}
+                  <div className="bg-gray-200/40 rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 relative overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/40 blur-3xl -mr-16 -mt-16 rounded-full pointer-events-none dark:bg-slate-700/40" />
+
+                    <div className="flex items-center gap-2 relative z-10 mb-2">
+                      <Banknote className="w-4 h-4 text-gray-500" />
+                      <h3 className="text-sm font-bold text-gray-800">
+                        Order Summary
+                      </h3>
+                    </div>
+
+                    <div className="flex justify-between items-center relative z-10">
+                      <span className="text-sm font-medium text-gray-600">
+                        Subtotal:
+                      </span>
+                      <span className="text-sm font-bold text-gray-700">
+                        {formatCurrency(viewSale.subtotal, currency)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-4 border-b border-gray-300/50 relative z-10">
+                      <span className="text-sm font-medium text-gray-600">
+                        Tax:
+                      </span>
+                      <span className="text-sm font-bold text-gray-700">
+                        {formatCurrency(viewSale.totalTax, currency)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center relative z-10 pt-2">
+                      <span className="text-sm font-black text-gray-900">
+                        Total:
+                      </span>
+                      <span className="text-sm font-black text-gray-900">
+                        {formatCurrency(viewSale.total, currency)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center relative z-10 mt-1">
+                      <span className="text-sm font-black text-gray-900">
+                        Paid:
+                      </span>
+                      <span className="text-sm font-black text-gray-900">
+                        {formatCurrency(
+                          viewSale.total - viewSale.remainingBalance,
+                          currency,
+                        )}
+                      </span>
+                    </div>
+                    {viewSale.remainingBalance > 0 && (
+                      <div className="flex justify-between items-center relative z-10 mt-1">
+                        <span className="text-sm font-black text-gray-900">
+                          Balance:
+                        </span>
+                        <span className="text-sm font-black text-rose-600">
+                          {formatCurrency(viewSale.remainingBalance, currency)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1556,27 +1671,27 @@ export default function SalesPage() {
           onClick={() => setShowCreateModal(false)}
         >
           <div
-            className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl"
+            className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900 dark:border dark:border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-slate-700">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
                   <ShoppingCart className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">
                     Create Sales Order
                   </h2>
-                  <p className="text-[12px] text-gray-400">
+                  <p className="text-[12px] text-gray-400 dark:text-slate-400">
                     Fill in the details to create a new sales order
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
                 <X className="h-5 w-5" />
               </button>

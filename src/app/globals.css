@@ -31,8 +31,14 @@
   --animate-fade-zoom-in: fade-zoom-in 0.25s ease-out;
 
   @keyframes fade-zoom-in {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 }
 
@@ -164,6 +170,12 @@ html.dark .content-area .bg-white {
 html.dark .content-area .bg-white\/80 {
   background-color: rgb(17 24 39 / 0.8) !important;
 }
+html.dark .content-area .bg-white\/90 {
+  background-color: rgb(17 24 39 / 0.9) !important;
+}
+html.dark .content-area .bg-white\/75 {
+  background-color: rgb(17 24 39 / 0.75) !important;
+}
 html.dark .content-area .bg-white\/60 {
   background-color: rgb(17 24 39 / 0.6) !important;
 }
@@ -176,8 +188,20 @@ html.dark .content-area .bg-gray-50 {
 html.dark .content-area .bg-gray-50\/80 {
   background-color: rgb(31 41 55 / 0.8) !important;
 }
+html.dark .content-area .bg-gray-50\/90 {
+  background-color: rgb(31 41 55 / 0.9) !important;
+}
 html.dark .content-area .bg-gray-50\/60 {
   background-color: rgb(31 41 55 / 0.6) !important;
+}
+html.dark .content-area .bg-gray-50\/50 {
+  background-color: rgb(31 41 55 / 0.5) !important;
+}
+html.dark .content-area .bg-gray-50\/40 {
+  background-color: rgb(31 41 55 / 0.4) !important;
+}
+html.dark .content-area .bg-gray-50\/30 {
+  background-color: rgb(31 41 55 / 0.3) !important;
 }
 html.dark .content-area .bg-gray-50\/50 {
   background-color: rgb(31 41 55 / 0.5) !important;
@@ -186,6 +210,48 @@ html.dark .content-area .bg-gray-100 {
   background-color: #374151 !important;
 }
 html.dark .content-area .bg-gray-200 {
+  background-color: #4b5563 !important;
+}
+html.dark .content-area .bg-gray-200\/40 {
+  background-color: rgb(75 85 99 / 0.4) !important;
+}
+html.dark .content-area .bg-gray-100\/80 {
+  background-color: rgb(55 65 81 / 0.8) !important;
+}
+html.dark .content-area .bg-gray-100\/70 {
+  background-color: rgb(55 65 81 / 0.7) !important;
+}
+html.dark .content-area .bg-gray-100\/60 {
+  background-color: rgb(55 65 81 / 0.6) !important;
+}
+html.dark .content-area .bg-gray-100\/50 {
+  background-color: rgb(55 65 81 / 0.5) !important;
+}
+html.dark .content-area .bg-gray-100\/40 {
+  background-color: rgb(55 65 81 / 0.4) !important;
+}
+html.dark .content-area .bg-gray-100\/30 {
+  background-color: rgb(55 65 81 / 0.3) !important;
+}
+html.dark .content-area .bg-gray-200\/80 {
+  background-color: rgb(75 85 99 / 0.8) !important;
+}
+html.dark .content-area .bg-gray-200\/70 {
+  background-color: rgb(75 85 99 / 0.7) !important;
+}
+html.dark .content-area .bg-gray-200\/60 {
+  background-color: rgb(75 85 99 / 0.6) !important;
+}
+html.dark .content-area .bg-gray-200\/50 {
+  background-color: rgb(75 85 99 / 0.5) !important;
+}
+html.dark .content-area .bg-slate-50 {
+  background-color: #1f2937 !important;
+}
+html.dark .content-area .bg-slate-100 {
+  background-color: #374151 !important;
+}
+html.dark .content-area .bg-slate-200 {
   background-color: #4b5563 !important;
 }
 
@@ -326,6 +392,27 @@ html.dark .content-area .text-gray-400 {
 html.dark .content-area .text-gray-300 {
   color: #9ca3af !important;
 }
+html.dark .content-area .text-slate-900 {
+  color: #f8fafc !important;
+}
+html.dark .content-area .text-slate-800 {
+  color: #f1f5f9 !important;
+}
+html.dark .content-area .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+html.dark .content-area .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+html.dark .content-area .text-slate-500 {
+  color: #94a3b8 !important;
+}
+html.dark .content-area .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+html.dark .content-area .text-slate-300 {
+  color: #e2e8f0 !important;
+}
 
 /* --- Borders --- */
 html.dark .content-area .border-gray-50 {
@@ -337,6 +424,12 @@ html.dark .content-area .border-gray-100 {
 html.dark .content-area .border-gray-200 {
   border-color: #374151 !important;
 }
+html.dark .content-area .border-slate-100 {
+  border-color: #374151 !important;
+}
+html.dark .content-area .border-slate-200 {
+  border-color: #4b5563 !important;
+}
 html.dark .content-area .border-gray-200\/70 {
   border-color: rgb(55 65 81 / 0.7) !important;
 }
@@ -345,6 +438,9 @@ html.dark .content-area .border-gray-200\/60 {
 }
 html.dark .content-area .border-gray-200\/80 {
   border-color: rgb(55 65 81 / 0.8) !important;
+}
+html.dark .content-area .border-gray-300\/50 {
+  border-color: rgb(75 85 99 / 0.5) !important;
 }
 html.dark .content-area .border-blue-100 {
   border-color: rgb(30 58 138 / 0.3) !important;
@@ -386,14 +482,44 @@ html.dark .content-area .divide-gray-100 > :not(:last-child) {
 html.dark .content-area .hover\:bg-gray-50:hover {
   background-color: #374151 !important;
 }
+html.dark .content-area .hover\:bg-gray-50\/30:hover {
+  background-color: rgb(55 65 81 / 0.3) !important;
+}
+html.dark .content-area .hover\:bg-gray-50\/40:hover {
+  background-color: rgb(55 65 81 / 0.4) !important;
+}
+html.dark .content-area .hover\:bg-gray-50\/50:hover {
+  background-color: rgb(55 65 81 / 0.5) !important;
+}
 html.dark .content-area .hover\:bg-gray-200:hover {
   background-color: #4b5563 !important;
 }
 html.dark .content-area .hover\:bg-gray-100:hover {
   background-color: #374151 !important;
 }
+html.dark .content-area .hover\:bg-gray-100\/30:hover {
+  background-color: rgb(75 85 99 / 0.3) !important;
+}
+html.dark .content-area .hover\:bg-gray-100\/40:hover {
+  background-color: rgb(75 85 99 / 0.4) !important;
+}
+html.dark .content-area .hover\:bg-gray-100\/50:hover {
+  background-color: rgb(75 85 99 / 0.5) !important;
+}
 html.dark .content-area .hover\:bg-gray-50\/60:hover {
   background-color: rgb(55 65 81 / 0.6) !important;
+}
+html.dark .content-area .hover\:bg-gray-50\/70:hover {
+  background-color: rgb(55 65 81 / 0.7) !important;
+}
+html.dark .content-area .hover\:bg-gray-50\/80:hover {
+  background-color: rgb(55 65 81 / 0.8) !important;
+}
+html.dark .content-area .hover\:bg-white:hover {
+  background-color: #374151 !important;
+}
+html.dark .content-area .hover\:bg-white\/80:hover {
+  background-color: rgb(55 65 81 / 0.8) !important;
 }
 html.dark .content-area .hover\:bg-red-50:hover {
   background-color: rgb(127 29 29 / 0.25) !important;
@@ -406,6 +532,43 @@ html.dark .content-area .hover\:bg-orange-100:hover {
 }
 html.dark .content-area .hover\:border-gray-200:hover {
   border-color: #4b5563 !important;
+}
+
+/* Fallback: keep table rows dark on hover even when utility variants are inconsistent */
+html.dark .content-area table tbody tr:hover {
+  background-color: rgb(30 41 59 / 0.45) !important;
+}
+
+/* Explicit selected-row classes commonly used in table UIs */
+html.dark .content-area table tbody tr.bg-white {
+  background-color: #111827 !important;
+}
+html.dark .content-area table tbody tr.bg-gray-50 {
+  background-color: #1f2937 !important;
+}
+html.dark .content-area table tbody tr.bg-gray-100 {
+  background-color: #374151 !important;
+}
+html.dark .content-area table tbody tr.bg-gray-200 {
+  background-color: #4b5563 !important;
+}
+html.dark .content-area table tbody tr.bg-gray-50\/80 {
+  background-color: rgb(31 41 55 / 0.8) !important;
+}
+html.dark .content-area table tbody tr.bg-gray-100\/80 {
+  background-color: rgb(55 65 81 / 0.8) !important;
+}
+html.dark .content-area table tbody tr.bg-gray-200\/70 {
+  background-color: rgb(75 85 99 / 0.7) !important;
+}
+html.dark .content-area table tbody tr.bg-gray-200\/60 {
+  background-color: rgb(75 85 99 / 0.6) !important;
+}
+html.dark .content-area table tbody tr.bg-gray-200\/50 {
+  background-color: rgb(75 85 99 / 0.5) !important;
+}
+html.dark .content-area table tbody tr.bg-gray-200\/40 {
+  background-color: rgb(75 85 99 / 0.4) !important;
 }
 
 /* --- Shadows --- */

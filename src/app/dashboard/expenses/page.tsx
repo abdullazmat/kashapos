@@ -59,6 +59,11 @@ const categoryColors: Record<string, string> = {
 const inputClass =
   "mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-sm transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20";
 
+function getLocalDateInputValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 export default function ExpensesPage() {
   const { tenant } = useSession();
   const currency = tenant?.settings?.currency || "UGX";
@@ -76,7 +81,7 @@ export default function ExpensesPage() {
     category: "other",
     description: "",
     amount: "",
-    date: new Date().toISOString().split("T")[0],
+    date: getLocalDateInputValue(),
     paymentMethod: "cash",
     reference: "",
     notes: "",
@@ -90,7 +95,7 @@ export default function ExpensesPage() {
         limit: "20",
         ...(filterCategory && { category: filterCategory }),
       });
-      const res = await fetch(`/api/expenses?${params}`);
+      const res = await fetch(`/api/expenses?${params}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setExpenses(data.expenses || []);
@@ -125,12 +130,12 @@ export default function ExpensesPage() {
           category: "other",
           description: "",
           amount: "",
-          date: new Date().toISOString().split("T")[0],
+          date: getLocalDateInputValue(),
           paymentMethod: "cash",
           reference: "",
           notes: "",
         });
-        fetchExpenses();
+        await fetchExpenses();
       } else {
         const err = await res.json();
         alert(err.error || "Failed to save");
@@ -191,7 +196,9 @@ export default function ExpensesPage() {
             <TrendingDown className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">Expenses</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">
+              Expenses
+            </h1>
             <p className="text-[11px] md:text-[13px] text-gray-500">
               Track business expenses for P&L
             </p>
@@ -216,14 +223,20 @@ export default function ExpensesPage() {
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-5">
-          <p className="text-xs md:text-[13px] font-medium text-gray-500">This Month</p>
+          <p className="text-xs md:text-[13px] font-medium text-gray-500">
+            This Month
+          </p>
           <p className="text-lg md:text-2xl font-bold text-red-600 mt-1">
             {formatCurrency(thisMonthTotal, currency)}
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-5 col-span-2 lg:col-span-1">
-          <p className="text-xs md:text-[13px] font-medium text-gray-500">Total Records</p>
-          <p className="text-lg md:text-2xl font-bold text-gray-900 mt-1">{total}</p>
+          <p className="text-xs md:text-[13px] font-medium text-gray-500">
+            Total Records
+          </p>
+          <p className="text-lg md:text-2xl font-bold text-gray-900 mt-1">
+            {total}
+          </p>
         </div>
       </div>
 

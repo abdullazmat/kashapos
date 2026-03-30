@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Expense from "@/models/Expense";
+import Branch from "@/models/Branch";
 import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 
@@ -16,6 +17,9 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("endDate");
 
     const query: Record<string, unknown> = { tenantId: auth.tenantId };
+    if (auth.branchId) {
+      query.branchId = auth.branchId;
+    }
     if (category) query.category = category;
     if (startDate || endDate) {
       query.date = {};
@@ -37,8 +41,13 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Calculate totals
+    const totalMatch: Record<string, unknown> = { tenantId: auth.tenantId };
+    if (auth.branchId) {
+      totalMatch.branchId = auth.branchId;
+    }
+
     const totalAmount = await Expense.aggregate([
-      { $match: { tenantId: auth.tenantId } },
+      { $match: totalMatch },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
 
@@ -64,10 +73,29 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    let resolvedBranchId = auth.branchId;
+
+    // Some legacy users can have a session without branchId; fallback to main branch.
+    if (!resolvedBranchId) {
+      const fallbackBranch = await Branch.findOne({ tenantId: auth.tenantId })
+        .sort({ isMain: -1, createdAt: 1 })
+        .select("_id")
+        .lean();
+
+      if (!fallbackBranch?._id) {
+        return apiError(
+          "No branch found for tenant. Create a branch first.",
+          400,
+        );
+      }
+
+      resolvedBranchId = String(fallbackBranch._id);
+    }
+
     const expense = await Expense.create({
       ...body,
       tenantId: auth.tenantId,
-      branchId: auth.branchId,
+      branchId: resolvedBranchId,
       createdBy: auth.userId,
     });
 
@@ -85,6 +113,9 @@ export async function POST(request: NextRequest) {
     return apiSuccess(expense, 201);
   } catch (error) {
     console.error("Expenses POST error:", error);
+    if (error instanceof Error) {
+      return apiError(error.message, 400);
+    }
     return apiError("Internal server error", 500);
   }
 }

@@ -224,9 +224,11 @@ export default function DashboardPage() {
   const fetchDashboard = useCallback(async (p: TimePeriod) => {
     try {
       const [dashRes, salesRes, activityRes] = await Promise.all([
-        fetch(`/api/dashboard?period=${periodApiMap[p]}`),
-        fetch("/api/sales?limit=5"),
-        fetch("/api/activity-logs?limit=50"),
+        fetch(`/api/dashboard?period=${periodApiMap[p]}`, {
+          cache: "no-store",
+        }),
+        fetch("/api/sales?limit=5", { cache: "no-store" }),
+        fetch("/api/activity-logs?limit=50", { cache: "no-store" }),
       ]);
       if (dashRes.ok) setData(await dashRes.json());
       if (salesRes.ok) {
@@ -375,22 +377,32 @@ export default function DashboardPage() {
             className={`bg-white rounded-2xl border ${card.border} p-5 hover:shadow-md transition-all duration-300`}
           >
             <div className="flex items-center justify-between mb-4">
-              <div className={`w-10 h-10 ${card.bg} rounded-xl flex items-center justify-center`}>
+              <div
+                className={`w-10 h-10 ${card.bg} rounded-xl flex items-center justify-center`}
+              >
                 <card.icon className={`w-5 h-5 ${card.color}`} />
               </div>
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest hidden md:block">Real-time</span>
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest hidden md:block">
+                Real-time
+              </span>
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">{card.title}</p>
+              <p className="text-xs font-bold text-slate-500 mb-1">
+                {card.title}
+              </p>
               {loading ? (
                 <div className="h-7 w-32 bg-slate-50 rounded-lg animate-pulse" />
               ) : (
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">{card.value}</h3>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                  {card.value}
+                </h3>
               )}
             </div>
             <div className="mt-4 flex items-center gap-2">
-               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Insight</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                Active Insight
+              </span>
             </div>
           </div>
         ))}
@@ -566,7 +578,9 @@ export default function DashboardPage() {
               <div
                 className={`w-9 h-9 md:w-10 md:h-10 ${action.bg} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}
               >
-                <action.icon className={`w-4.5 h-4.5 md:w-5 md:h-5 ${action.color}`} />
+                <action.icon
+                  className={`w-4.5 h-4.5 md:w-5 md:h-5 ${action.color}`}
+                />
               </div>
               <span className="text-[10px] md:text-xs font-medium text-gray-700 text-center">
                 {action.label}

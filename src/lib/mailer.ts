@@ -2,7 +2,12 @@ import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import Tenant from "@/models/Tenant";
 
-export type MailProvider = "sendgrid" | "mailgun" | "smtp" | "postmark" | "resend";
+export type MailProvider =
+  | "sendgrid"
+  | "mailgun"
+  | "smtp"
+  | "postmark"
+  | "resend";
 
 type SendTenantEmailInput = {
   tenantId: string;
@@ -21,6 +26,71 @@ function parsePort(value: unknown, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function resolveSmtpConfig(overrides?: {
+  host?: string;
+  port?: number | string;
+  user?: string;
+  pass?: string;
+  fromEmail?: string;
+  fromName?: string;
+}) {
+  const host = overrides?.host || process.env.SMTP_HOST;
+  const user = overrides?.user || process.env.SMTP_USER;
+  const pass = overrides?.pass || process.env.SMTP_PASS;
+  const port = parsePort(overrides?.port || process.env.SMTP_PORT, 587);
+  const fromEmail =
+    overrides?.fromEmail || process.env.SMTP_FROM || process.env.SMTP_USER;
+  const fromName = overrides?.fromName || "Meka PoS";
+
+  return {
+    host,
+    user,
+    pass,
+    port,
+    fromEmail,
+    fromName,
+    isConfigured: Boolean(host && user && pass),
+  };
+}
+
+async function sendViaSmtp({
+  to,
+  subject,
+  html,
+  text,
+  replyTo,
+  smtp,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+  smtp: ReturnType<typeof resolveSmtpConfig>;
+}) {
+  if (!smtp.host || !smtp.user || !smtp.pass) {
+    throw new Error("SMTP is not fully configured");
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.port === 465,
+    auth: { user: smtp.user, pass: smtp.pass },
+  });
+
+  await transporter.sendMail({
+    from: `"${smtp.fromName}" <${smtp.fromEmail}>`,
+    to,
+    replyTo,
+    subject,
+    text,
+    html,
+  });
+
+  return { id: "smtp-success", mock: false };
+}
+
 export async function sendSystemEmail({
   to,
   subject,
@@ -30,43 +100,42 @@ export async function sendSystemEmail({
   subject: string;
   html: string;
 }) {
-  // Future-proof explicit check: you can lock it by setting EMAIL_PROVIDER="smtp" or "resend"
   const provider = process.env.EMAIL_PROVIDER;
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const smtp = resolveSmtpConfig({ fromName: "Meka PoS" });
 
-  // Try SMTP if explicitly set to smtp, OR if explicitly not set to resend and variables exist
-  if (provider === "smtp" || (provider !== "resend" && host && user && pass)) {
-    const port = parsePort(process.env.SMTP_PORT, 587);
-    const fromEmail = process.env.SMTP_FROM || user;
-    const fromName = "Meka PoS";
-
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465, // true for 465, false for other ports
-      auth: { user, pass },
-    });
-
-    await transporter.sendMail({
-      from: `"${fromName}" <${fromEmail}>`,
+  // Prefer SMTP whenever env credentials exist, even if EMAIL_PROVIDER is unset.
+  if (smtp.isConfigured && provider !== "resend") {
+    return sendViaSmtp({
       to,
       subject,
       html,
+      smtp,
     });
-    return { id: "smtp-success", mock: false };
+  }
+
+  // If provider is explicitly resend but SMTP is available, still use SMTP to avoid
+  // Resend domain verification restrictions when no domain is configured.
+  if (smtp.isConfigured && provider === "resend") {
+    return sendViaSmtp({
+      to,
+      subject,
+      html,
+      smtp,
+    });
   }
 
   // Fallback to Resend API
   const apiKey = process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
   const resend = new Resend(apiKey);
-  
+
   const fromEmail = process.env.SMTP_FROM || "onboarding@resend.dev";
   const fromName = "Meka PoS";
   let resendFrom = `${fromName} <${fromEmail}>`;
-  
-  if (/@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail) || fromEmail.includes("example.com")) {
+
+  if (
+    /@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail) ||
+    fromEmail.includes("example.com")
+  ) {
     resendFrom = `${fromName} <onboarding@resend.dev>`;
   }
 
@@ -95,24 +164,53 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
 
   const settings = input.settings || tenant.settings || {};
   const provider = (settings.emailProvider || "resend") as MailProvider;
-  
+
   const fromName = settings.emailFromName || tenant.name || "MEKA POS";
-  const fromEmail = settings.emailFromAddress || process.env.SMTP_FROM || "onboarding@resend.dev";
+  const fromEmail =
+    settings.emailFromAddress ||
+    process.env.SMTP_FROM ||
+    process.env.SMTP_USER ||
+    "onboarding@resend.dev";
   const replyTo = settings.emailReplyToAddress || undefined;
 
+  const smtp = resolveSmtpConfig({
+    host: settings.emailSmtpHost,
+    port: settings.emailSmtpPort,
+    user: settings.emailSmtpUser,
+    pass: settings.emailSmtpPassword,
+    fromEmail,
+    fromName,
+  });
+
+  // Prefer SMTP when configured in env/settings so delivery works without a verified Resend domain.
+  if (smtp.isConfigured) {
+    return sendViaSmtp({
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      replyTo,
+      smtp,
+    });
+  }
+
   if (provider === "resend") {
-    const apiKey = settings.emailApiKey || process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
+    const apiKey =
+      settings.emailApiKey || process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
     if (!apiKey) {
       throw new Error("Resend API key is not configured");
     }
 
     let resendFrom = `${fromName} <${fromEmail}>`;
-    
+
     // Resend requires a verified domain. If using a public provider like gmail/yahoo/etc,
     // it will fail unless we use onboarding@resend.dev (for testing/unverified accounts).
-    const isPublicDomain = /@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail);
+    const isPublicDomain =
+      /@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail);
     if (isPublicDomain || fromEmail.includes("example.com")) {
-      console.log(`Overriding unverified Resend from address: ${fromEmail} -> onboarding@resend.dev`);
+      console.log(
+        `Overriding unverified Resend from address: ${fromEmail} -> onboarding@resend.dev`,
+      );
       resendFrom = `${fromName} <onboarding@resend.dev>`;
     }
 
@@ -136,8 +234,12 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
         console.warn("⚠️  RESEND TESTING RESTRICTION TRIGGERED");
         console.warn(`To: ${input.to}`);
         console.warn(`Subject: ${input.subject}`);
-        console.warn("Emails can't be delivered to non-authorized accounts in Resend trial.");
-        console.warn("Check the console below for the email content (e.g. verification links).");
+        console.warn(
+          "Emails can't be delivered to non-authorized accounts in Resend trial.",
+        );
+        console.warn(
+          "Check the console below for the email content (e.g. verification links).",
+        );
         console.warn("=".repeat(60) + "\n");
         console.log(input.html);
         console.log("\n" + "=".repeat(60) + "\n");
@@ -163,13 +265,17 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
   if (!host || !user || !pass) {
     // If SMTP is explicitly selected but is missing configuration,
     // and we have a Resend key, fallback to Resend as a "safe default"
-    // to prevent delivery failure, unless provider was explicitly "smtp" 
+    // to prevent delivery failure, unless provider was explicitly "smtp"
     // and we want strict errors. But for POS users, success is better.
-    console.warn(`SMTP misconfigured, attempting Resend fallback for provider: ${provider}`);
-    const resendApiKey = settings.emailApiKey || process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
+    console.warn(
+      `SMTP misconfigured, attempting Resend fallback for provider: ${provider}`,
+    );
+    const resendApiKey =
+      settings.emailApiKey || process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
     if (resendApiKey) {
       let resendFromFallback = `${fromName} <${fromEmail}>`;
-      const isPublicDomain = /@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail);
+      const isPublicDomain =
+        /@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail);
       if (isPublicDomain || fromEmail.includes("example.com")) {
         resendFromFallback = `${fromName} <onboarding@resend.dev>`;
       }
@@ -184,7 +290,9 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
         replyTo,
       });
       if (error) {
-        throw new Error(`SMTP misconfigured and Resend fallback failed: ${error.message}`);
+        throw new Error(
+          `SMTP misconfigured and Resend fallback failed: ${error.message}`,
+        );
       }
       return data;
     }
@@ -194,19 +302,20 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
     );
   }
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
-
-  await transporter.sendMail({
-    from: `"${fromName}" <${fromEmail}>`,
+  await sendViaSmtp({
     to: input.to,
-    replyTo,
     subject: input.subject,
-    text: input.text,
     html: input.html,
+    text: input.text,
+    replyTo,
+    smtp: {
+      host,
+      port,
+      user,
+      pass,
+      fromEmail,
+      fromName,
+      isConfigured: Boolean(host && user && pass),
+    },
   });
 }

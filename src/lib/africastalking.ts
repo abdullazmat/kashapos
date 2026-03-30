@@ -1,3 +1,7 @@
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+
 const AT_USERNAME = process.env.AT_USERNAME || "sandbox";
 const AT_API_KEY = process.env.AT_API_KEY || "";
 
@@ -9,7 +13,7 @@ class AfricasTalkingService {
     if (AT_USERNAME && AT_API_KEY) {
       try {
         // Safe require since there are no official types
-        const africastalking = require('africastalking');
+        const africastalking = require("africastalking");
         const at = africastalking({
           apiKey: AT_API_KEY,
           username: AT_USERNAME,
@@ -26,20 +30,29 @@ class AfricasTalkingService {
     atUsername?: string;
     atApiKey?: string;
   }) {
-    const username = (credentials?.atUsername && credentials.atUsername !== "********") ? credentials.atUsername : AT_USERNAME;
-    const apiKey = (credentials?.atApiKey && credentials.atApiKey !== "********") ? credentials.atApiKey : AT_API_KEY;
+    const username =
+      credentials?.atUsername && credentials.atUsername !== "********"
+        ? credentials.atUsername
+        : AT_USERNAME;
+    const apiKey =
+      credentials?.atApiKey && credentials.atApiKey !== "********"
+        ? credentials.atApiKey
+        : AT_API_KEY;
 
     if (username && apiKey) {
-        try {
-            const africastalking = require('africastalking');
-            const at = africastalking({
-                apiKey: apiKey,
-                username: username,
-            });
-            return at.SMS;
-        } catch (error) {
-            console.error("Failed to initialize Africa's Talking SDK with provided credentials", error);
-        }
+      try {
+        const africastalking = require("africastalking");
+        const at = africastalking({
+          apiKey: apiKey,
+          username: username,
+        });
+        return at.SMS;
+      } catch (error) {
+        console.error(
+          "Failed to initialize Africa's Talking SDK with provided credentials",
+          error,
+        );
+      }
     }
     return this.sms;
   }
@@ -58,41 +71,63 @@ class AfricasTalkingService {
       };
 
       const response = await smsClient.send(options);
-      
-      console.log("[Africa's Talking Response]:", JSON.stringify(response, null, 2));
 
-      if (response && response.SMSMessageData && response.SMSMessageData.Recipients) {
+      console.log(
+        "[Africa's Talking Response]:",
+        JSON.stringify(response, null, 2),
+      );
+
+      if (
+        response &&
+        response.SMSMessageData &&
+        response.SMSMessageData.Recipients
+      ) {
         const recipient = response.SMSMessageData.Recipients[0];
         if (recipient.status !== "Success" && recipient.status !== "Sent") {
-            throw new Error(`Africa's Talking SMS Delivery Failed with status: ${recipient.status} (Cost: ${recipient.cost || 'unknown'})`);
+          throw new Error(
+            `Africa's Talking SMS Delivery Failed with status: ${recipient.status} (Cost: ${recipient.cost || "unknown"})`,
+          );
         }
       }
 
       return { success: true, data: response };
     } catch (error: any) {
       console.error("Africa's Talking SMS failed:", error);
-      throw new Error(`Africa's Talking SMS failed: ${error.message || JSON.stringify(error)}`);
+      throw new Error(
+        `Africa's Talking SMS failed: ${error.message || JSON.stringify(error)}`,
+      );
     }
   }
 
   async getBalance(credentials?: any) {
-    const username = (credentials?.atUsername && credentials.atUsername !== "********") ? credentials.atUsername : AT_USERNAME;
-    const apiKey = (credentials?.atApiKey && credentials.atApiKey !== "********") ? credentials.atApiKey : AT_API_KEY;
-    
+    const username =
+      credentials?.atUsername && credentials.atUsername !== "********"
+        ? credentials.atUsername
+        : AT_USERNAME;
+    const apiKey =
+      credentials?.atApiKey && credentials.atApiKey !== "********"
+        ? credentials.atApiKey
+        : AT_API_KEY;
+
     if (username && apiKey) {
-        try {
-            const africastalking = require('africastalking');
-            const at = africastalking({
-                apiKey: apiKey,
-                username: username,
-            });
-            const data = await at.APPLICATION.fetchApplicationData();
-            console.log("[Africa's Talking Application Data]:", JSON.stringify(data, null, 2));
-            return data.UserData.balance;
-        } catch (error: any) {
-            console.error("Failed to fetch Africa's Talking balance", error);
-            throw new Error(`Failed to fetch balance: ${error.message || JSON.stringify(error)}`);
-        }
+      try {
+        const africastalking = require("africastalking");
+        const at = africastalking({
+          apiKey: apiKey,
+          username: username,
+        });
+        const data = await at.APPLICATION.fetchApplicationData();
+        console.log(
+          "[Africa's Talking Application Data]:",
+          JSON.stringify(data, null, 2),
+        );
+        return data.UserData.balance;
+      } catch (error: any) {
+        console.error("Failed to fetch Africa's Talking balance", error);
+        throw new Error(
+          `Failed to fetch balance: ${error.message || JSON.stringify(error)}`,
+        );
+      }
     }
     throw new Error("Africa's Talking credentials not found");
   }

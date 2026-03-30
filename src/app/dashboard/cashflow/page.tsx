@@ -113,7 +113,9 @@ export default function CashFlowPage() {
         endDate,
         includeDetails: includeDetails ? "true" : "false",
       });
-      const res = await fetch(`/api/cashflow?${params.toString()}`);
+      const res = await fetch(`/api/cashflow?${params.toString()}`, {
+        cache: "no-store",
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Failed to load cash flow report");
