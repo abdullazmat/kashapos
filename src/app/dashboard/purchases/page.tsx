@@ -864,14 +864,14 @@ export default function PurchasesPage() {
                         )}
                         <button
                           onClick={() => setViewOrder(o)}
-                          className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 group-hover:opacity-100"
+                          className="rounded-lg p-1.5 text-gray-500 opacity-100 transition-all hover:bg-orange-50 hover:text-orange-600 md:opacity-0 md:group-hover:opacity-100"
                           title="View Order Details"
                         >
                           <Eye className="h-4 w-4" />
                         </button>
                         <a
                           href={`/dashboard/inventory?purchase_order_id=${o._id}`}
-                          className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 group-hover:opacity-100"
+                          className="rounded-lg p-1.5 text-gray-500 opacity-100 transition-all hover:bg-orange-50 hover:text-orange-600 md:opacity-0 md:group-hover:opacity-100"
                           title="View Linked Inventory"
                         >
                           <Package className="h-4 w-4" />
@@ -908,7 +908,7 @@ export default function PurchasesPage() {
                             });
                             setShowNewOrder(true);
                           }}
-                          className="rounded-lg p-1.5 text-gray-400 opacity-0 transition-all hover:bg-orange-50 hover:text-orange-600 group-hover:opacity-100"
+                          className="rounded-lg p-1.5 text-gray-500 opacity-100 transition-all hover:bg-orange-50 hover:text-orange-600 md:opacity-0 md:group-hover:opacity-100"
                           title="Edit Order"
                         >
                           <Edit className="h-4 w-4" />
