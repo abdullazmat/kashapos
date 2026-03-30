@@ -23,21 +23,25 @@ export async function POST(request: NextRequest) {
     } else {
       query.phone = identifier.replace(/\s+/g, "");
     }
-    
+
     const existingUser = await User.findOne(query);
 
     if (purpose === "signup") {
       if (existingUser) {
         return apiError(
-          method === "email" ? "Email already registered" : "Phone number already registered",
-          409
+          method === "email"
+            ? "Email already registered"
+            : "Phone number already registered",
+          409,
         );
       }
     } else if (purpose === "reset") {
       if (!existingUser) {
         return apiError(
-          method === "email" ? "No account found with this email" : "No account found with this phone number",
-          404
+          method === "email"
+            ? "No account found with this email"
+            : "No account found with this phone number",
+          404,
         );
       }
     }
@@ -58,6 +62,8 @@ export async function POST(request: NextRequest) {
 
     // Send OTP
     let isMock = false;
+    let deliveryMethodUsed = method;
+    let deliveryWarning: string | undefined;
     if (method === "email") {
       const res = await sendSystemEmail({
         to: identifier,
@@ -74,21 +80,44 @@ export async function POST(request: NextRequest) {
           </div>
         `,
       });
-      if (res && 'mock' in res && res.mock) isMock = true;
+      if (res && "mock" in res && res.mock) isMock = true;
     } else if (method === "phone") {
-      const result = await africasTalkingService.sendSMS(identifier, `Your Meka PoS verification code is: ${otp}`);
+      const result = await africasTalkingService.sendSMS(
+        identifier,
+        `Your Meka PoS verification code is: ${otp}`,
+      );
       if (!result.success) isMock = true;
     } else if (method === "whatsapp") {
-      const result = await twilioService.sendWhatsApp(identifier, `Your Meka PoS verification code is: ${otp}`);
-      if (!result.success) isMock = true;
+      try {
+        const result = await twilioService.sendWhatsApp(
+          identifier,
+          `Your Meka PoS verification code is: ${otp}`,
+        );
+        if (!result.success) isMock = true;
+      } catch (whatsAppError: any) {
+        console.error(
+          "WhatsApp OTP delivery failed, falling back to SMS:",
+          whatsAppError,
+        );
+        const fallbackResult = await africasTalkingService.sendSMS(
+          identifier,
+          `Your Meka PoS verification code is: ${otp}`,
+        );
+        if (!fallbackResult.success) isMock = true;
+        deliveryMethodUsed = "phone";
+        deliveryWarning =
+          "WhatsApp delivery failed; OTP sent via SMS fallback.";
+      }
     } else {
       return apiError("Invalid method", 400);
     }
 
-    return apiSuccess({ 
+    return apiSuccess({
       message: "OTP sent successfully",
+      deliveryMethodUsed,
+      warning: deliveryWarning,
       mock: isMock,
-      mockOtp: isMock ? otp : undefined 
+      mockOtp: isMock ? otp : undefined,
     });
   } catch (error: any) {
     console.error("Send OTP error:", error);

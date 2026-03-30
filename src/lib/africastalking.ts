@@ -4,6 +4,7 @@ const require = createRequire(import.meta.url);
 
 const AT_USERNAME = process.env.AT_USERNAME || "sandbox";
 const AT_API_KEY = process.env.AT_API_KEY || "";
+const AT_SENDER_ID = process.env.AT_SENDER_ID || "";
 
 class AfricasTalkingService {
   private sms: any;
@@ -65,9 +66,15 @@ class AfricasTalkingService {
     }
 
     try {
+      const senderId =
+        credentials?.atSenderId && credentials.atSenderId !== "********"
+          ? credentials.atSenderId
+          : AT_SENDER_ID;
+      const normalizedTo = to.replace(/[\s\-()]/g, "");
       const options = {
-        to: [to],
+        to: [normalizedTo],
         message: message,
+        ...(senderId ? { from: senderId } : {}),
       };
 
       const response = await smsClient.send(options);

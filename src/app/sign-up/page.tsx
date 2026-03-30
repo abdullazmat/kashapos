@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import {
   ShoppingCart,
   Eye,
@@ -44,6 +45,14 @@ export default function SignUpPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [showOtpField, setShowOtpField] = useState(false);
   const [otp, setOtp] = useState("");
+
+  const showOtpSendErrorToast = (message: string) => {
+    if (/insufficient\s*balance/i.test(message)) {
+      toast.error("SMS balance is not enough. Please top up and try again.");
+      return;
+    }
+    toast.error(message || "Failed to send verification code");
+  };
 
   const validateForm = () => {
     const errors: Record<string, string> = {};
@@ -96,7 +105,12 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      const identifier = signupMethod === "email" ? form.email : (signupMethod === "whatsapp" ? form.whatsapp : form.phone);
+      const identifier =
+        signupMethod === "email"
+          ? form.email
+          : signupMethod === "whatsapp"
+            ? form.whatsapp
+            : form.phone;
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,17 +119,23 @@ export default function SignUpPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to send verification code");
+        const msg = data.error || "Failed to send verification code";
+        setError(msg);
+        showOtpSendErrorToast(msg);
         return;
       }
-      
+
+      toast.success("Verification code sent successfully.");
+
       if (data.mock) {
         alert(`[DEV MODE] Your verification code is: ${data.mockOtp}`);
       }
-      
+
       setShowOtpField(true);
     } catch {
-      setError("Something went wrong. Please try again.");
+      const msg = "Something went wrong. Please try again.";
+      setError(msg);
+      showOtpSendErrorToast(msg);
     } finally {
       setLoading(false);
     }
@@ -181,19 +201,22 @@ export default function SignUpPage() {
           <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Mail className="w-8 h-8 text-orange-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Check your email
+          </h1>
           <p className="text-gray-600 mb-8">
-            We&apos;ve sent a verification link to <span className="font-semibold text-gray-900">{form.email}</span>. 
+            We&apos;ve sent a verification link to{" "}
+            <span className="font-semibold text-gray-900">{form.email}</span>.
             Please check your inbox (and spam folder) to verify your account.
           </p>
           <div className="space-y-4">
-            <Link 
+            <Link
               href="/sign-in"
               className="block w-full bg-orange-500 text-white py-3 rounded-xl font-medium text-sm hover:bg-orange-600 transition-colors"
             >
               Back to Sign In
             </Link>
-            <button 
+            <button
               onClick={() => setIsSuccess(false)}
               className="text-sm text-gray-500 hover:text-orange-600 transition-colors"
             >
@@ -240,7 +263,7 @@ export default function SignUpPage() {
         <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-orange-400 rounded-full opacity-30" />
         <div className="absolute -top-10 -left-10 w-40 h-40 bg-orange-600 rounded-full opacity-20" />
       </div>
- 
+
       {/* Right side - form */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
@@ -277,7 +300,9 @@ export default function SignUpPage() {
             )}
 
             {/* Signup Method Toggle */}
-            <div className={`flex rounded-xl border overflow-hidden mb-6 ${showOtpField ? "opacity-50 pointer-events-none" : ""}`}>
+            <div
+              className={`flex rounded-xl border overflow-hidden mb-6 ${showOtpField ? "opacity-50 pointer-events-none" : ""}`}
+            >
               {[
                 { key: "email", icon: Mail, label: "Email" },
                 { key: "phone", icon: Phone, label: "Phone" },
@@ -305,16 +330,28 @@ export default function SignUpPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {showOtpField ? (
                 <div className="bg-orange-50 border border-orange-200 p-6 rounded-2xl mb-4 text-center">
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">Verify your account</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
+                    Verify your account
+                  </h3>
                   <p className="text-sm text-gray-600 mb-6">
-                    We&apos;ve sent a 6-digit code to <span className="font-semibold text-gray-900">{signupMethod === "email" ? form.email : (signupMethod === "whatsapp" ? form.whatsapp : form.phone)}</span>.
+                    We&apos;ve sent a 6-digit code to{" "}
+                    <span className="font-semibold text-gray-900">
+                      {signupMethod === "email"
+                        ? form.email
+                        : signupMethod === "whatsapp"
+                          ? form.whatsapp
+                          : form.phone}
+                    </span>
+                    .
                   </p>
                   <div>
                     <input
                       type="text"
                       maxLength={6}
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) =>
+                        setOtp(e.target.value.replace(/\D/g, ""))
+                      }
                       className="w-full text-center px-4 py-3 text-2xl tracking-[0.5em] font-mono border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 bg-white"
                       placeholder="••••••"
                       required
@@ -332,183 +369,186 @@ export default function SignUpPage() {
                 </div>
               ) : (
                 <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Business Name
-                </label>
-                <input
-                  type="text"
-                  value={form.businessName}
-                  onChange={(e) =>
-                    setForm({ ...form, businessName: e.target.value })
-                  }
-                  className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.businessName ? "border-red-300" : "border-gray-300"}`}
-                  placeholder="My Business"
-                  required
-                />
-                <FieldError field="businessName" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.name ? "border-red-300" : "border-gray-300"}`}
-                  placeholder="John Doe"
-                  required
-                />
-                <FieldError field="name" />
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Business Name
+                    </label>
+                    <input
+                      type="text"
+                      value={form.businessName}
+                      onChange={(e) =>
+                        setForm({ ...form, businessName: e.target.value })
+                      }
+                      className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.businessName ? "border-red-300" : "border-gray-300"}`}
+                      placeholder="My Business"
+                      required
+                    />
+                    <FieldError field="businessName" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Your Name
+                    </label>
+                    <input
+                      type="text"
+                      value={form.name}
+                      onChange={(e) =>
+                        setForm({ ...form, name: e.target.value })
+                      }
+                      className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.name ? "border-red-300" : "border-gray-300"}`}
+                      placeholder="John Doe"
+                      required
+                    />
+                    <FieldError field="name" />
+                  </div>
 
-              {signupMethod === "email" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) =>
-                      setForm({ ...form, email: e.target.value })
-                    }
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.email ? "border-red-300" : "border-gray-300"}`}
-                    placeholder="you@example.com"
-                    required
-                  />
-                  <FieldError field="email" />
-                </div>
-              )}
+                  {signupMethod === "email" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) =>
+                          setForm({ ...form, email: e.target.value })
+                        }
+                        className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.email ? "border-red-300" : "border-gray-300"}`}
+                        placeholder="you@example.com"
+                        required
+                      />
+                      <FieldError field="email" />
+                    </div>
+                  )}
 
-              {signupMethod === "phone" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) =>
-                      setForm({ ...form, phone: e.target.value })
-                    }
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.phone ? "border-red-300" : "border-gray-300"}`}
-                    placeholder="+256 7XX XXX XXX"
-                    required
-                  />
-                  <FieldError field="phone" />
-                </div>
-              )}
+                  {signupMethod === "phone" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) =>
+                          setForm({ ...form, phone: e.target.value })
+                        }
+                        className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 ${fieldErrors.phone ? "border-red-300" : "border-gray-300"}`}
+                        placeholder="+256 7XX XXX XXX"
+                        required
+                      />
+                      <FieldError field="phone" />
+                    </div>
+                  )}
 
-              {signupMethod === "whatsapp" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <span className="flex items-center gap-1.5">
-                      <MessageCircle className="w-3.5 h-3.5 text-green-600" />
-                      WhatsApp Number
-                    </span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.whatsapp}
-                    onChange={(e) =>
-                      setForm({ ...form, whatsapp: e.target.value })
-                    }
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 ${fieldErrors.whatsapp ? "border-red-300" : "border-gray-300"}`}
-                    placeholder="+256 7XX XXX XXX"
-                    required
-                  />
-                  <FieldError field="whatsapp" />
-                  <p className="mt-1 text-xs text-gray-400">
-                    You&apos;ll receive login alerts and receipts via WhatsApp
-                  </p>
-                </div>
-              )}
+                  {signupMethod === "whatsapp" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <span className="flex items-center gap-1.5">
+                          <MessageCircle className="w-3.5 h-3.5 text-green-600" />
+                          WhatsApp Number
+                        </span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={form.whatsapp}
+                        onChange={(e) =>
+                          setForm({ ...form, whatsapp: e.target.value })
+                        }
+                        className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 ${fieldErrors.whatsapp ? "border-red-300" : "border-gray-300"}`}
+                        placeholder="+256 7XX XXX XXX"
+                        required
+                      />
+                      <FieldError field="whatsapp" />
+                      <p className="mt-1 text-xs text-gray-400">
+                        You&apos;ll receive login alerts and receipts via
+                        WhatsApp
+                      </p>
+                    </div>
+                  )}
 
-              {/* Optional cross-fields */}
-              {signupMethod !== "email" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email (optional)
-                  </label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) =>
-                      setForm({ ...form, email: e.target.value })
-                    }
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
-                    placeholder="you@example.com"
-                  />
-                </div>
-              )}
+                  {/* Optional cross-fields */}
+                  {signupMethod !== "email" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email (optional)
+                      </label>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) =>
+                          setForm({ ...form, email: e.target.value })
+                        }
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                        placeholder="you@example.com"
+                      />
+                    </div>
+                  )}
 
-              {signupMethod === "email" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone / WhatsApp (optional)
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) =>
-                      setForm({ ...form, phone: e.target.value })
-                    }
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
-                    placeholder="+256700000000"
-                  />
-                </div>
-              )}
+                  {signupMethod === "email" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Phone / WhatsApp (optional)
+                      </label>
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) =>
+                          setForm({ ...form, phone: e.target.value })
+                        }
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                        placeholder="+256700000000"
+                      />
+                    </div>
+                  )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={form.password}
-                    onChange={(e) =>
-                      setForm({ ...form, password: e.target.value })
-                    }
-                    className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 pr-10 ${fieldErrors.password ? "border-red-300" : "border-gray-300"}`}
-                    placeholder="••••••••"
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-                <FieldError field="password" />
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={form.password}
+                        onChange={(e) =>
+                          setForm({ ...form, password: e.target.value })
+                        }
+                        className={`w-full px-3 py-2.5 border rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 pr-10 ${fieldErrors.password ? "border-red-300" : "border-gray-300"}`}
+                        placeholder="••••••••"
+                        required
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    <FieldError field="password" />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Business Type
-                </label>
-                <select
-                  value={form.saasProduct}
-                  onChange={(e) =>
-                    setForm({ ...form, saasProduct: e.target.value })
-                  }
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
-                >
-                  <option value="retail">Retail POS</option>
-                  <option value="pharmacy">Pharmacy POS</option>
-                  <option value="clinic">Clinic POS</option>
-                </select>
-              </div>
-              </>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Business Type
+                    </label>
+                    <select
+                      value={form.saasProduct}
+                      onChange={(e) =>
+                        setForm({ ...form, saasProduct: e.target.value })
+                      }
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                    >
+                      <option value="retail">Retail POS</option>
+                      <option value="pharmacy">Pharmacy POS</option>
+                      <option value="clinic">Clinic POS</option>
+                    </select>
+                  </div>
+                </>
               )}
 
               <button
@@ -516,7 +556,13 @@ export default function SignUpPage() {
                 disabled={loading}
                 className="w-full bg-orange-500 text-white py-3 rounded-xl font-medium text-sm hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? (showOtpField ? "Verifying..." : "Sending code...") : (showOtpField ? "Verify & Create Account" : "Create Account")}
+                {loading
+                  ? showOtpField
+                    ? "Verifying..."
+                    : "Sending code..."
+                  : showOtpField
+                    ? "Verify & Create Account"
+                    : "Create Account"}
               </button>
             </form>
 
