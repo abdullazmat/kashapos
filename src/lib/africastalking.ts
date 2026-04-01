@@ -90,19 +90,28 @@ class AfricasTalkingService {
         response.SMSMessageData.Recipients
       ) {
         const recipient = response.SMSMessageData.Recipients[0];
+
+        // Check for specific error statuses
+        if (recipient.status === "InsufficientBalance") {
+          const errorMsg = `Africa's Talking: Insufficient balance (Cost: ${recipient.cost || "unknown"})`;
+          console.error(errorMsg);
+          return { success: false, message: errorMsg, error: recipient.status };
+        }
+
         if (recipient.status !== "Success" && recipient.status !== "Sent") {
-          throw new Error(
-            `Africa's Talking SMS Delivery Failed with status: ${recipient.status} (Cost: ${recipient.cost || "unknown"})`,
-          );
+          const errorMsg = `Africa's Talking SMS Delivery Failed with status: ${recipient.status} (Cost: ${recipient.cost || "unknown"})`;
+          console.error(errorMsg);
+          return { success: false, message: errorMsg, error: recipient.status };
         }
       }
 
       return { success: true, data: response };
     } catch (error: any) {
-      console.error("Africa's Talking SMS failed:", error);
-      throw new Error(
-        `Africa's Talking SMS failed: ${error.message || JSON.stringify(error)}`,
-      );
+      console.error("Africa's Talking SMS error:", error);
+      return {
+        success: false,
+        message: error.message || JSON.stringify(error),
+      };
     }
   }
 

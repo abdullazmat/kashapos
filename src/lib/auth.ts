@@ -8,6 +8,8 @@ import {
   REFRESH_TOKEN_MAX_AGE_SECONDS,
   createAccessToken,
   createRefreshToken,
+  getAccessTokenMaxAge,
+  getRefreshTokenMaxAge,
   type JWTPayload,
   verifyJwt,
 } from "@/lib/auth-tokens";
@@ -54,11 +56,12 @@ export async function getSession(): Promise<JWTPayload | null> {
 
   // Silent access-token rotation when refresh token is still valid.
   const newAccessToken = await createAccessToken(refreshPayload);
+  const maxAge = getAccessTokenMaxAge(refreshPayload.role);
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
-    maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
+    maxAge: maxAge,
     path: "/",
   };
   cookieStore.set(ACCESS_TOKEN_COOKIE, newAccessToken, cookieOptions);
@@ -83,12 +86,14 @@ export async function setSession(
 
   const accessToken = await createAccessToken(payload);
   const refreshToken = await createRefreshToken(payload);
+  const accessMaxAge = getAccessTokenMaxAge(payload.role);
+  const refreshMaxAge = getRefreshTokenMaxAge(payload.role);
 
   cookieStore.set(ACCESS_TOKEN_COOKIE, accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
+    maxAge: accessMaxAge,
     path: "/",
   });
 
@@ -96,7 +101,7 @@ export async function setSession(
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
+    maxAge: refreshMaxAge,
     path: "/",
   });
 
@@ -105,7 +110,7 @@ export async function setSession(
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
+    maxAge: accessMaxAge,
     path: "/",
   });
 }
