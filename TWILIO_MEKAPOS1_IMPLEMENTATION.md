@@ -13,19 +13,19 @@ Your KashaPOS application has been configured with LIVE Twilio credentials for M
 
 ### Primary Authentication (Recommended)
 
-- **Account SID**: AC1b3ddc9e0a683eb7264783a1496d05b0
-- **Auth Token**: dbd6f822e1c89c0f7bcb6b3ef4c1374b
+- **Account SID**: [REDACTED - See .env.production]
+- **Auth Token**: [REDACTED - See .env.production]
 
 ### Alternative Authentication (API Key)
 
-- **API Key**: SK676cc02ac31a39f0d990480cc29cd2a0
-- **API Secret**: 8PhvGMUBpka2ztO6A7TwKTshPWYLmpNM
+- **API Key**: [REDACTED - See .env.production]
+- **API Secret**: [REDACTED - See .env.production]
 
 ### Messaging Configuration
 
 - **SMS Phone Number**: +12605975484
 - **WhatsApp Number**: whatsapp:+12605975484
-- **Verify Service SID**: VAf11608d16806acccea4565053346b623
+- **Verify Service SID**: [REDACTED - See .env.production]
 
 ---
 
@@ -116,7 +116,7 @@ Current implementation sequence:
 
 ### Verify Service (Optional)
 
-- **SID**: VAf11608d16806acccea4565053346b623
+- **SID**: [REDACTED - See .env.production]
 - **Status**: Configured but not currently used
 - **Available for**: Future implementation of managed OTP verification
 

@@ -12,10 +12,10 @@ Your **live Twilio credentials have been successfully applied, tested, and verif
 
 - **`.env.local`** (Development): Updated with test credentials + AUTH_TOKEN
 - **`.env.production`** (Production): Created with live credentials (verified ✅)
-  - API Key: `SK676cc02ac31a39f0d990480cc29cd2a0` ✅
-  - Secret: `8PhvGMUBpka2ztO6A7TwKTshPWYLmpNM` ✅
-  - Auth Token: `dbd6f822e1c89c0f7bcb6b3ef4c1374b` ✅
-  - Account SID: `AC1b3ddc9e0a683eb7264783a1496d05b0` ✅
+  - API Key: [REDACTED] ✅
+  - Secret: [REDACTED] ✅
+  - Auth Token: [REDACTED] ✅
+  - Account SID: [REDACTED] ✅
 
 ### 2. ✅ Testing Infrastructure Created
 
@@ -140,10 +140,10 @@ npm run test:twilio-whatsapp
 ### Live Account (Production)
 
 ```
-SID (API Key):     SK676cc02ac31a39f0d990480cc29cd2a0
-SECRET:            8PhvGMUBpka2ztO6A7TwKTshPWYLmpNM
-AUTH TOKEN:        dbd6f822e1c89c0f7bcb6b3ef4c1374b
-ACCOUNT SID:       AC1b3ddc9e0a683eb7264783a1496d05b0
+SID (API Key):     [REDACTED]
+SECRET:            [REDACTED]
+AUTH TOKEN:        [REDACTED]
+ACCOUNT SID:       [REDACTED]
 ```
 
 **Status**: ✅ Authenticated & Verified
@@ -151,9 +151,9 @@ ACCOUNT SID:       AC1b3ddc9e0a683eb7264783a1496d05b0
 ### Test Account (Development)
 
 ```
-Account SID:       AC1b3ddc9e0a683eb7264783a1496d05b0
-API Key:           SK678c7e2f73a29ac6649639a55f74ba9a
-API Secret:        xm7GBInFnU7Gf5FukcXzDct0M1yD3kuE
+Account SID:       [REDACTED]
+API Key:           [REDACTED]
+API Secret:        [REDACTED]
 Auth Token:        Placeholder (for dev testing)
 ```
 

@@ -7,9 +7,9 @@
 #### 1. **Basic Twilio Credentials** (Test Account)
 
 ```
-TWILIO_ACCOUNT_SID=AC1b3ddc9e0a683eb7264783a1496d05b0
-TWILIO_API_KEY=SK678c7e2f73a29ac6649639a55f74ba9a
-TWILIO_API_SECRET=xm7GBInFnU7Gf5FukcXzDct0M1yD3kuE
+TWILIO_ACCOUNT_SID=[REDACTED]
+TWILIO_API_KEY=[REDACTED]
+TWILIO_API_SECRET=[REDACTED]
 TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 TWILIO_SMS_NUMBER=+14155238886
 ```
@@ -142,7 +142,7 @@ TWILIO_AUTH_TOKEN=<your-auth-token>
 
 ### 5. **Credentials Strategy (Live vs Test)**
 
-**You Have**: Test Account (AC1b3ddc9...)
+**You Have**: Test Account ([REDACTED]...)
 **You Mentioned**: Live Account (AC_live_sid)
 
 **Current Issue**: `.env.local` points to TEST account
@@ -151,15 +151,15 @@ TWILIO_AUTH_TOKEN=<your-auth-token>
 
 ```
 # .env.local (development/testing)
-TWILIO_ACCOUNT_SID=AC1b3ddc9e0a683eb7264783a1496d05b0    # Test
-TWILIO_API_KEY=SK678c7e2f...                             # Test
-TWILIO_API_SECRET=xm7GBInFnU7Gf5...                      # Test
+TWILIO_ACCOUNT_SID=[REDACTED]    # Test
+TWILIO_API_KEY=[REDACTED]                             # Test
+TWILIO_API_SECRET=[REDACTED]                      # Test
 
 # .env.production (production)
 TWILIO_ACCOUNT_SID=<live_account_sid>
-TWILIO_API_KEY=SK676cc02...                              # Live
-TWILIO_API_SECRET=8PhvGMUBpka2...                         # Live
-TWILIO_AUTH_TOKEN=dbd6f822e1c89c0f7bcb6b3ef4c1374b       # Live
+TWILIO_API_KEY=[REDACTED]                              # Live
+TWILIO_API_SECRET=[REDACTED]                         # Live
+TWILIO_AUTH_TOKEN=[REDACTED]       # Live
 ```
 
 ---
@@ -194,19 +194,19 @@ TWILIO_AUTH_TOKEN=dbd6f822e1c89c0f7bcb6b3ef4c1374b       # Live
 ### Your Live Credentials (Use in Production)
 
 ```
-SID (API Key):        SK676cc02ac31a39f0d990480cc29cd2a0
-SECRET:               8PhvGMUBpka2ztO6A7TwKTshPWYLmpNM
-AUTH_TOKEN:           dbd6f822e1c89c0f7bcb6b3ef4c1374b
-ACCOUNT SID:          AC1b3ddc9e0a683eb7264783a1496d05b0
+SID (API Key):        [REDACTED]
+SECRET:               [REDACTED]
+AUTH_TOKEN:           [REDACTED]
+ACCOUNT SID:          [REDACTED]
 ```
 
 ### Your Test Credentials (Current)
 
 ```
-Account SID (Test):   AC80654e7ce77a639502f923d96da4884a
-Account SID (Current):.AC1b3ddc9e0a683eb7264783a1496d05b0
-API Key:              SK678c7e2f...
-API Secret:           xm7GBInFnU7...
+Account SID (Test):   [REDACTED]
+Account SID (Current):[REDACTED]
+API Key:              [REDACTED]
+API Secret:           [REDACTED]
 ```
 
 ---

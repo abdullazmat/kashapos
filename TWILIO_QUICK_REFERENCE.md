@@ -11,19 +11,19 @@ Your live Twilio credentials are **verified and authenticated**. You can deploy 
 ### Live Account (Production - Ready to Use)
 
 ```
-API Key (SID):        SK676cc02ac31a39f0d990480cc29cd2a0
-API Secret:           8PhvGMUBpka2ztO6A7TwKTshPWYLmpNM
-Auth Token:           dbd6f822e1c89c0f7bcb6b3ef4c1374b
-Account SID:          AC1b3ddc9e0a683eb7264783a1496d05b0 ✅ AUTHENTICATED
+API Key (SID):        [REDACTED]
+API Secret:           [REDACTED]
+Auth Token:           [REDACTED]
+Account SID:          [REDACTED] ✅ AUTHENTICATED
 ```
 
 ### Test Account (Development - Current)
 
 ```
-Account SID (Test):   AC80654e7ce77a639502f923d96da4884a
-Account SID (Current):AC1b3ddc9e0a683eb7264783a1496d05b0
-API Key:              SK678c7e2f73a29ac6649639a55f74ba9a
-API Secret:           xm7GBInFnU7Gf5FukcXzDct0M1yD3kuE
+Account SID (Test):   [REDACTED]
+Account SID (Current):[REDACTED]
+API Key:              [REDACTED]
+API Secret:           [REDACTED]
 ```
 
 ---
