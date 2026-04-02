@@ -292,6 +292,9 @@ export default function SettingsPage() {
     emailInvoiceAutoSend: false,
     emailBalanceReminderEnabled: false,
     emailBalanceReminderFrequency: "weekly",
+    outboundMessageGuardEnabled: false,
+    outboundMessageLimit: 10,
+    outboundMessageWindowMinutes: 60,
     stockLevelAlerts: true,
     reorderAlerts: true,
     pushNotifications: false,
@@ -419,7 +422,9 @@ export default function SettingsPage() {
   const [branchAddress, setBranchAddress] = useState("");
   const [branchPhone, setBranchPhone] = useState("");
   const [savingBranch, setSavingBranch] = useState(false);
-  const [units, setUnits] = useState<{ _id: string; name: string; shortName: string }[]>([]);
+  const [units, setUnits] = useState<
+    { _id: string; name: string; shortName: string }[]
+  >([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [unitName, setUnitName] = useState("");
@@ -577,6 +582,14 @@ export default function SettingsPage() {
               emailBalanceReminderFrequency:
                 ts.emailBalanceReminderFrequency ||
                 prev.emailBalanceReminderFrequency,
+              outboundMessageGuardEnabled:
+                ts.outboundMessageGuardEnabled ??
+                prev.outboundMessageGuardEnabled,
+              outboundMessageLimit:
+                ts.outboundMessageLimit ?? prev.outboundMessageLimit,
+              outboundMessageWindowMinutes:
+                ts.outboundMessageWindowMinutes ??
+                prev.outboundMessageWindowMinutes,
               stockLevelAlerts: ts.stockLevelAlerts ?? prev.stockLevelAlerts,
               reorderAlerts: ts.reorderAlerts ?? prev.reorderAlerts,
               pushNotifications: ts.pushNotifications ?? prev.pushNotifications,
@@ -739,6 +752,9 @@ export default function SettingsPage() {
       emailInvoiceAutoSend: false,
       emailBalanceReminderEnabled: false,
       emailBalanceReminderFrequency: "weekly",
+      outboundMessageGuardEnabled: false,
+      outboundMessageLimit: 10,
+      outboundMessageWindowMinutes: 60,
       stockLevelAlerts: true,
       reorderAlerts: true,
       pushNotifications: false,
@@ -1114,7 +1130,6 @@ export default function SettingsPage() {
     }
   };
 
-
   const allAvailableRoles = [
     ...CORE_ROLES,
     ...s.customRoles.filter((r) => r.isActive).map((r) => r.key),
@@ -1214,7 +1229,6 @@ export default function SettingsPage() {
     if (!fromRate || !toRate) return 0;
     return (amount / fromRate) * toRate;
   })();
-
 
   return (
     <div className="space-y-6">
@@ -1640,6 +1654,54 @@ export default function SettingsPage() {
                       </select>
                     </div>
                   )}
+                </div>
+
+                <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-4">
+                  <p className="text-sm font-semibold text-amber-900 mb-3">
+                    Outbound Message Guard
+                  </p>
+                  <div className="space-y-4">
+                    <Toggle
+                      checked={s.outboundMessageGuardEnabled}
+                      onChange={(v) => upd("outboundMessageGuardEnabled", v)}
+                      label="Block message pumping"
+                      description="Throttle repeated SMS and WhatsApp sends to the same recipient"
+                    />
+                    {s.outboundMessageGuardEnabled && (
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className={labelClass}>Max messages</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={s.outboundMessageLimit}
+                            onChange={(e) =>
+                              upd(
+                                "outboundMessageLimit",
+                                parseInt(e.target.value) || 10,
+                              )
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Window (minutes)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={s.outboundMessageWindowMinutes}
+                            onChange={(e) =>
+                              upd(
+                                "outboundMessageWindowMinutes",
+                                parseInt(e.target.value) || 60,
+                              )
+                            }
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-end gap-3">
@@ -2100,8 +2162,12 @@ export default function SettingsPage() {
                 <div className="mt-8 border-t border-gray-100 pt-6">
                   <div className="mb-4 flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-bold text-gray-900">Units of Measure</h4>
-                      <p className="text-[12px] text-gray-500">Manage units used for products (e.g. Piece, Kg, Box)</p>
+                      <h4 className="text-sm font-bold text-gray-900">
+                        Units of Measure
+                      </h4>
+                      <p className="text-[12px] text-gray-500">
+                        Manage units used for products (e.g. Piece, Kg, Box)
+                      </p>
                     </div>
                     <button
                       onClick={() => setShowUnitModal(true)}
@@ -2112,14 +2178,23 @@ export default function SettingsPage() {
                   </div>
 
                   {loadingUnits ? (
-                    <div className="py-4 text-center text-gray-400 text-xs italic">Loading units...</div>
+                    <div className="py-4 text-center text-gray-400 text-xs italic">
+                      Loading units...
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {units.map((unit) => (
-                        <div key={unit._id} className="group relative rounded-xl border border-gray-100 bg-gray-50/50 p-3 flex items-center justify-between hover:border-blue-100 hover:bg-white transition-all shadow-sm">
+                        <div
+                          key={unit._id}
+                          className="group relative rounded-xl border border-gray-100 bg-gray-50/50 p-3 flex items-center justify-between hover:border-blue-100 hover:bg-white transition-all shadow-sm"
+                        >
                           <div>
-                            <p className="text-sm font-bold text-gray-800">{unit.name}</p>
-                            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">{unit.shortName}</p>
+                            <p className="text-sm font-bold text-gray-800">
+                              {unit.name}
+                            </p>
+                            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-widest">
+                              {unit.shortName}
+                            </p>
                           </div>
                           {unit._id && (
                             <button
@@ -2145,34 +2220,48 @@ export default function SettingsPage() {
                           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500 shadow-lg shadow-blue-500/20">
                             <Plus className="h-5 w-5 text-white" />
                           </div>
-                          <h3 className="font-bold text-gray-900">Add New Unit</h3>
+                          <h3 className="font-bold text-gray-900">
+                            Add New Unit
+                          </h3>
                         </div>
-                        <button onClick={() => setShowUnitModal(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100">
+                        <button
+                          onClick={() => setShowUnitModal(false)}
+                          className="rounded-lg p-2 text-gray-400 hover:bg-gray-100"
+                        >
                           <X className="h-5 w-5" />
                         </button>
                       </div>
                       <div className="space-y-4">
                         <div>
-                          <label className="text-[12px] font-bold text-gray-700 mb-1.5 block">Full Name</label>
+                          <label className="text-[12px] font-bold text-gray-700 mb-1.5 block">
+                            Full Name
+                          </label>
                           <input
                             placeholder="e.g. Kilogram"
                             value={unitName}
-                            onChange={e => setUnitName(e.target.value)}
+                            onChange={(e) => setUnitName(e.target.value)}
                             className={inputClass}
                           />
                         </div>
                         <div>
-                          <label className="text-[12px] font-bold text-gray-700 mb-1.5 block">Short Code</label>
+                          <label className="text-[12px] font-bold text-gray-700 mb-1.5 block">
+                            Short Code
+                          </label>
                           <input
                             placeholder="e.g. kg"
                             value={unitShortName}
-                            onChange={e => setUnitShortName(e.target.value)}
+                            onChange={(e) => setUnitShortName(e.target.value)}
                             className={inputClass}
                           />
                         </div>
                       </div>
                       <div className="flex gap-3">
-                        <button onClick={() => setShowUnitModal(false)} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
+                        <button
+                          onClick={() => setShowUnitModal(false)}
+                          className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
                         <button
                           onClick={handleCreateUnit}
                           disabled={savingUnit}
@@ -2969,7 +3058,9 @@ export default function SettingsPage() {
                             <td className="px-4 py-3 text-gray-500">
                               {u.email}
                             </td>
-                            <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
+                            <td className="px-4 py-3">
+                              <RoleBadge role={u.role} />
+                            </td>
                             <td className="px-4 py-3 text-gray-500">
                               {u.branchId?.name || "—"}
                             </td>

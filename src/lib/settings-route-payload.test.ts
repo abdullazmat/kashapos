@@ -13,6 +13,9 @@ describe("settings route payload normalization", () => {
       loyaltyPointsRate: 5,
       promotionsEnabled: true,
       promotionMessage: "  Double points this weekend ",
+      outboundMessageGuardEnabled: true,
+      outboundMessageLimit: 12,
+      outboundMessageWindowMinutes: 45,
       receiptHeader: " Thanks for shopping ",
     });
 
@@ -25,6 +28,9 @@ describe("settings route payload normalization", () => {
     assert.equal(result["settings.loyaltyProgramEnabled"], true);
     assert.equal(result["settings.loyaltyPointsRate"], 5);
     assert.equal(result["settings.promotionsEnabled"], true);
+    assert.equal(result["settings.outboundMessageGuardEnabled"], true);
+    assert.equal(result["settings.outboundMessageLimit"], 12);
+    assert.equal(result["settings.outboundMessageWindowMinutes"], 45);
     assert.equal(
       result["settings.promotionMessage"],
       "Double points this weekend",

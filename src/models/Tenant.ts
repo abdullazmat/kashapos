@@ -73,6 +73,9 @@ export interface ITenantSettings {
   emailInvoiceAutoSend?: boolean;
   emailBalanceReminderEnabled?: boolean;
   emailBalanceReminderFrequency?: "daily" | "weekly" | "overdue";
+  outboundMessageGuardEnabled?: boolean;
+  outboundMessageLimit?: number;
+  outboundMessageWindowMinutes?: number;
   stockLevelAlerts?: boolean;
   reorderAlerts?: boolean;
   pushNotifications?: boolean;
@@ -263,6 +266,9 @@ const TenantSchema = new Schema<ITenant>(
         enum: ["daily", "weekly", "overdue"],
         default: "weekly",
       },
+      outboundMessageGuardEnabled: { type: Boolean, default: false },
+      outboundMessageLimit: { type: Number, default: 10 },
+      outboundMessageWindowMinutes: { type: Number, default: 60 },
       stockLevelAlerts: { type: Boolean, default: true },
       reorderAlerts: { type: Boolean, default: true },
       pushNotifications: { type: Boolean, default: false },

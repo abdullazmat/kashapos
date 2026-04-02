@@ -2,10 +2,12 @@ import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import OTP from "@/models/OTP";
 import User from "@/models/User";
+import Tenant from "@/models/Tenant";
 import { apiError, apiSuccess } from "@/lib/api-helpers";
 import { sendSystemEmail } from "@/lib/mailer";
 import { twilioService } from "@/lib/twilio";
 import { africasTalkingService } from "@/lib/africastalking";
+import { checkOutboundMessageGuard } from "@/lib/outbound-message-guard";
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,6 +27,22 @@ export async function POST(request: NextRequest) {
     }
 
     const existingUser = await User.findOne(query);
+    let tenantSettings:
+      | {
+          outboundMessageGuardEnabled?: boolean;
+          outboundMessageLimit?: number;
+          outboundMessageWindowMinutes?: number;
+        }
+      | undefined;
+
+    if (existingUser?.tenantId) {
+      const tenant = await Tenant.findById(existingUser.tenantId)
+        .select(
+          "settings.outboundMessageGuardEnabled settings.outboundMessageLimit settings.outboundMessageWindowMinutes",
+        )
+        .lean();
+      tenantSettings = tenant?.settings;
+    }
 
     if (purpose === "signup") {
       if (existingUser) {
@@ -83,6 +101,20 @@ export async function POST(request: NextRequest) {
       if (res && "mock" in res && res.mock) isMock = true;
     } else if (method === "phone") {
       try {
+        const guard = checkOutboundMessageGuard({
+          tenantId: existingUser?.tenantId?.toString() || "system",
+          channel: "otp-sms",
+          recipient: identifier,
+          settings: tenantSettings,
+        });
+
+        if (!guard.allowed) {
+          return apiError(
+            `Message sending is temporarily limited. Try again in ${guard.retryAfterSeconds}s`,
+            429,
+          );
+        }
+
         // Check balance before sending
         try {
           const balance = await africasTalkingService.getBalance();
@@ -187,6 +219,20 @@ export async function POST(request: NextRequest) {
       }
     } else if (method === "whatsapp") {
       try {
+        const guard = checkOutboundMessageGuard({
+          tenantId: existingUser?.tenantId?.toString() || "system",
+          channel: "otp-whatsapp",
+          recipient: identifier,
+          settings: tenantSettings,
+        });
+
+        if (!guard.allowed) {
+          return apiError(
+            `Message sending is temporarily limited. Try again in ${guard.retryAfterSeconds}s`,
+            429,
+          );
+        }
+
         const result = await twilioService.sendWhatsApp(
           identifier,
           `Your Meka PoS verification code is: ${otp}`,

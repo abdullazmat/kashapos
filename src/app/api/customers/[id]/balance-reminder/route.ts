@@ -1,10 +1,12 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
 import Customer from "@/models/Customer";
+import Tenant from "@/models/Tenant";
 import Sale from "@/models/Sale";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import { sendTenantEmail } from "@/lib/mailer";
 import { prepareBalanceReminderEmail } from "@/lib/manual-email-rules";
+import { checkOutboundMessageGuard } from "@/lib/outbound-message-guard";
 import { twilioService } from "@/lib/twilio";
 
 export async function POST(
@@ -51,6 +53,26 @@ export async function POST(
       return apiError(prepared.error, prepared.status);
     }
 
+    const tenant = await Tenant.findById(auth.tenantId)
+      .select(
+        "settings.outboundMessageGuardEnabled settings.outboundMessageLimit settings.outboundMessageWindowMinutes",
+      )
+      .lean();
+
+    const guard = checkOutboundMessageGuard({
+      tenantId: auth.tenantId,
+      channel: "balance-reminder",
+      recipient: customer.phone || customer.email || id,
+      settings: tenant?.settings,
+    });
+
+    if (!guard.allowed) {
+      return apiError(
+        `Message sending is temporarily limited. Try again in ${guard.retryAfterSeconds}s`,
+        429,
+      );
+    }
+
     await sendTenantEmail(prepared.email);
 
     // Send SMS if phone exists
@@ -67,7 +89,9 @@ export async function POST(
 
     return apiSuccess({
       ok: true,
-      message: smsSent ? "Balance reminder email and SMS sent" : "Balance reminder email sent",
+      message: smsSent
+        ? "Balance reminder email and SMS sent"
+        : "Balance reminder email sent",
       customer: {
         _id: String(customer._id),
       },
