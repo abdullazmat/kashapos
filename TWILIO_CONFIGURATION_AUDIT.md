@@ -1,4 +1,4 @@
-# Twilio Configuration Audit
+﻿# Twilio Configuration Audit
 
 ## Summary
 
@@ -19,8 +19,8 @@ TWILIO_ACCOUNT_SID      - Twilio Account SID
 TWILIO_AUTH_TOKEN       - Twilio Authentication Token
 TWILIO_API_KEY          - Twilio API Key (alternative auth)
 TWILIO_API_SECRET       - Twilio API Secret (alternative auth)
-TWILIO_WHATSAPP_NUMBER  - WhatsApp sender number (default: "whatsapp:+14155238886")
-TWILIO_SMS_NUMBER       - SMS sender number (default: "+14155238886")
+TWILIO_WHATSAPP_NUMBER  - WhatsApp sender number (default: "whatsapp:[REDACTED_PHONE]")
+TWILIO_SMS_NUMBER       - SMS sender number (default: "[REDACTED_PHONE]")
 ```
 
 **Key Methods**:
@@ -69,7 +69,7 @@ export const africasTalkingService = new AfricasTalkingService();
 
 ## 2. API Routes Using Twilio/SMS
 
-### [src/app/api/auth/send-otp/route.ts](src/app/api/auth/send-otp/route.ts) ⭐
+### [src/app/api/auth/send-otp/route.ts](src/app/api/auth/send-otp/route.ts) â­
 
 **Purpose**: OTP delivery for sign-up and password reset
 
@@ -156,8 +156,8 @@ export const africasTalkingService = new AfricasTalkingService();
 | `TWILIO_AUTH_TOKEN`      | .env   | Yes\*    | -                     | Twilio Auth Token (preferred)   |
 | `TWILIO_API_KEY`         | .env   | No       | -                     | Twilio API Key (alternative)    |
 | `TWILIO_API_SECRET`      | .env   | No       | -                     | Twilio API Secret (alternative) |
-| `TWILIO_SMS_NUMBER`      | .env   | No       | +14155238886          | SMS sender phone number         |
-| `TWILIO_WHATSAPP_NUMBER` | .env   | No       | whatsapp:+14155238886 | WhatsApp sender number          |
+| `TWILIO_SMS_NUMBER`      | .env   | No       | [REDACTED_PHONE]          | SMS sender phone number         |
+| `TWILIO_WHATSAPP_NUMBER` | .env   | No       | whatsapp:[REDACTED_PHONE] | WhatsApp sender number          |
 | `AT_USERNAME`            | .env   | Yes\*    | sandbox               | Africa's Talking username       |
 | `AT_API_KEY`             | .env   | Yes\*    | -                     | Africa's Talking API Key        |
 | `AT_SENDER_ID`           | .env   | No       | -                     | Africa's Talking Sender ID      |
@@ -185,8 +185,8 @@ const API_KEY = process.env.TWILIO_API_KEY || "";
 const API_SECRET = process.env.TWILIO_API_SECRET || "";
 const AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "";
 const WHATSAPP_NUMBER =
-  process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:+14155238886";
-const SMS_NUMBER = process.env.TWILIO_SMS_NUMBER || "+14155238886";
+  process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:[REDACTED_PHONE]";
+const SMS_NUMBER = process.env.TWILIO_SMS_NUMBER || "[REDACTED_PHONE]";
 
 class TwilioService {
   constructor() {
@@ -234,7 +234,7 @@ POST /api/settings/integrations/test
   "payload": {
     "twilioAccountSid": "AC...",
     "twilioAuthToken": "token...",
-    "twilioSmsNumber": "+1234567890"
+    "twilioSmsNumber": "[REDACTED_PHONE]"
   }
 }
 ```
@@ -249,7 +249,7 @@ POST /api/settings/integrations/test
 
 ## 5. Credential Storage Best Practices
 
-### Current Implementation ✅
+### Current Implementation âœ…
 
 - Environment variables from `.env` file (not in repository)
 - Credentials loaded at service initialization
@@ -257,10 +257,10 @@ POST /api/settings/integrations/test
 
 ### Security Observations
 
-- ✅ Credentials NOT hardcoded in source
-- ✅ Singleton instances prevent re-initialization
-- ✅ Credentials can be overridden per-request (integration test endpoint)
-- ✅ Masked credentials (`"********"`) not processed
+- âœ… Credentials NOT hardcoded in source
+- âœ… Singleton instances prevent re-initialization
+- âœ… Credentials can be overridden per-request (integration test endpoint)
+- âœ… Masked credentials (`"********"`) not processed
 
 ### Areas to Consider
 
@@ -274,35 +274,35 @@ POST /api/settings/integrations/test
 
 ```
 OTP Request (Phone)
-    ↓
+    â†“
 [send-otp/route.ts]
-    ├─ Check balance (Africa's Talking)
-    ├─ PRIMARY: africasTalkingService.sendSMS()
-    ├─ FAIL? → Look up user email
-    └─ FALLBACK: sendSystemEmail() to email
+    â”œâ”€ Check balance (Africa's Talking)
+    â”œâ”€ PRIMARY: africasTalkingService.sendSMS()
+    â”œâ”€ FAIL? â†’ Look up user email
+    â””â”€ FALLBACK: sendSystemEmail() to email
 
 OTP Request (WhatsApp)
-    ↓
+    â†“
 [send-otp/route.ts]
-    ├─ PRIMARY: twilioService.sendWhatsApp()
-    ├─ FAIL? → africasTalkingService.sendSMS() (SMS fallback)
-    │   ├─ FAIL? → Send via email fallback
-    │   └─ SUCCESS: Return "WhatsApp failed, SMS sent" warning
-    └─ SUCCESS: Return confirmation
+    â”œâ”€ PRIMARY: twilioService.sendWhatsApp()
+    â”œâ”€ FAIL? â†’ africasTalkingService.sendSMS() (SMS fallback)
+    â”‚   â”œâ”€ FAIL? â†’ Send via email fallback
+    â”‚   â””â”€ SUCCESS: Return "WhatsApp failed, SMS sent" warning
+    â””â”€ SUCCESS: Return confirmation
 
 Balance Reminder
-    ↓
+    â†“
 [balance-reminder/route.ts]
-    ├─ Send email via sendTenantEmail()
-    └─ If phone exists: twilioService.sendSMS()
+    â”œâ”€ Send email via sendTenantEmail()
+    â””â”€ If phone exists: twilioService.sendSMS()
 
 Integration Test
-    ↓
+    â†“
 [integrations/test/route.ts]
-    ├─ Twilio SMS: twilioService.sendSMS(payload)
-    ├─ Twilio WhatsApp: twilioService.sendWhatsApp(payload)
-    ├─ Africa's Talking SMS: africasTalkingService.sendSMS(payload)
-    └─ Africa's Talking Balance: africasTalkingService.getBalance(payload)
+    â”œâ”€ Twilio SMS: twilioService.sendSMS(payload)
+    â”œâ”€ Twilio WhatsApp: twilioService.sendWhatsApp(payload)
+    â”œâ”€ Africa's Talking SMS: africasTalkingService.sendSMS(payload)
+    â””â”€ Africa's Talking Balance: africasTalkingService.getBalance(payload)
 ```
 
 ---
@@ -315,8 +315,8 @@ Integration Test
 **Export**: `export const twilioService = new TwilioService();`  
 **Methods**:
 
-- `sendSMS(to, message, credentials?)` → `{ success, sid }`
-- `sendWhatsApp(to, message, credentials?)` → `{ success, sid }`
+- `sendSMS(to, message, credentials?)` â†’ `{ success, sid }`
+- `sendWhatsApp(to, message, credentials?)` â†’ `{ success, sid }`
 
 ### Africa's Talking Service
 
@@ -324,8 +324,8 @@ Integration Test
 **Export**: `export const africasTalkingService = new AfricasTalkingService();`  
 **Methods**:
 
-- `sendSMS(to, message, credentials?)` → `{ success, message, error? }`
-- `getBalance(credentials?)` → `string` (balance amount)
+- `sendSMS(to, message, credentials?)` â†’ `{ success, message, error? }`
+- `getBalance(credentials?)` â†’ `string` (balance amount)
 
 ---
 
@@ -348,13 +348,13 @@ npm run send:whatsapp          # Send test WhatsApp
 ```bash
 # Twilio Configuration
 TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
-TWILIO_SMS_NUMBER=+1234567890
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
+TWILIO_AUTH_TOKEN=[REDACTED]
+TWILIO_SMS_NUMBER=[REDACTED_PHONE]
+TWILIO_WHATSAPP_NUMBER=whatsapp:[REDACTED_PHONE]
 
 # Africa's Talking Configuration
 AT_USERNAME=sandbox
-AT_API_KEY=...
+AT_API_KEY=[REDACTED]
 AT_SENDER_ID=KashaPOS
 
 # Database, Auth, and other configs...
@@ -369,3 +369,4 @@ AT_SENDER_ID=KashaPOS
 - [src/app/api/auth/send-otp/route.ts](src/app/api/auth/send-otp/route.ts) - OTP delivery
 - [src/app/api/settings/integrations/test/route.ts](src/app/api/settings/integrations/test/route.ts) - Integration test endpoint
 - [src/app/api/customers/[id]/balance-reminder/route.ts](src/app/api/customers/[id]/balance-reminder/route.ts) - Balance reminder
+

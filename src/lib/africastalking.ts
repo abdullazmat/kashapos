@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
-const AT_USERNAME = process.env.AT_USERNAME || "sandbox";
+const AT_USERNAME = process.env.AT_USERNAME || "";
 const AT_API_KEY = process.env.AT_API_KEY || "";
 const AT_SENDER_ID = process.env.AT_SENDER_ID || "";
 

@@ -6,7 +6,7 @@ import * as dotenv from "dotenv";
  * Tests WhatsApp configuration and sandbox availability
  */
 
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 
 async function testWhatsAppDelivery() {
   console.log("💬 Testing WhatsApp Configuration\n");

@@ -39,11 +39,8 @@ A multi-tenant Point of Sale system built with Next.js, MongoDB, and Tailwind CS
    ```bash
    npm install
    ```
-3. Copy `.env.example` to `.env.local` and fill in your values:
-   ```bash
-   cp .env.example .env.local
-   ```
-4. Set your MongoDB connection string and JWT secret in `.env.local`
+3. Update the consolidated `.env` file with your values.
+4. Set your MongoDB connection string and JWT secret in `.env`.
 5. Start the development server:
    ```bash
    npm run dev
@@ -57,6 +54,7 @@ A multi-tenant Point of Sale system built with Next.js, MongoDB, and Tailwind CS
 | `MONGODB_URI`          | MongoDB connection string                 |
 | `JWT_SECRET`           | Secret key for JWT signing (min 32 chars) |
 | `NEXT_PUBLIC_BASE_URL` | Base URL of the app                       |
+| `NEXT_PUBLIC_APP_URL`  | Public app URL used by auth routes        |
 
 ### Seed Data
 

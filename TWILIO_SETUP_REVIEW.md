@@ -1,8 +1,8 @@
-# Twilio Setup Review - KashaPOS
+﻿# Twilio Setup Review - KashaPOS
 
 ## Current Configuration Status
 
-### ✅ What You HAVE Configured
+### âœ… What You HAVE Configured
 
 #### 1. **Basic Twilio Credentials** (Test Account)
 
@@ -10,33 +10,33 @@
 TWILIO_ACCOUNT_SID=[REDACTED]
 TWILIO_API_KEY=[REDACTED]
 TWILIO_API_SECRET=[REDACTED]
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
-TWILIO_SMS_NUMBER=+14155238886
+TWILIO_WHATSAPP_NUMBER=whatsapp:[REDACTED_PHONE]
+TWILIO_SMS_NUMBER=[REDACTED_PHONE]
 ```
 
 **Status**: Using Twilio sandbox/trial numbers (good for testing)
 
 #### 2. **SMS Service**
 
-- ✅ SMS sending implemented via `twilioService.sendSMS()`
-- ✅ Using Africa's Talking as PRIMARY SMS provider
-- ✅ Twilio SMS as fallback (but not currently triggering in send-otp route)
+- âœ… SMS sending implemented via `twilioService.sendSMS()`
+- âœ… Using Africa's Talking as PRIMARY SMS provider
+- âœ… Twilio SMS as fallback (but not currently triggering in send-otp route)
 
 #### 3. **WhatsApp Service**
 
-- ✅ WhatsApp sending implemented via `twilioService.sendWhatsApp()`
-- ✅ Code handles WhatsApp formatting (`whatsapp:+` prefix)
-- ✅ WhatsApp used in send-otp route with SMS fallback
+- âœ… WhatsApp sending implemented via `twilioService.sendWhatsApp()`
+- âœ… Code handles WhatsApp formatting (`whatsapp:+` prefix)
+- âœ… WhatsApp used in send-otp route with SMS fallback
 
 #### 4. **OTP Flow**
 
-- ✅ OTP generation and storage working
-- ✅ Multiple delivery methods: email, SMS, WhatsApp
-- ✅ Fallback chain: WhatsApp → SMS → Email
+- âœ… OTP generation and storage working
+- âœ… Multiple delivery methods: email, SMS, WhatsApp
+- âœ… Fallback chain: WhatsApp â†’ SMS â†’ Email
 
 ---
 
-## ❌ What You're MISSING
+## âŒ What You're MISSING
 
 ### 1. **Auth Token NOT SET** (Critical for Production)
 
@@ -51,10 +51,10 @@ MISSING: TWILIO_AUTH_TOKEN
 
 **Why this matters**: Auth token is simpler and more broadly compatible for REST API calls.
 
-**Recommendation**: Add to `.env.local`:
+**Recommendation**: Add to `.env`:
 
 ```
-TWILIO_AUTH_TOKEN=<your-auth-token>
+TWILIO_AUTH_TOKEN=[REDACTED]
 ```
 
 ---
@@ -83,13 +83,13 @@ TWILIO_AUTH_TOKEN=<your-auth-token>
 
 **Current Issue**:
 
-- Using sandbox/trial WhatsApp number: `whatsapp:+14155238886`
+- Using sandbox/trial WhatsApp number: `whatsapp:[REDACTED_PHONE]`
 - This only works for approved test users
 - Cannot send to real customers without approval
 
 **What's Required for Production WhatsApp**:
 
-1. **Meta Business Account** ✅ (need to verify you have)
+1. **Meta Business Account** âœ… (need to verify you have)
    - Phone number must be registered
    - Business verified with Meta
 
@@ -106,11 +106,11 @@ TWILIO_AUTH_TOKEN=<your-auth-token>
 
 4. **Production Phone Number**
    - Your own dedicated phone number
-   - Replaces current sandbox: `whatsapp:+14155238886`
+   - Replaces current sandbox: `whatsapp:[REDACTED_PHONE]`
 
 **Steps to Enable**:
 
-1. Go to Twilio Console → Messaging → WhatsApp
+1. Go to Twilio Console â†’ Messaging â†’ WhatsApp
 2. Apply for WhatsApp Sender ID
 3. Provide Meta Business Account details
 4. Wait for approval
@@ -145,30 +145,25 @@ TWILIO_AUTH_TOKEN=<your-auth-token>
 **You Have**: Test Account ([REDACTED]...)
 **You Mentioned**: Live Account (AC_live_sid)
 
-**Current Issue**: `.env.local` points to TEST account
+**Current Setup**: `.env` points to the active Twilio account
 
 **Best Practice Setup**:
 
 ```
-# .env.local (development/testing)
+# .env (single source of truth)
 TWILIO_ACCOUNT_SID=[REDACTED]    # Test
 TWILIO_API_KEY=[REDACTED]                             # Test
 TWILIO_API_SECRET=[REDACTED]                      # Test
-
-# .env.production (production)
-TWILIO_ACCOUNT_SID=<live_account_sid>
-TWILIO_API_KEY=[REDACTED]                              # Live
-TWILIO_API_SECRET=[REDACTED]                         # Live
-TWILIO_AUTH_TOKEN=[REDACTED]       # Live
+TWILIO_AUTH_TOKEN=[REDACTED]
 ```
 
 ---
 
-## 🎯 Action Plan
+## ðŸŽ¯ Action Plan
 
 ### Phase 1: Immediate (Testing)
 
-- [ ] Add `TWILIO_AUTH_TOKEN` to `.env.local` (optional, but recommended)
+- [ ] Add `TWILIO_AUTH_TOKEN` to `.env` (optional, but recommended)
 - [ ] Test SMS delivery with Africa's Talking
 - [ ] Test WhatsApp delivery in test mode (sandbox)
 
@@ -178,7 +173,7 @@ TWILIO_AUTH_TOKEN=[REDACTED]       # Live
 - [ ] Set up Meta WhatsApp Business Account
 - [ ] Apply for WhatsApp Sender ID with Twilio
 - [ ] Create WhatsApp message templates (OTP template)
-- [ ] Update `.env.production` with live credentials
+- [ ] Update `.env` with live credentials
 
 ### Phase 3: Go Live
 
@@ -189,7 +184,7 @@ TWILIO_AUTH_TOKEN=[REDACTED]       # Live
 
 ---
 
-## 📋 Quick Credentials Mapping
+## ðŸ“‹ Quick Credentials Mapping
 
 ### Your Live Credentials (Use in Production)
 
@@ -211,13 +206,13 @@ API Secret:           [REDACTED]
 
 ---
 
-## ⚠️ Security Notes
+## âš ï¸ Security Notes
 
 **DO NOT COMMIT** credentials to git:
 
-- ✅ All credentials are in `.env.local` (good)
-- ✅ `.env.local` is in `.gitignore` (verify this)
-- ❌ Never share credentials in code/logs
+- âœ… All credentials are in `.env` (good)
+- âœ… `.env` is in `.gitignore` (verify this)
+- âŒ Never share credentials in code/logs
 
 **Rotate credentials periodically**:
 
@@ -226,9 +221,10 @@ API Secret:           [REDACTED]
 
 ---
 
-## 📞 Support Resources
+## ðŸ“ž Support Resources
 
 - **Twilio SMS Docs**: https://www.twilio.com/docs/sms
 - **Twilio WhatsApp Docs**: https://www.twilio.com/docs/whatsapp
 - **Twilio Verify**: https://www.twilio.com/docs/verify
 - **WhatsApp Business Setup**: https://www.twilio.com/docs/whatsapp/self-signed-business-account
+

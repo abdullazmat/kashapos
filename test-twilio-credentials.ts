@@ -5,7 +5,7 @@ import * as path from "path";
 
 /**
  * Twilio Credentials Verification Script
- * Tests both development (.env.local) and production (.env.production) credentials
+ * Tests the consolidated .env credentials file
  */
 
 interface TestResult {
@@ -232,21 +232,13 @@ async function main() {
   console.log("🧪 TWILIO CREDENTIALS VERIFICATION TEST");
   console.log("=========================================\n");
 
-  const devEnvPath = path.join(process.cwd(), ".env.local");
-  const prodEnvPath = path.join(process.cwd(), ".env.production");
+  const envPath = path.join(process.cwd(), ".env");
 
-  // Test development environment
-  if (fs.existsSync(devEnvPath)) {
-    await testEnvironment(devEnvPath, "DEVELOPMENT (.env.local)");
+  // Test consolidated environment
+  if (fs.existsSync(envPath)) {
+    await testEnvironment(envPath, "CONSOLIDATED (.env)");
   } else {
-    console.log("❌ .env.local not found");
-  }
-
-  // Test production environment
-  if (fs.existsSync(prodEnvPath)) {
-    await testEnvironment(prodEnvPath, "PRODUCTION (.env.production)");
-  } else {
-    console.log("⚠️  .env.production not found");
+    console.log("❌ .env not found");
   }
 
   // Summary
@@ -269,9 +261,7 @@ async function main() {
     console.log("\nNext Steps:");
     console.log("1. Test SMS delivery: npm run test:twilio-sms");
     console.log("2. Test WhatsApp delivery: npm run test:twilio-whatsapp");
-    console.log(
-      "3. For production: Update .env.production with real phone numbers",
-    );
+    console.log("3. Update .env with real phone numbers for live testing");
   } else {
     console.log(
       "\n⚠️  Some tests failed. Please review the credentials above.",

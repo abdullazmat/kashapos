@@ -8,7 +8,7 @@ import * as fs from "fs";
  * Tests actual SMS sending via Twilio and Africa's Talking
  */
 
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 
 async function testSMSDelivery() {
   console.log("📱 Testing SMS Delivery\n");
@@ -20,13 +20,14 @@ async function testSMSDelivery() {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_SMS_NUMBER;
 
-  // For testing, use a test phone number (won't actually send without approval)
-  const toNumber = "+1234567890"; // This is a test number
+  const toNumber = (process.env.TEST_RECIPIENT_PHONE || "").replace(/\s+/g, "");
 
   console.log("Configuration:");
   console.log(`  Account SID: ${accountSid?.substring(0, 8)}...`);
   console.log(`  From Number: ${fromNumber}`);
-  console.log(`  To Number: ${toNumber} (TEST - won't actually send)`);
+  console.log(
+    `  To Number: ${toNumber || "<not provided>"} (TEST - won't actually send)`,
+  );
   console.log("");
 
   try {

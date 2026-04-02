@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import twilio from "twilio";
 
-const TARGET_RAW = "+92 3175184327";
+const TARGET_RAW = process.env.TEST_RECIPIENT_PHONE || "";
 const TARGET = TARGET_RAW.replace(/\s+/g, "");
 
 type UserLite = {
@@ -32,8 +32,14 @@ async function sendTwilioHello(phone: string) {
   const authToken = process.env.TWILIO_AUTH_TOKEN || "";
   const apiKey = process.env.TWILIO_API_KEY || "";
   const apiSecret = process.env.TWILIO_API_SECRET || "";
-  const smsFrom = process.env.TWILIO_SMS_NUMBER || "+14155238886";
-  const waFrom = process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:+14155238886";
+  const smsFrom = process.env.TWILIO_SMS_NUMBER || "";
+  const waFrom = process.env.TWILIO_WHATSAPP_NUMBER || "";
+
+  if (!smsFrom || !waFrom) {
+    throw new Error(
+      "TWILIO_SMS_NUMBER and TWILIO_WHATSAPP_NUMBER are required",
+    );
+  }
 
   let client: any;
   if (accountSid && authToken) {
@@ -76,7 +82,11 @@ async function sendTwilioHello(phone: string) {
 }
 
 async function main() {
-  dotenv.config({ path: ".env.production" });
+  dotenv.config({ path: ".env" });
+
+  if (!TARGET) {
+    throw new Error("TEST_RECIPIENT_PHONE is required");
+  }
 
   const uri = process.env.MONGODB_URI;
   if (!uri) {

@@ -111,9 +111,34 @@ export async function POST(request: NextRequest) {
         }
       } catch (phoneError: any) {
         console.error(
-          "Phone SMS delivery via Africa's Talking failed, falling back to email:",
+          "Phone SMS delivery via Africa's Talking failed, trying Twilio fallback:",
           phoneError,
         );
+
+        // Try Twilio SMS fallback before moving to email.
+        try {
+          const twilioFallback = await twilioService.sendSMS(
+            identifier,
+            `Your Meka PoS verification code is: ${otp}`,
+          );
+          if (twilioFallback.success) {
+            deliveryMethodUsed = "phone";
+            deliveryWarning =
+              "Africa's Talking delivery failed; OTP sent via Twilio SMS fallback.";
+            return apiSuccess({
+              message: "OTP sent successfully",
+              deliveryMethodUsed,
+              warning: deliveryWarning,
+              mock: isMock,
+              mockOtp: isMock ? otp : undefined,
+            });
+          }
+        } catch (twilioError: any) {
+          console.error(
+            "Twilio SMS fallback failed, falling back to email:",
+            twilioError,
+          );
+        }
 
         // Try to find user by phone to get their email for fallback
         let emailForFallback: string | undefined;

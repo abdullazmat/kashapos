@@ -10,21 +10,15 @@ import * as path from "path";
 console.log("🔍 TWILIO INTEGRATION VERIFICATION\n");
 console.log("=".repeat(70));
 
-// Check 1: Environment files exist
-console.log("\n✓ Step 1: Environment Files");
-const envLocal = path.join(process.cwd(), ".env.local");
-const envProd = path.join(process.cwd(), ".env.production");
+// Check 1: Environment file exists
+console.log("\n✓ Step 1: Environment File");
+const envPath = path.join(process.cwd(), ".env");
 
-if (!fs.existsSync(envLocal)) {
-  console.log("❌ .env.local not found");
+if (!fs.existsSync(envPath)) {
+  console.log("❌ .env not found");
   process.exit(1);
 }
-if (!fs.existsSync(envProd)) {
-  console.log("❌ .env.production not found");
-  process.exit(1);
-}
-console.log("  ✅ .env.local exists");
-console.log("  ✅ .env.production exists");
+console.log("  ✅ .env exists");
 
 // Check 2: Source files exist
 console.log("\n✓ Step 2: Source Files");
@@ -106,8 +100,7 @@ console.log("  ✅ test-twilio-whatsapp.ts created");
 
 // Check 6: Credentials are configured
 console.log("\n✓ Step 6: Credentials Configuration");
-const devEnv = dotenv.parse(fs.readFileSync(envLocal, "utf-8"));
-const prodEnv = dotenv.parse(fs.readFileSync(envProd, "utf-8"));
+const env = dotenv.parse(fs.readFileSync(envPath, "utf-8"));
 
 let missingCreds = false;
 const requiredCreds = [
@@ -119,15 +112,14 @@ const requiredCreds = [
 ];
 
 requiredCreds.forEach((cred) => {
-  if (!prodEnv[cred]) {
-    console.log(`  ❌ ${cred} missing in .env.production`);
+  if (!env[cred]) {
+    console.log(`  ❌ ${cred} missing in .env`);
     missingCreds = true;
   }
 });
 
 if (!missingCreds) {
-  console.log("  ✅ All required credentials in .env.local");
-  console.log("  ✅ All required credentials in .env.production");
+  console.log("  ✅ All required credentials in .env");
 }
 
 // Check 7: Package.json scripts

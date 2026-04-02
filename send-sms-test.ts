@@ -7,7 +7,7 @@ import * as readline from "readline";
  */
 
 const env = process.env.NODE_ENV || "development";
-const envFile = env === "production" ? ".env.production" : ".env.local";
+const envFile = ".env";
 
 console.log(`\n📱 SENDING LIVE SMS TEST`);
 console.log(`Using Environment: ${env} (${envFile})`);
@@ -85,7 +85,18 @@ async function sendTestSMS(phoneNumber: string) {
 }
 
 async function main() {
-  const phoneNumber = "+92 3175184327".replace(/\s+/g, ""); // Remove spaces: +923175184327
+  const phoneNumber = (process.env.TEST_RECIPIENT_PHONE || "").replace(
+    /\s+/g,
+    "",
+  );
+
+  if (!phoneNumber) {
+    console.log("❌ TEST_RECIPIENT_PHONE is required to send SMS test");
+    console.log(
+      "   Example: TEST_RECIPIENT_PHONE=+256700000000 npm run send:sms",
+    );
+    process.exit(1);
+  }
 
   console.log(`📲 Test Phone Number: ${phoneNumber}\n`);
 

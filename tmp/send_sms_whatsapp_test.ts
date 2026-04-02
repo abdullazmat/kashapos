@@ -1,12 +1,14 @@
 import dotenv from "dotenv";
 
-dotenv.config({ path: ".env.local" });
-dotenv.config();
+dotenv.config({ path: ".env" });
 
 async function run() {
   const { africasTalkingService } = await import("../src/lib/africastalking");
   const { twilioService } = await import("../src/lib/twilio");
-  const target = "+923175184327";
+  const target = (process.env.TEST_RECIPIENT_PHONE || "").replace(/\s+/g, "");
+  if (!target) {
+    throw new Error("TEST_RECIPIENT_PHONE is required");
+  }
   const smsText =
     "KashaPOS test SMS: If you received this, SMS delivery is working.";
   const waText =

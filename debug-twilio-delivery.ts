@@ -6,7 +6,7 @@ import * as dotenv from "dotenv";
  * Check the delivery status of messages sent from Twilio
  */
 
-dotenv.config({ path: ".env.production" });
+dotenv.config({ path: ".env" });
 
 async function checkMessageStatus() {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;

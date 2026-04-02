@@ -1,8 +1,7 @@
 import dotenv from "dotenv";
 import twilio from "twilio";
 
-dotenv.config({ path: ".env.local" });
-dotenv.config();
+dotenv.config({ path: ".env" });
 
 const sid = process.env.TWILIO_ACCOUNT_SID || "";
 const authToken = process.env.TWILIO_AUTH_TOKEN || "";

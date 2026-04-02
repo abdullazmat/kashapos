@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const dotenv = require("dotenv");
 
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
