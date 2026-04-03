@@ -419,6 +419,11 @@ const navigation: NavSection[] = [
         ],
       },
       {
+        name: "Subscription",
+        href: "/dashboard/subscription",
+        icon: CreditCard,
+      },
+      {
         name: "Warehouse & Storage",
         href: "/dashboard/warehouses",
         icon: Warehouse,
@@ -1990,9 +1995,7 @@ export default function DashboardLayout({
 
           {/* Page content */}
           <main className="p-4 md:p-6 dark:text-gray-100">
-            <Suspense fallback={<div>Loading...</div>}>
-              {children}
-            </Suspense>
+            <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
           </main>
         </div>
       </div>

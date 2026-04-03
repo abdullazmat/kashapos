@@ -81,6 +81,47 @@ interface BranchItem {
   address?: string;
   phone?: string;
   isMain: boolean;
+  isActive?: boolean;
+}
+
+type TenantPlanLimits = {
+  planName: string;
+  maxUsers: number | null;
+  maxBranches: number | null;
+};
+
+type SubscriptionPlanResponse = {
+  name?: string;
+  maxUsers?: number | null;
+  maxBranches?: number | null;
+};
+
+const DEFAULT_PLAN_LIMITS: Record<
+  string,
+  { maxUsers: number | null; maxBranches: number | null }
+> = {
+  basic: { maxUsers: 1, maxBranches: 1 },
+  premium: { maxUsers: null, maxBranches: null },
+  professional: { maxUsers: null, maxBranches: null },
+  corporate: { maxUsers: null, maxBranches: 4 },
+  enterprise: { maxUsers: null, maxBranches: 7 },
+};
+
+function normalizePlanName(planName?: string | null) {
+  const normalized = (planName || "basic").trim().toLowerCase();
+  return normalized || "basic";
+}
+
+function resolveFallbackPlanLimits(planName?: string | null) {
+  const normalized = normalizePlanName(planName);
+  return {
+    planName: normalized,
+    ...(DEFAULT_PLAN_LIMITS[normalized] || DEFAULT_PLAN_LIMITS.basic),
+  };
+}
+
+function formatLimit(limit: number | null) {
+  return limit === null ? "Unlimited" : String(limit);
 }
 
 interface FiscalYearItem {
@@ -412,6 +453,8 @@ export default function SettingsPage() {
   const [userBranch, setUserBranch] = useState("");
   const [savingUser, setSavingUser] = useState(false);
   const [userError, setUserError] = useState("");
+  const [tenantPlanLimits, setTenantPlanLimits] =
+    useState<TenantPlanLimits | null>(null);
 
   // Branches
   const [branches, setBranches] = useState<BranchItem[]>([]);
@@ -430,6 +473,19 @@ export default function SettingsPage() {
   const [unitName, setUnitName] = useState("");
   const [unitShortName, setUnitShortName] = useState("");
   const [savingUnit, setSavingUnit] = useState(false);
+
+  const activeUsersCount = users.filter((item) => item.isActive).length;
+  const activeBranchesCount = branches.filter(
+    (item) => item.isActive !== false,
+  ).length;
+  const userLimitReached =
+    tenantPlanLimits?.maxUsers !== null &&
+    typeof tenantPlanLimits?.maxUsers === "number" &&
+    activeUsersCount >= tenantPlanLimits.maxUsers;
+  const branchLimitReached =
+    tenantPlanLimits?.maxBranches !== null &&
+    typeof tenantPlanLimits?.maxBranches === "number" &&
+    activeBranchesCount >= tenantPlanLimits.maxBranches;
 
   const fetchUnits = useCallback(async () => {
     setLoadingUnits(true);
@@ -671,10 +727,59 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const fetchTenantPlanLimits = useCallback(async () => {
+    const fallback = resolveFallbackPlanLimits(tenant?.plan);
+
+    try {
+      const res = await fetch("/api/subscription/plans", { cache: "no-store" });
+      if (!res.ok) {
+        setTenantPlanLimits(fallback);
+        return;
+      }
+
+      const payload = await res.json();
+      const plans = (
+        Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
+            : []
+      ) as SubscriptionPlanResponse[];
+
+      const planName = normalizePlanName(tenant?.plan);
+      const matchingPlan = plans.find(
+        (plan) => normalizePlanName(plan?.name) === planName,
+      );
+
+      if (!matchingPlan) {
+        setTenantPlanLimits(fallback);
+        return;
+      }
+
+      setTenantPlanLimits({
+        planName,
+        maxUsers:
+          typeof matchingPlan.maxUsers === "number" ||
+          matchingPlan.maxUsers === null
+            ? matchingPlan.maxUsers
+            : fallback.maxUsers,
+        maxBranches:
+          typeof matchingPlan.maxBranches === "number" ||
+          matchingPlan.maxBranches === null
+            ? matchingPlan.maxBranches
+            : fallback.maxBranches,
+      });
+    } catch (err) {
+      console.error(err);
+      setTenantPlanLimits(fallback);
+    }
+  }, [tenant?.plan]);
+
   useEffect(() => {
     fetchUsers();
     fetchBranches();
-  }, [fetchUsers, fetchBranches]);
+    fetchTenantPlanLimits();
+  }, [fetchUsers, fetchBranches, fetchTenantPlanLimits]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -1009,6 +1114,13 @@ export default function SettingsPage() {
   // User handlers
   const handleAddUser = async () => {
     if (!userName || !userEmail || !userPassword) return;
+    if (userLimitReached) {
+      setUserError(
+        `User limit reached for your ${tenantPlanLimits?.planName || "current"} plan (${formatLimit(tenantPlanLimits?.maxUsers ?? null)} max active users).`,
+      );
+      return;
+    }
+
     setSavingUser(true);
     setUserError("");
     try {
@@ -1033,7 +1145,14 @@ export default function SettingsPage() {
         fetchUsers();
       } else {
         const data = await res.json();
-        setUserError(data.error || "Failed to create user");
+        if (data?.code === "PLAN_USER_LIMIT_REACHED") {
+          setUserError(
+            data.error ||
+              `User limit reached for ${tenantPlanLimits?.planName || "your current"} plan.`,
+          );
+        } else {
+          setUserError(data.error || "Failed to create user");
+        }
       }
     } catch {
       setUserError("Network error");
@@ -1077,6 +1196,13 @@ export default function SettingsPage() {
 
   const handleSaveBranch = async () => {
     if (!branchName || !branchCode) return;
+    if (!editingBranch && branchLimitReached) {
+      alert(
+        `Branch limit reached for your ${tenantPlanLimits?.planName || "current"} plan (${formatLimit(tenantPlanLimits?.maxBranches ?? null)} max active branches).`,
+      );
+      return;
+    }
+
     setSavingBranch(true);
     try {
       const payload = {
@@ -1101,7 +1227,14 @@ export default function SettingsPage() {
         fetchBranches();
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to save branch");
+        if (data?.code === "PLAN_BRANCH_LIMIT_REACHED") {
+          alert(
+            data.error ||
+              `Branch limit reached for ${tenantPlanLimits?.planName || "your current"} plan.`,
+          );
+        } else {
+          alert(data.error || "Failed to save branch");
+        }
       }
     } catch {
       alert("Network error");
@@ -2992,15 +3125,23 @@ export default function SettingsPage() {
               {/* User Management */}
               <SectionCard
                 title="User Management"
-                description={`${users.length} user${users.length !== 1 ? "s" : ""} in your organization`}
+                description={`${activeUsersCount} active user${activeUsersCount !== 1 ? "s" : ""} in your organization • Plan ${tenantPlanLimits?.planName?.toUpperCase() || "BASIC"}: ${formatLimit(tenantPlanLimits?.maxUsers ?? null)} max users`}
               >
-                <div className="flex items-center justify-end mb-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  {userLimitReached ? (
+                    <p className="text-xs font-semibold text-rose-600">
+                      User limit reached for your current plan.
+                    </p>
+                  ) : (
+                    <div />
+                  )}
                   <button
                     onClick={() => {
                       setUserError("");
                       setShowUserModal(true);
                     }}
-                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/25 transition-all hover:shadow-lg"
+                    disabled={userLimitReached}
+                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/25 transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:from-gray-300 disabled:to-gray-400 disabled:shadow-none"
                   >
                     <Plus className="h-4 w-4" /> Add User
                   </button>
@@ -3170,12 +3311,20 @@ export default function SettingsPage() {
           {activeSection === "branches" && (
             <SectionCard
               title="Branches"
-              description={`${branches.length} branch${branches.length !== 1 ? "es" : ""}`}
+              description={`${activeBranchesCount} active branch${activeBranchesCount !== 1 ? "es" : ""} • Plan ${tenantPlanLimits?.planName?.toUpperCase() || "BASIC"}: ${formatLimit(tenantPlanLimits?.maxBranches ?? null)} max branches`}
             >
-              <div className="flex items-center justify-end mb-4">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                {branchLimitReached ? (
+                  <p className="text-xs font-semibold text-rose-600">
+                    Branch limit reached for your current plan.
+                  </p>
+                ) : (
+                  <div />
+                )}
                 <button
                   onClick={() => openBranchModal()}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/25 transition-all hover:shadow-lg"
+                  disabled={branchLimitReached}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/25 transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:from-gray-300 disabled:to-gray-400 disabled:shadow-none"
                 >
                   <Plus className="h-4 w-4" /> Add Branch
                 </button>

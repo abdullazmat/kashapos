@@ -30,6 +30,7 @@ import {
   ImageIcon,
   History,
   Key,
+  RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -115,7 +116,7 @@ const PAYMENT_OPTIONS: {
 }[] = [
   { key: "cash", label: "Cash", icon: Banknote },
   { key: "card", label: "Card", icon: CreditCard },
-  { key: "mobile_money", label: "M-Pesa", icon: Smartphone },
+  { key: "mobile_money", label: "Mobile Money", icon: Smartphone },
   { key: "split", label: "Split", icon: ArrowUpDown },
   { key: "bank_transfer", label: "Bank", icon: Building2 },
   { key: "credit", label: "Credit", icon: CalendarClock },
@@ -268,6 +269,7 @@ export default function POSTerminalPage() {
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [walkInName, setWalkInName] = useState("");
   const [walkInPhone, setWalkInPhone] = useState("");
+  const [walkInEmail, setWalkInEmail] = useState("");
   const [expandedProductId, setExpandedProductId] = useState("");
   const [variantPickerProductId, setVariantPickerProductId] = useState("");
   const [variantSelections, setVariantSelections] = useState<
@@ -284,7 +286,7 @@ export default function POSTerminalPage() {
   const [cardholderName, setCardholderName] = useState("");
   const [cardType, setCardType] = useState("");
   const [mobileMoneyProvider, setMobileMoneyProvider] = useState<
-    "mtn" | "airtel" | "mpesa"
+    "mtn" | "airtel"
   >("mtn");
   const [mobileMoneyPhone, setMobileMoneyPhone] = useState("");
   const [mobileMoneyReference, setMobileMoneyReference] = useState("");
@@ -301,6 +303,7 @@ export default function POSTerminalPage() {
   const [showPayment, setShowPayment] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const [lastSale, setLastSale] = useState<{
+    saleId?: string;
     saleNumber: string;
     total: number;
     items: { name: string; quantity: number; total: number }[];
@@ -309,9 +312,17 @@ export default function POSTerminalPage() {
     amountPaid: number;
     change: number;
     creditDueDate?: string;
+    paymentGatewayUrl?: string;
+    paymentGatewayMessage?: string;
+    paymentGatewayProvider?: string;
+    paymentGatewayStatus?: string;
+    paymentGatewayReference?: string;
+    paymentPending?: boolean;
+    verificationType?: "gateway" | "manual";
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [recheckingPayment, setRecheckingPayment] = useState(false);
   const [saleError, setSaleError] = useState("");
   const [scannerAlert, setScannerAlert] = useState<{
     tone: "success" | "error";
@@ -319,6 +330,7 @@ export default function POSTerminalPage() {
     value: string;
   } | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const cartSidebarRef = useRef<HTMLDivElement | null>(null);
   const scanIntervalsRef = useRef<number[]>([]);
   const lastScannerKeyAtRef = useRef<number>(0);
 
@@ -677,7 +689,7 @@ export default function POSTerminalPage() {
   }
 
   function updateQty(lineKey: string, delta: number) {
-    const item = cart.find(i => i.lineKey === lineKey);
+    const item = cart.find((i) => i.lineKey === lineKey);
     if (item) {
       setQty(lineKey, item.quantity + delta);
     }
@@ -730,6 +742,7 @@ export default function POSTerminalPage() {
       setPaymentMethod("cash");
     }
     setAmountPaid(orderGrandTotal.toFixed(2));
+    setWalkInEmail(selectedCustomerRecord?.email || walkInEmail || "");
     setCreditDueDate("");
     setCreditNote("");
     setBankReference("");
@@ -891,6 +904,7 @@ export default function POSTerminalPage() {
 
       if (errors.length > 0) {
         setSaleError(errors.join(" "));
+        toast.error("Fix the payment fields before continuing.");
         return false;
       }
 
@@ -935,6 +949,8 @@ export default function POSTerminalPage() {
           customerId: selectedCustomer || undefined,
           walkInName: selectedCustomer ? undefined : walkInName.trim(),
           walkInPhone: selectedCustomer ? undefined : walkInPhone.trim(),
+          paymentContactEmail:
+            selectedCustomerRecord?.email || walkInEmail.trim() || undefined,
           paymentMethod,
           subtotal: orderSubtotal,
           totalTax: orderTax,
@@ -981,18 +997,41 @@ export default function POSTerminalPage() {
         }),
       });
       const payload = (await res.json()) as unknown;
-      const data = unwrapApiResponse<{ sale?: { orderNumber?: string } }>(
-        payload,
-      );
+      const data = unwrapApiResponse<{
+        sale?: {
+          _id?: string;
+          orderNumber?: string;
+          paymentDetails?: {
+            checkoutUrl?: string;
+            gatewayProvider?: string;
+            gatewayReference?: string;
+            gatewayStatus?: string;
+            gatewayError?: string;
+          };
+          status?: string;
+        };
+        paymentGateway?: {
+          checkoutUrl?: string;
+          provider?: string;
+          message?: string;
+        };
+        paymentVerificationRequired?: boolean;
+        verificationType?: "gateway" | "manual";
+      }>(payload);
       if (res.ok) {
         await fetchData();
-
+        const paymentPending = Boolean(
+          data.paymentVerificationRequired ||
+          data.paymentGateway?.checkoutUrl ||
+          data.sale?.status === "pending",
+        );
         // Proactive: Open drawer on cash completion
         if (paymentMethod === "cash" || paymentMethod === "split") {
           void openCashDrawer().catch(() => openDrawerViaPrint());
         }
 
         setLastSale({
+          saleId: data.sale?._id,
           saleNumber: data.sale?.orderNumber || "N/A",
           total: orderGrandTotal,
           items: cart.map((item) => ({
@@ -1002,24 +1041,53 @@ export default function POSTerminalPage() {
           })),
           paymentMethod,
           customerName: selectedCustomerRecord?.name || walkInName.trim(),
-          amountPaid: resolvedAmountPaid,
-          change: paymentMethod === "cash" ? Math.max(0, change) : 0,
+          amountPaid: paymentPending ? 0 : resolvedAmountPaid,
+          change: paymentPending
+            ? 0
+            : paymentMethod === "cash"
+              ? Math.max(0, change)
+              : 0,
           creditDueDate: paymentMethod === "credit" ? creditDueDate : undefined,
+          paymentGatewayUrl:
+            data.paymentGateway?.checkoutUrl ||
+            data.sale?.paymentDetails?.checkoutUrl,
+          paymentGatewayMessage: data.paymentGateway?.message,
+          paymentGatewayProvider:
+            data.paymentGateway?.provider ||
+            data.sale?.paymentDetails?.gatewayProvider,
+          paymentGatewayStatus: data.sale?.paymentDetails?.gatewayStatus,
+          paymentGatewayReference: data.sale?.paymentDetails?.gatewayReference,
+          paymentPending,
+          verificationType: data.verificationType,
         });
+        if (paymentPending) {
+          if (data.verificationType === "manual") {
+            toast.success("Sale saved pending payment verification.");
+          } else {
+            toast.success(
+              "Payment link created. Open it to complete the transaction.",
+            );
+          }
+        } else {
+          toast.success("Sale completed successfully.");
+        }
         setShowPayment(false);
         setShowComplete(true);
         setCart([]);
         setSelectedCustomer("");
         setWalkInName("");
         setWalkInPhone("");
+        setWalkInEmail("");
         setPaymentMethod("cash");
         setAmountPaid("");
         setSaleError("");
       } else {
         setSaleError(getApiErrorMessage(payload, "Failed to complete sale"));
+        toast.error(getApiErrorMessage(payload, "Failed to complete sale"));
       }
     } catch {
       setSaleError("Failed to complete sale. Please try again.");
+      toast.error("Failed to complete sale. Please try again.");
     } finally {
       setProcessing(false);
     }
@@ -1043,12 +1111,72 @@ export default function POSTerminalPage() {
         await openCashDrawer();
         toast.success("Drawer opened", { id: waitToast });
       } catch (err: any) {
-        toast.error(err.message || "Failed to open via Serial", { id: waitToast });
+        toast.error(err.message || "Failed to open via Serial", {
+          id: waitToast,
+        });
         // Fallback: Driver-based kick via print
         openDrawerViaPrint();
       }
     } catch {
       toast.error("An error occurred. Check browser permissions.");
+    }
+  }
+
+  async function recheckPesapalStatus() {
+    if (
+      !lastSale ||
+      recheckingPayment ||
+      lastSale.paymentGatewayProvider !== "pesapal" ||
+      !lastSale.saleId
+    ) {
+      return;
+    }
+
+    setRecheckingPayment(true);
+
+    try {
+      const params = new URLSearchParams({ saleId: lastSale.saleId });
+      const res = await fetch(
+        `/api/integrations/pesapal/recheck?${params.toString()}`,
+      );
+      const payload = await res.json();
+
+      if (!res.ok || !payload.success) {
+        toast.error(payload.message || "Failed to recheck Pesapal status");
+        return;
+      }
+
+      const completed = Boolean(payload.completed);
+      const statusCode = String(payload.statusCode || "");
+      const message = payload.message || "Pesapal status checked";
+
+      setLastSale((current) =>
+        current
+          ? {
+              ...current,
+              paymentPending: !completed,
+              amountPaid: completed ? current.total : current.amountPaid,
+              change: completed ? 0 : current.change,
+              paymentGatewayMessage: message,
+              paymentGatewayStatus: statusCode,
+              paymentGatewayProvider: "pesapal",
+            }
+          : current,
+      );
+
+      if (completed) {
+        toast.success(message);
+      } else if (statusCode.toUpperCase() === "FAILED") {
+        toast.error(message);
+      } else {
+        toast(message);
+      }
+
+      await fetchData();
+    } catch {
+      toast.error("Failed to recheck Pesapal status");
+    } finally {
+      setRecheckingPayment(false);
     }
   }
 
@@ -1124,6 +1252,18 @@ export default function POSTerminalPage() {
     projectedCreditBalance - selectedCustomerCreditLimit,
   );
   const availablePaymentOptions = PAYMENT_OPTIONS;
+  const handleSelectCustomer = (customerId: string) => {
+    setSelectedCustomer(customerId);
+    const nextCustomer = customers.find(
+      (customer) => customer._id === customerId,
+    );
+    if (nextCustomer) {
+      setCustomerSearch(nextCustomer.name);
+      setWalkInName("");
+      setWalkInPhone("");
+      setWalkInEmail("");
+    }
+  };
 
   if (loading) {
     return (
@@ -1221,8 +1361,14 @@ export default function POSTerminalPage() {
                   resetScannerTiming();
                 }
               }}
-              onBlur={() => {
+              onBlur={(event) => {
                 if (showPayment || showComplete || showCreateCustomerModal)
+                  return;
+                const nextTarget = event.relatedTarget;
+                if (
+                  nextTarget instanceof Node &&
+                  cartSidebarRef.current?.contains(nextTarget)
+                )
                   return;
                 window.setTimeout(() => searchInputRef.current?.focus(), 40);
               }}
@@ -1591,7 +1737,10 @@ export default function POSTerminalPage() {
       </div>
 
       {/* ── Right: Cart Sidebar ── */}
-      <div className="flex w-90 flex-col border-l border-gray-200/80 bg-white">
+      <div
+        ref={cartSidebarRef}
+        className="flex w-90 flex-col border-l border-gray-200/80 bg-white"
+      >
         {/* Cart Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
           <div className="flex items-center gap-2.5">
@@ -1627,33 +1776,53 @@ export default function POSTerminalPage() {
             placeholder="Search customer by name, phone..."
             className="mb-2 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
           />
-          <select
-            value={selectedCustomer}
-            onChange={(e) => {
-              const nextCustomer = e.target.value;
-              setSelectedCustomer(nextCustomer);
-
-              if (nextCustomer) {
+          <div className="max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCustomer("");
+                setCustomerSearch("");
                 setWalkInName("");
                 setWalkInPhone("");
-              } else if (paymentMethod === "credit") {
-                setPaymentMethod("cash");
-                setCreditDueDate("");
-              }
-            }}
-            className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-          >
-            <option value="">Walk-in Customer</option>
-            {filteredCustomers.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.name}
-                {c.phone ? ` (${c.phone})` : ""}
-                {(c.outstandingBalance || 0) > 0
-                  ? ` • Bal ${formatCurrency(c.outstandingBalance || 0, currency)}`
-                  : ""}
-              </option>
-            ))}
-          </select>
+                setWalkInEmail("");
+                if (paymentMethod === "credit") {
+                  setPaymentMethod("cash");
+                  setCreditDueDate("");
+                }
+              }}
+              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${!selectedCustomer ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
+            >
+              <span>Walk-in Customer</span>
+              {!selectedCustomer && (
+                <span className="text-[11px] font-semibold">Selected</span>
+              )}
+            </button>
+            {filteredCustomers.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-gray-400">
+                No customers found.
+              </div>
+            ) : (
+              filteredCustomers.map((c) => {
+                const active = selectedCustomer === c._id;
+                return (
+                  <button
+                    key={c._id}
+                    type="button"
+                    onClick={() => handleSelectCustomer(c._id)}
+                    className={`mb-1 flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors ${active ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
+                  >
+                    <span className="text-sm font-medium">{c.name}</span>
+                    <span className="text-[11px] text-gray-400">
+                      {c.phone || c.email || "No contact details"}
+                      {(c.outstandingBalance || 0) > 0
+                        ? ` • Bal ${formatCurrency(c.outstandingBalance || 0, currency)}`
+                        : ""}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
           <button
             type="button"
             onClick={() => setShowCreateCustomerModal(true)}
@@ -1675,6 +1844,12 @@ export default function POSTerminalPage() {
                 onChange={(e) => setWalkInPhone(e.target.value)}
                 placeholder="Phone (optional)"
                 className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+              <input
+                value={walkInEmail}
+                onChange={(e) => setWalkInEmail(e.target.value)}
+                placeholder="Email for payment link"
+                className="col-span-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
               />
             </div>
           )}
@@ -1794,7 +1969,9 @@ export default function POSTerminalPage() {
                     <input
                       type="number"
                       value={item.quantity}
-                      onChange={(e) => setQty(item.lineKey, parseFloat(e.target.value) || 0)}
+                      onChange={(e) =>
+                        setQty(item.lineKey, parseFloat(e.target.value) || 0)
+                      }
                       className="w-12 border-none bg-transparent text-center text-xs font-bold text-gray-700 focus:outline-none focus:ring-0"
                       step="any"
                       min="0"
@@ -1959,6 +2136,36 @@ export default function POSTerminalPage() {
                 </p>
               </div>
 
+              {(paymentMethod === "card" ||
+                paymentMethod === "mobile_money") && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  <p className="font-semibold text-slate-800">
+                    Payment contact
+                  </p>
+                  <p className="mt-1 text-[12px] text-slate-500">
+                    {selectedCustomerRecord?.email || walkInEmail
+                      ? `Gateway checkout will use ${selectedCustomerRecord?.email || walkInEmail}.`
+                      : "Add an email before charging a card or mobile money payment. The sale will fall back to manual recording if no email is provided."}
+                  </p>
+                </div>
+              )}
+
+              {(paymentMethod === "card" ||
+                paymentMethod === "mobile_money") && (
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Payment Email
+                  </label>
+                  <input
+                    type="email"
+                    value={walkInEmail}
+                    onChange={(e) => setWalkInEmail(e.target.value)}
+                    placeholder="customer@email.com"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                </div>
+              )}
+
               {/* Payment Method */}
               <div>
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -2106,6 +2313,10 @@ export default function POSTerminalPage() {
 
               {paymentMethod === "card" && (
                 <div className="space-y-3">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                    Card payments are verified on the Pesapal checkout page. The
+                    POS only creates the secure payment link.
+                  </div>
                   <div>
                     <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                       Card Number
@@ -2190,14 +2401,13 @@ export default function POSTerminalPage() {
                         value={mobileMoneyProvider}
                         onChange={(e) =>
                           setMobileMoneyProvider(
-                            e.target.value as "mtn" | "airtel" | "mpesa",
+                            e.target.value as "mtn" | "airtel",
                           )
                         }
                         className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-800 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                       >
                         <option value="mtn">MTN MoMo</option>
                         <option value="airtel">Airtel Money</option>
-                        <option value="mpesa">M-Pesa</option>
                       </select>
                     </div>
                     <div>
@@ -2488,10 +2698,14 @@ export default function POSTerminalPage() {
             </div>
 
             <h3 className="mb-1 text-xl font-bold text-gray-800">
-              Sale Complete!
+              {lastSale.paymentPending ? "Payment Pending" : "Sale Complete!"}
             </h3>
             <p className="mb-5 text-sm text-gray-400">
-              Transaction processed successfully
+              {lastSale.paymentPending
+                ? lastSale.paymentGatewayUrl
+                  ? "Open the payment link to finish the transaction"
+                  : "This sale is saved and waiting for verification."
+                : "Transaction processed successfully"}
             </p>
 
             <div className="mb-6 rounded-xl bg-gray-50 p-4">
@@ -2502,6 +2716,57 @@ export default function POSTerminalPage() {
                 {formatCurrency(lastSale.total, currency)}
               </p>
             </div>
+
+            {lastSale.paymentPending && !lastSale.paymentGatewayUrl && (
+              <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50 p-4 text-left">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
+                  Verification Required
+                </p>
+                <p className="mt-1 text-sm text-amber-700">
+                  This payment is saved as pending and will complete after
+                  verification.
+                </p>
+              </div>
+            )}
+
+            {lastSale.paymentPending && lastSale.paymentGatewayUrl && (
+              <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-left">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-500">
+                  Gateway Checkout
+                </p>
+                <p className="mt-1 text-sm text-blue-700">
+                  {lastSale.paymentGatewayMessage ||
+                    "Open the payment link to finish the transaction."}
+                </p>
+                <button
+                  onClick={() =>
+                    window.open(
+                      lastSale.paymentGatewayUrl,
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                  className="mt-3 inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  Open Payment Link
+                </button>
+                {lastSale.paymentGatewayProvider === "pesapal" &&
+                  lastSale.saleId && (
+                    <button
+                      onClick={recheckPesapalStatus}
+                      disabled={recheckingPayment}
+                      className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 ${recheckingPayment ? "animate-spin" : ""}`}
+                      />
+                      {recheckingPayment
+                        ? "Rechecking..."
+                        : "Recheck Pesapal Status"}
+                    </button>
+                  )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <button

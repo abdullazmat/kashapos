@@ -1,14 +1,17 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 async function run() {
   try {
-    const MONGODB_URI = 'mongodb+srv://abdullahazmat945_db_user:dRZn88FsYwIMRlJd@cluster0.1rf35kj.mongodb.net/test';
+    const MONGODB_URI = process.env.MONGODB_URI;
+    if (!MONGODB_URI) {
+      throw new Error("MONGODB_URI is not set");
+    }
     await mongoose.connect(MONGODB_URI);
-    console.log('Connected to DB');
+    console.log("Connected to DB");
 
-    const result = await mongoose.connection.db.collection('users').updateMany(
+    const result = await mongoose.connection.db.collection("users").updateMany(
       {}, // All users
-      { $set: { emailVerified: true, emailVerificationToken: null } }
+      { $set: { emailVerified: true, emailVerificationToken: null } },
     );
 
     console.log(`Verified ${result.matchedCount} users found in the database.`);
@@ -16,7 +19,7 @@ async function run() {
     await mongoose.disconnect();
     process.exit(0);
   } catch (err) {
-    console.error('Error:', err);
+    console.error("Error:", err);
     process.exit(1);
   }
 }

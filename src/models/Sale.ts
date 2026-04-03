@@ -37,6 +37,8 @@ export interface ISale extends Document {
     | "credit"
     | "bank_transfer";
   paymentDetails: {
+    contactEmail?: string;
+    contactPhone?: string;
     cashAmount?: number;
     cardAmount?: number;
     cardLast4?: string;
@@ -52,6 +54,14 @@ export interface ISale extends Document {
     bankBranchCode?: string;
     bankReference?: string;
     transferDate?: Date;
+    gatewayProvider?: "pesapal" | "silicon_pay";
+    gatewayStatus?: "initiated" | "completed" | "failed";
+    gatewayReference?: string;
+    checkoutUrl?: string;
+    gatewayRequestedAt?: Date;
+    gatewayCompletedAt?: Date;
+    gatewayError?: string;
+    gatewayResponse?: Record<string, unknown>;
     splitPayments?: {
       method: "cash" | "card" | "mobile_money" | "bank_transfer";
       amount: number;
@@ -124,6 +134,8 @@ const SaleSchema = new Schema<ISale>(
       default: "cash",
     },
     paymentDetails: {
+      contactEmail: { type: String },
+      contactPhone: { type: String },
       cashAmount: { type: Number },
       cardAmount: { type: Number },
       cardLast4: { type: String },
@@ -139,6 +151,20 @@ const SaleSchema = new Schema<ISale>(
       bankBranchCode: { type: String },
       bankReference: { type: String },
       transferDate: { type: Date },
+      gatewayProvider: {
+        type: String,
+        enum: ["pesapal", "silicon_pay"],
+      },
+      gatewayStatus: {
+        type: String,
+        enum: ["initiated", "completed", "failed"],
+      },
+      gatewayReference: { type: String },
+      checkoutUrl: { type: String },
+      gatewayRequestedAt: { type: Date },
+      gatewayCompletedAt: { type: Date },
+      gatewayError: { type: String },
+      gatewayResponse: { type: Schema.Types.Mixed },
       splitPayments: [
         {
           method: {

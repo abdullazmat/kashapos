@@ -3,15 +3,15 @@ import dbConnect from "@/lib/db";
 import Sale from "@/models/Sale";
 import Stock from "@/models/Stock";
 import Customer from "@/models/Customer";
-import CustomerPayment from "@/models/CustomerPayment";
 import Product from "@/models/Product";
 import Tenant from "@/models/Tenant";
 import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
 import { applyStockUpdate } from "@/lib/stock-service";
 import { generateOrderNumber } from "@/lib/utils";
-import { normalizeMoney, resolvePaymentStatus } from "@/lib/customer-balance";
 import { computeSalePaymentState } from "@/lib/sale-payment";
+import { recordCustomerPaymentForSale } from "@/lib/payment-ledger";
+import { initiateGatewayPayment } from "@/lib/payment-gateway";
 import { sendTenantEmail } from "@/lib/mailer";
 
 type PaymentMethod =
@@ -40,6 +40,8 @@ type NormalizedSalePayload = {
   customerId?: string;
   walkInName?: string;
   walkInPhone?: string;
+  paymentContactEmail?: string;
+  paymentContactPhone?: string;
   items: {
     productId: string;
     productName: string;
@@ -62,6 +64,8 @@ type NormalizedSalePayload = {
   paymentStatus: "cleared" | "partial" | "overdue";
   paymentMethod: PaymentMethod;
   paymentDetails: {
+    contactEmail?: string;
+    contactPhone?: string;
     cashAmount?: number;
     cardAmount?: number;
     cardLast4?: string;
@@ -77,6 +81,14 @@ type NormalizedSalePayload = {
     bankBranchCode?: string;
     bankReference?: string;
     transferDate?: Date;
+    gatewayProvider?: "pesapal" | "silicon_pay";
+    gatewayStatus?: "initiated" | "completed" | "failed";
+    gatewayReference?: string;
+    checkoutUrl?: string;
+    gatewayRequestedAt?: Date;
+    gatewayCompletedAt?: Date;
+    gatewayError?: string;
+    gatewayResponse?: Record<string, unknown>;
     splitPayments?: {
       method: "cash" | "card" | "mobile_money" | "bank_transfer";
       amount: number;
@@ -114,20 +126,6 @@ function contributesToCustomer(status: string) {
 
 function commitsStock(status: string) {
   return status === "completed" || status === "pending";
-}
-
-async function hasOverdueOpenBalance(tenantId: string, customerId: string) {
-  const overdueSale = await Sale.findOne({
-    tenantId,
-    customerId,
-    status: { $nin: ["refunded", "voided"] },
-    remainingBalance: { $gt: 0 },
-    dueDate: { $lt: new Date() },
-  })
-    .select("_id")
-    .lean();
-
-  return Boolean(overdueSale);
 }
 
 function getCommittedQuantities(
@@ -194,74 +192,6 @@ async function applyStockDeltas(
       quantity: -i.quantity, // Sales deduct quantity
     })),
   );
-}
-
-async function adjustCustomerStats(
-  tenantId: string,
-  options: {
-    customerId?: string;
-    purchasesDelta?: number;
-    spentDelta?: number;
-    outstandingDelta?: number;
-    dueDate?: Date;
-    amountPaidDelta?: number;
-  },
-) {
-  const {
-    customerId,
-    purchasesDelta = 0,
-    spentDelta = 0,
-    outstandingDelta = 0,
-    dueDate,
-    amountPaidDelta = 0,
-  } = options;
-  if (!customerId) return;
-
-  const customer = await Customer.findOne({ _id: customerId, tenantId });
-  if (!customer) {
-    throw new Error("Customer not found");
-  }
-
-  const nextOutstanding = Math.max(
-    0,
-    normalizeMoney(customer.outstandingBalance) + outstandingDelta,
-  );
-
-  if (
-    outstandingDelta > 0 &&
-    normalizeMoney(customer.creditLimit) > 0 &&
-    nextOutstanding > normalizeMoney(customer.creditLimit)
-  ) {
-    throw new Error("Customer credit limit exceeded");
-  }
-
-  const nextPurchases = Math.max(
-    0,
-    normalizeMoney(customer.totalPurchases) + purchasesDelta,
-  );
-  const nextSpent = Math.max(
-    0,
-    normalizeMoney(customer.totalSpent) + spentDelta,
-  );
-
-  customer.totalPurchases = nextPurchases;
-  customer.totalSpent = nextSpent;
-  customer.outstandingBalance = nextOutstanding;
-
-  if (nextOutstanding <= 0) {
-    customer.paymentStatus = "cleared";
-  } else {
-    const overdue = await hasOverdueOpenBalance(tenantId, String(customer._id));
-    customer.paymentStatus = overdue
-      ? "overdue"
-      : resolvePaymentStatus(nextOutstanding, dueDate);
-  }
-
-  if (amountPaidDelta > 0) {
-    customer.lastPaymentDate = new Date();
-  }
-
-  await customer.save();
 }
 
 async function normalizeSalePayload(
@@ -604,7 +534,15 @@ async function normalizeSalePayload(
     creditNote: typeof body.creditNote === "string" ? body.creditNote : "",
     paymentStatus,
     paymentMethod,
-    paymentDetails,
+    paymentDetails: {
+      ...paymentDetails,
+      contactEmail: String(
+        body.paymentContactEmail || paymentDetailsInput.contactEmail || "",
+      ).trim(),
+      contactPhone: String(
+        body.paymentContactPhone || paymentDetailsInput.contactPhone || "",
+      ).trim(),
+    },
     status:
       body.status === "pending" ||
       body.status === "refunded" ||
@@ -686,12 +624,23 @@ export async function POST(request: NextRequest) {
       stockDeltas,
     );
 
+    const splitPayments = normalized.paymentDetails.splitPayments || [];
+    const hasNonCashSplit =
+      normalized.paymentMethod === "split" &&
+      splitPayments.some((row) => row.method !== "cash");
+    const requiresVerification =
+      normalized.paymentMethod === "card" ||
+      normalized.paymentMethod === "mobile_money" ||
+      normalized.paymentMethod === "bank_transfer" ||
+      hasNonCashSplit;
+    const finalizeImmediately = !requiresVerification;
+
     const customerBefore = normalized.customerId
       ? await Customer.findOne({
           _id: normalized.customerId,
           tenantId: auth.tenantId,
         })
-          .select("outstandingBalance email name")
+          .select("outstandingBalance email phone name")
           .lean()
       : null;
 
@@ -700,6 +649,12 @@ export async function POST(request: NextRequest) {
       tenantId: auth.tenantId,
       orderNumber,
       cashierId: auth.userId,
+      amountPaid: finalizeImmediately ? normalized.amountPaid : 0,
+      remainingBalance: finalizeImmediately
+        ? normalized.remainingBalance
+        : normalized.total,
+      paymentStatus: finalizeImmediately ? normalized.paymentStatus : "partial",
+      status: finalizeImmediately ? normalized.status : "pending",
     });
 
     // Log activity
@@ -713,73 +668,147 @@ export async function POST(request: NextRequest) {
       metadata: { saleId: sale._id, orderNumber, total: normalized.total },
     });
 
-    await applyStockDeltas(
-      auth.tenantId,
-      normalized.branchId,
-      normalized.items,
-    );
+    if (finalizeImmediately) {
+      await applyStockDeltas(
+        auth.tenantId,
+        normalized.branchId,
+        normalized.items,
+      );
+    }
+
+    const tenant = await Tenant.findById(auth.tenantId)
+      .select(
+        "settings.emailReceiptAutoSend settings.siliconPayPublicKey settings.siliconPayEncryptionKey settings.pesapalConsumerKey settings.pesapalConsumerSecret settings.pesapalIpnId settings.currency",
+      )
+      .lean();
+
+    const gatewayEligible =
+      normalized.paymentMethod === "card" ||
+      normalized.paymentMethod === "mobile_money";
+    const customerName =
+      customerBefore?.name || normalized.walkInName || "Customer";
+    const paymentEmail =
+      normalized.paymentDetails.contactEmail || customerBefore?.email || "";
+    const paymentPhone =
+      normalized.paymentDetails.contactPhone || customerBefore?.phone || "";
+
+    let gatewayResult = null as Awaited<
+      ReturnType<typeof initiateGatewayPayment>
+    >;
+    if (gatewayEligible) {
+      try {
+        gatewayResult = await initiateGatewayPayment({
+          paymentMethod: normalized.paymentMethod as "card" | "mobile_money",
+          saleNumber: orderNumber,
+          amount: normalized.total,
+          currency: String(tenant?.settings?.currency || "UGX"),
+          customer: {
+            name: customerName,
+            email: paymentEmail,
+            phone: paymentPhone,
+          },
+          callbackBaseUrl: new URL(request.url).origin,
+          paymentEmail,
+          mobileMoneyProvider:
+            normalized.paymentDetails.mobileMoneyProvider || "mtn",
+          settings: tenant?.settings,
+        });
+      } catch (error) {
+        console.error("Gateway initiation failed:", error);
+      }
+    }
+
+    if (gatewayEligible && !gatewayResult?.checkoutUrl) {
+      await sale.deleteOne();
+      return apiError(
+        "Payment gateway verification failed. No sale was created.",
+        400,
+      );
+    }
+
+    if (gatewayResult?.status === "initiated") {
+      const updatedSale = await Sale.findByIdAndUpdate(
+        sale._id,
+        {
+          $set: {
+            amountPaid: 0,
+            remainingBalance: normalized.total,
+            paymentStatus: "partial",
+            status: "pending",
+            "paymentDetails.gatewayProvider": gatewayResult.provider,
+            "paymentDetails.gatewayStatus": "initiated",
+            "paymentDetails.gatewayReference": gatewayResult.reference,
+            "paymentDetails.checkoutUrl": gatewayResult.checkoutUrl,
+            "paymentDetails.gatewayRequestedAt": new Date(),
+            "paymentDetails.gatewayResponse": gatewayResult.raw,
+          },
+        },
+        { new: true },
+      );
+
+      return apiSuccess(
+        {
+          sale: updatedSale,
+          paymentGateway: gatewayResult,
+          paymentVerificationRequired: true,
+          verificationType: "gateway",
+        },
+        201,
+      );
+    }
+
+    if (requiresVerification) {
+      return apiSuccess(
+        {
+          sale,
+          paymentVerificationRequired: true,
+          verificationType: "manual",
+        },
+        201,
+      );
+    }
 
     if (normalized.customerId && contributesToCustomer(normalized.status)) {
-      await adjustCustomerStats(auth.tenantId, {
-        customerId: normalized.customerId,
-        purchasesDelta: 1,
-        spentDelta: normalized.total,
-        outstandingDelta: normalized.remainingBalance,
-        dueDate: normalized.dueDate,
-        amountPaidDelta: normalized.amountPaid,
-      });
-
-      const balanceBefore = normalizeMoney(
-        customerBefore?.outstandingBalance || 0,
-      );
-      const balanceAfter = balanceBefore + normalized.remainingBalance;
-
-      await CustomerPayment.create({
+      await recordCustomerPaymentForSale({
         tenantId: auth.tenantId,
+        saleId: String(sale._id),
         customerId: normalized.customerId,
-        saleId: sale._id,
-        amount: normalized.amountPaid,
-        method:
-          normalized.paymentMethod === "card" ||
-          normalized.paymentMethod === "mobile_money" ||
-          normalized.paymentMethod === "bank_transfer" ||
-          normalized.paymentMethod === "split" ||
-          normalized.paymentMethod === "credit"
-            ? normalized.paymentMethod
-            : "cash",
+        saleTotal: normalized.total,
+        amountPaid: normalized.amountPaid,
+        remainingBalance: normalized.remainingBalance,
+        paymentMethod: normalized.paymentMethod,
+        dueDate: normalized.dueDate,
         reference: sale.orderNumber,
         notes: `Sale ${sale.orderNumber} recorded`,
-        balanceBefore,
-        balanceAfter,
         recordedBy: auth.userId || undefined,
         recordedByName: auth.name || "",
       });
     }
 
-    const tenant = await Tenant.findById(auth.tenantId)
-      .select("settings.emailReceiptAutoSend")
-      .lean();
-
     if (tenant?.settings?.emailReceiptAutoSend && customerBefore?.email) {
-      if (customerBefore.email) {
-        try {
-          await sendTenantEmail({
-            tenantId: auth.tenantId,
-            to: customerBefore.email,
-            subject: `Receipt ${sale.orderNumber}`,
-            text: `Receipt for ${sale.orderNumber}. Total: ${sale.total}. Amount paid: ${sale.amountPaid}. Remaining balance: ${sale.remainingBalance}.`,
-            html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>Sale Receipt</h2><p>Order: <strong>${sale.orderNumber}</strong></p><p>Total: ${sale.total.toLocaleString()}</p><p>Amount Paid: ${sale.amountPaid.toLocaleString()}</p><p>Remaining Balance: ${sale.remainingBalance.toLocaleString()}</p></div>`,
-          });
-          await Sale.findByIdAndUpdate(sale._id, {
-            $set: { receiptSent: true },
-          });
-        } catch {
-          // Keep sale flow resilient even if email delivery fails.
-        }
+      try {
+        await sendTenantEmail({
+          tenantId: auth.tenantId,
+          to: customerBefore.email,
+          subject: `Receipt ${sale.orderNumber}`,
+          text: `Receipt for ${sale.orderNumber}. Total: ${sale.total}. Amount paid: ${sale.amountPaid}. Remaining balance: ${sale.remainingBalance}.`,
+          html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>Sale Receipt</h2><p>Order: <strong>${sale.orderNumber}</strong></p><p>Total: ${sale.total.toLocaleString()}</p><p>Amount Paid: ${sale.amountPaid.toLocaleString()}</p><p>Remaining Balance: ${sale.remainingBalance.toLocaleString()}</p></div>`,
+        });
+        await Sale.findByIdAndUpdate(sale._id, {
+          $set: { receiptSent: true },
+        });
+      } catch {
+        // Keep sale flow resilient even if email delivery fails.
       }
     }
 
-    return apiSuccess({ sale }, 201);
+    return apiSuccess(
+      {
+        sale,
+        paymentGateway: gatewayResult || undefined,
+      },
+      201,
+    );
   } catch (error) {
     console.error("Sales POST error:", error);
     return apiError(

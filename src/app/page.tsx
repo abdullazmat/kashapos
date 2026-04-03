@@ -1220,7 +1220,7 @@ export default function Home() {
                   ))}
                 </ul>
                 <Link
-                  href="/sign-up"
+                  href={`/dashboard/subscription?plan=${encodeURIComponent(plan.name.toLowerCase())}`}
                   className={`block text-center py-3.5 rounded-full text-sm font-semibold transition-all ${
                     plan.featured
                       ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20 hover:shadow-xl hover:shadow-orange-500/30 hover:-translate-y-0.5"

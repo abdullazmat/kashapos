@@ -13,6 +13,8 @@ export interface IPlan extends Document {
   order: number;
   maxBranches: number | null; // null for unlimited
   maxUsers: number | null; // null for unlimited
+  maxProducts: number | null; // null for unlimited (future cap)
+  maxCustomers: number | null; // null for unlimited (future cap)
 }
 
 const PlanSchema = new Schema<IPlan>(
@@ -29,8 +31,10 @@ const PlanSchema = new Schema<IPlan>(
     order: { type: Number, default: 0 },
     maxBranches: { type: Number, default: null },
     maxUsers: { type: Number, default: null },
+    maxProducts: { type: Number, default: null },
+    maxCustomers: { type: Number, default: null },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Plan: Model<IPlan> =

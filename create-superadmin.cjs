@@ -41,7 +41,10 @@ async function forceUpdateSuperAdmin() {
   );
 
   const email = "admin@kashapos.com".toLowerCase();
-  const password = "adminpassword";
+  const password = process.env.SUPER_ADMIN_PASSWORD;
+  if (!password) {
+    throw new Error("SUPER_ADMIN_PASSWORD is not set");
+  }
   const hashedPassword = await bcrypt.hash(password, 12);
 
   let systemTenant = await Tenant.findOne({ slug: "kashpos-admin" });

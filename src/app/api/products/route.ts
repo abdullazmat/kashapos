@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Product from "@/models/Product";
 import Stock from "@/models/Stock";
@@ -11,11 +11,31 @@ import {
   ensureBarcodeValue,
   normalizeBarcodeFormat,
 } from "@/lib/barcode";
+import {
+  resolveTenantPlanEntitlements,
+  formatResourceLimitMessage,
+} from "@/lib/tenant-plan-entitlements";
 
 interface TenantBarcodeSettings {
   barcodeAutoGenerateOnProductCreate?: boolean;
   barcodeDefaultFormat?: string;
   barcodePrefix?: string;
+}
+
+function planLimitError(
+  message: string,
+  code: "PLAN_PRODUCT_LIMIT_REACHED" | "PLAN_EXPIRED",
+  status = 403,
+) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+      message,
+      code,
+    },
+    { status },
+  );
 }
 
 async function resolveInitialBranch(
@@ -51,17 +71,20 @@ export async function GET(request: NextRequest) {
     const purchaseOrderId = searchParams.get("purchase_order_id");
 
     const query: Record<string, any> = { tenantId: auth.tenantId };
-    
+
     if (purchaseOrderId) {
       const PurchaseOrder = (await import("@/models/PurchaseOrder")).default;
-      const po = await PurchaseOrder.findOne({ _id: purchaseOrderId, tenantId: auth.tenantId });
+      const po = await PurchaseOrder.findOne({
+        _id: purchaseOrderId,
+        tenantId: auth.tenantId,
+      });
       if (po) {
-        const productIds = po.items.map(i => i.productId).filter(Boolean);
-        const skus = po.items.map(i => i.sku).filter(Boolean);
+        const productIds = po.items.map((i) => i.productId).filter(Boolean);
+        const skus = po.items.map((i) => i.sku).filter(Boolean);
         query.$or = [
           { _id: { $in: productIds } },
           { sku: { $in: skus } },
-          { "variants.sku": { $in: skus } }
+          { "variants.sku": { $in: skus } },
         ];
       }
     }
@@ -72,10 +95,10 @@ export async function GET(request: NextRequest) {
           { name: { $regex: search, $options: "i" } },
           { sku: { $regex: search, $options: "i" } },
           { barcode: { $regex: search, $options: "i" } },
-        ]
+        ],
       };
       if (query.$or) {
-        query.$and = [ { $or: query.$or }, searchFilter ];
+        query.$and = [{ $or: query.$or }, searchFilter];
         delete query.$or;
       } else {
         query.$or = searchFilter.$or;
@@ -155,6 +178,32 @@ export async function POST(request: NextRequest) {
     const auth = getAuthContext(request);
     if (auth.role === "cashier") {
       return apiError("Insufficient permissions", 403);
+    }
+
+    // Check plan entitlements for product creation
+    const entitlements = await resolveTenantPlanEntitlements(auth.tenantId);
+
+    // Check for plan expiry
+    if (entitlements.isExpired) {
+      return planLimitError(
+        "Your plan has expired. Please renew your subscription to add new products.",
+        "PLAN_EXPIRED",
+      );
+    }
+
+    if (entitlements.maxProducts !== null) {
+      const activeProductCount = await Product.countDocuments({
+        tenantId: auth.tenantId,
+        isActive: true,
+      });
+      if (activeProductCount >= entitlements.maxProducts) {
+        const message = formatResourceLimitMessage(
+          "products",
+          entitlements.planName,
+          entitlements.maxProducts,
+        );
+        return planLimitError(message, "PLAN_PRODUCT_LIMIT_REACHED");
+      }
     }
 
     const body = await request.json();

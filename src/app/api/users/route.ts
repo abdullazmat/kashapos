@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/db";
 import User from "@/models/User";
@@ -14,6 +14,23 @@ import {
   normalizeUserCreatePayload,
   normalizeUserUpdatePayload,
 } from "@/lib/user-route-payload";
+import { resolveTenantPlanEntitlements } from "@/lib/tenant-plan-entitlements";
+
+function planLimitError(
+  message: string,
+  code: "PLAN_USER_LIMIT_REACHED" | "PLAN_EXPIRED",
+  status = 403,
+) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+      message,
+      code,
+    },
+    { status },
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -79,6 +96,30 @@ export async function POST(request: NextRequest) {
       return apiError("A user with this email already exists", 409);
     }
 
+    const entitlements = await resolveTenantPlanEntitlements(auth.tenantId);
+    const willBeActive = typeof isActive === "boolean" ? isActive : true;
+
+    // Check for plan expiry
+    if (entitlements.isExpired) {
+      return planLimitError(
+        "Your plan has expired. Please renew your subscription to add new users.",
+        "PLAN_EXPIRED",
+      );
+    }
+
+    if (willBeActive && entitlements.maxUsers !== null) {
+      const activeUsersCount = await User.countDocuments({
+        tenantId: auth.tenantId,
+        isActive: true,
+      });
+      if (activeUsersCount >= entitlements.maxUsers) {
+        return planLimitError(
+          `${entitlements.planName.toUpperCase()} plan allows up to ${entitlements.maxUsers} active user${entitlements.maxUsers === 1 ? "" : "s"}. Upgrade your plan to add more users.`,
+          "PLAN_USER_LIMIT_REACHED",
+        );
+      }
+    }
+
     const hashedPassword = await hashPassword(password);
     const hashedPin = loginPin ? await hashPin(loginPin) : undefined;
     const user = await User.create({
@@ -93,7 +134,7 @@ export async function POST(request: NextRequest) {
       employmentType: employmentType || undefined,
       startDate,
       loginPin: hashedPin,
-      isActive: typeof isActive === "boolean" ? isActive : true,
+      isActive: willBeActive,
       avatar: avatar || undefined,
     });
 
@@ -268,6 +309,23 @@ export async function PUT(request: NextRequest) {
         return apiError(pinPolicyError, 400);
       }
       user.loginPin = await hashPin(normalized.loginPin);
+    }
+
+    if (normalized.isActive === true && user.isActive !== true) {
+      const entitlements = await resolveTenantPlanEntitlements(auth.tenantId);
+      if (entitlements.maxUsers !== null) {
+        const activeUsersCount = await User.countDocuments({
+          tenantId: auth.tenantId,
+          isActive: true,
+          _id: { $ne: user._id },
+        });
+        if (activeUsersCount >= entitlements.maxUsers) {
+          return planLimitError(
+            `${entitlements.planName.toUpperCase()} plan allows up to ${entitlements.maxUsers} active user${entitlements.maxUsers === 1 ? "" : "s"}. Upgrade your plan to reactivate this user.`,
+            "PLAN_USER_LIMIT_REACHED",
+          );
+        }
+      }
     }
 
     if (typeof normalized.isActive === "boolean") {

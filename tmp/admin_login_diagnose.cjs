@@ -27,14 +27,17 @@ const userSchema = new mongoose.Schema(
 const User = mongoose.models.User || mongoose.model("User", userSchema);
 
 async function main() {
+  const candidatePassword = process.env.SUPER_ADMIN_PASSWORD || "";
+  const legacyPassword = process.env.LEGACY_SUPER_ADMIN_PASSWORD || "";
+
   const result = {
     email: "admin@kashapos.com",
     found: false,
     role: null,
     isActive: null,
     passwordMatches: {
-      adminpassword: false,
-      admin123: false,
+      configuredPassword: false,
+      legacyPassword: false,
     },
     recommendation: "",
   };
@@ -56,28 +59,33 @@ async function main() {
   result.found = true;
   result.role = user.role || null;
   result.isActive = user.isActive ?? null;
-  result.passwordMatches.adminpassword = await bcrypt.compare(
-    "adminpassword",
-    user.password || "",
-  );
-  result.passwordMatches.admin123 = await bcrypt.compare(
-    "admin123",
-    user.password || "",
-  );
+  if (candidatePassword) {
+    result.passwordMatches.configuredPassword = await bcrypt.compare(
+      candidatePassword,
+      user.password || "",
+    );
+  }
+  if (legacyPassword) {
+    result.passwordMatches.legacyPassword = await bcrypt.compare(
+      legacyPassword,
+      user.password || "",
+    );
+  }
 
   if (result.role !== "super_admin") {
     result.recommendation =
       "User exists but role is not super_admin. Update role to super_admin.";
   } else if (result.isActive === false) {
     result.recommendation = "User exists but is disabled. Set isActive=true.";
-  } else if (result.passwordMatches.adminpassword) {
-    result.recommendation = "Use admin@kashapos.com with adminpassword.";
-  } else if (result.passwordMatches.admin123) {
+  } else if (result.passwordMatches.configuredPassword) {
     result.recommendation =
-      "Use admin@kashapos.com with admin123 (setup default).";
+      "Use admin@kashapos.com with SUPER_ADMIN_PASSWORD from env.";
+  } else if (result.passwordMatches.legacyPassword) {
+    result.recommendation =
+      "Use admin@kashapos.com with LEGACY_SUPER_ADMIN_PASSWORD from env.";
   } else {
     result.recommendation =
-      "Password mismatch. Re-run node create-superadmin.cjs to reset to adminpassword.";
+      "Password mismatch. Set SUPER_ADMIN_PASSWORD in env and re-run node create-superadmin.cjs.";
   }
 
   fs.writeFileSync(outPath, JSON.stringify(result, null, 2));

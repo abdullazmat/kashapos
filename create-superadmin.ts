@@ -25,7 +25,10 @@ async function createSuperAdmin() {
   );
 
   const email = "admin@kashapos.com";
-  const password = "adminpassword"; // Recommend changing this after login
+  const password = process.env.SUPER_ADMIN_PASSWORD;
+  if (!password) {
+    throw new Error("SUPER_ADMIN_PASSWORD is not set");
+  }
   const hashedPassword = await bcrypt.hash(password, 12);
 
   const existing = await User.findOne({ email, role: "super_admin" });

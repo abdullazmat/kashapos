@@ -53,6 +53,8 @@ A multi-tenant Point of Sale system built with Next.js, MongoDB, and Tailwind CS
 | ---------------------- | ----------------------------------------- |
 | `MONGODB_URI`          | MongoDB connection string                 |
 | `JWT_SECRET`           | Secret key for JWT signing (min 32 chars) |
+| `RESEND_API_KEY`       | API key for Resend email delivery         |
+| `SUPER_ADMIN_PASSWORD` | Bootstrap password for super-admin setup  |
 | `NEXT_PUBLIC_BASE_URL` | Base URL of the app                       |
 | `NEXT_PUBLIC_APP_URL`  | Public app URL used by auth routes        |
 

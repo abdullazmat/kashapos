@@ -31,7 +31,13 @@ export async function GET() {
 
     // 2. Ensure Super Admin exists and is aligned
     const adminEmail = "admin@kashapos.com";
-    const adminPassword = "adminpassword";
+    const adminPassword = process.env.SUPER_ADMIN_PASSWORD;
+    if (!adminPassword) {
+      return apiError(
+        "SUPER_ADMIN_PASSWORD is not configured in environment",
+        500,
+      );
+    }
     const hashedAdminPassword = await hashPassword(adminPassword);
 
     let admin = await User.findOne({ email: adminEmail.toLowerCase() });

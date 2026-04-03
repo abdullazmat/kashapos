@@ -29,7 +29,9 @@ import {
   Truck,
   Printer,
   Pencil,
+  RefreshCw,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import {
   formatCurrency,
   formatDateTime,
@@ -72,6 +74,14 @@ interface Sale {
   status: string;
   notes: string;
   createdAt: string;
+  paymentDetails?: {
+    gatewayProvider?: string;
+    gatewayStatus?: string;
+    gatewayReference?: string;
+    gatewayError?: string;
+    gatewayCompletedAt?: string;
+    checkoutUrl?: string;
+  };
 }
 
 interface ProductOption {
@@ -155,6 +165,7 @@ export default function SalesPage() {
   const [actionSuccess, setActionSuccess] = useState("");
   const [actionError, setActionError] = useState("");
   const [pageError, setPageError] = useState("");
+  const [recheckingPayment, setRecheckingPayment] = useState(false);
 
   // Create Sales Order state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -254,6 +265,64 @@ export default function SalesPage() {
       setActionError("Failed to send receipt email");
     } finally {
       setSendingReceipt(false);
+    }
+  }
+
+  async function recheckPesapalPayment() {
+    if (
+      !viewSale ||
+      recheckingPayment ||
+      viewSale.paymentDetails?.gatewayProvider !== "pesapal" ||
+      !viewSale.paymentDetails?.gatewayReference
+    ) {
+      return;
+    }
+
+    setRecheckingPayment(true);
+    setActionSuccess("");
+    setActionError("");
+
+    try {
+      const params = new URLSearchParams({ saleId: viewSale._id });
+      const res = await fetch(
+        `/api/integrations/pesapal/recheck?${params.toString()}`,
+      );
+      const payload = await res.json();
+
+      if (!res.ok || !payload.success) {
+        const message = payload.message || "Failed to recheck Pesapal status";
+        setActionError(message);
+        toast.error(message);
+        return;
+      }
+
+      const updatedSale = payload.sale || viewSale;
+      setViewSale(updatedSale);
+      setSales((current) =>
+        current.map((sale) =>
+          sale._id === updatedSale._id ? updatedSale : sale,
+        ),
+      );
+
+      const message = payload.message || "Pesapal status checked";
+      setActionSuccess(message);
+
+      if (payload.completed) {
+        toast.success(message);
+      } else if (
+        (payload.statusCode || "").toString().toUpperCase() === "FAILED"
+      ) {
+        toast.error(message);
+      } else {
+        toast(message);
+      }
+    } catch {
+      const message = "Failed to recheck Pesapal status";
+      setActionError(message);
+      toast.error(message);
+    } finally {
+      setRecheckingPayment(false);
+      await fetchSales();
     }
   }
 
@@ -1585,6 +1654,35 @@ export default function SalesPage() {
                         {viewSale.status}
                       </span>
                     </div>
+                    {viewSale.paymentDetails?.gatewayProvider && (
+                      <div className="flex justify-between items-center border-b border-gray-50 pb-4 dark:border-slate-700">
+                        <span className="text-sm text-gray-500">Gateway:</span>
+                        <span className="text-sm font-bold text-gray-800 capitalize dark:text-slate-100">
+                          {viewSale.paymentDetails.gatewayProvider.replace(
+                            /_/g,
+                            " ",
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {viewSale.paymentDetails?.gatewayStatus && (
+                      <div className="flex justify-between items-center border-b border-gray-50 pb-4 dark:border-slate-700">
+                        <span className="text-sm text-gray-500">
+                          Provider Status:
+                        </span>
+                        <span className="text-sm font-bold text-gray-800 capitalize dark:text-slate-100">
+                          {viewSale.paymentDetails.gatewayStatus.replace(
+                            /_/g,
+                            " ",
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {viewSale.paymentDetails?.gatewayError && (
+                      <p className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                        {viewSale.paymentDetails.gatewayError}
+                      </p>
+                    )}
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-500">
                         Amount Paid:
@@ -1596,6 +1694,22 @@ export default function SalesPage() {
                         )}
                       </span>
                     </div>
+                    {viewSale.status === "pending" &&
+                      viewSale.paymentDetails?.gatewayProvider === "pesapal" &&
+                      viewSale.paymentDetails?.gatewayReference && (
+                        <button
+                          onClick={recheckPesapalPayment}
+                          disabled={recheckingPayment}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 ${recheckingPayment ? "animate-spin" : ""}`}
+                          />
+                          {recheckingPayment
+                            ? "Rechecking..."
+                            : "Recheck Pesapal Status"}
+                        </button>
+                      )}
                   </div>
 
                   {/* Order Summary */}

@@ -2,7 +2,8 @@
  * Pesapal V3 API Service
  */
 
-const PESAPAL_URL = process.env.PESAPAL_API_URL || "https://cybqa.pesapal.com/pesapalv3/api";
+const PESAPAL_URL =
+  process.env.PESAPAL_API_URL || "https://cybqa.pesapal.com/pesapalv3/api";
 const CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY || "";
 const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET || "";
 
@@ -18,6 +19,12 @@ export interface PesapalIpnResponse {
   created_date: string;
   ipn_id: string;
   notification_type: number;
+  status?: string;
+  message?: string;
+  error?: {
+    message?: string;
+    code?: string;
+  };
 }
 
 export class PesapalService {
@@ -25,14 +32,24 @@ export class PesapalService {
     pesapalConsumerKey?: string;
     pesapalConsumerSecret?: string;
   }): Promise<string> {
-    const key = ((credentials?.pesapalConsumerKey && credentials.pesapalConsumerKey !== "********") ? credentials.pesapalConsumerKey : CONSUMER_KEY).trim();
-    const secret = ((credentials?.pesapalConsumerSecret && credentials.pesapalConsumerSecret !== "********") ? credentials.pesapalConsumerSecret : CONSUMER_SECRET).trim();
+    const key = (
+      credentials?.pesapalConsumerKey &&
+      credentials.pesapalConsumerKey !== "********"
+        ? credentials.pesapalConsumerKey
+        : CONSUMER_KEY
+    ).trim();
+    const secret = (
+      credentials?.pesapalConsumerSecret &&
+      credentials.pesapalConsumerSecret !== "********"
+        ? credentials.pesapalConsumerSecret
+        : CONSUMER_SECRET
+    ).trim();
 
     const url = PESAPAL_URL.replace(/\/$/, "") + "/Auth/RequestToken";
-    
+
     console.log("Pesapal Token Request:", {
       url,
-      consumer_key: key
+      consumer_key: key,
     });
 
     const response = await fetch(url, {
@@ -55,19 +72,29 @@ export class PesapalService {
 
     const data: any = await response.json();
     console.log("Pesapal Token Response Body:", JSON.stringify(data));
-    
+
     // Some APIs (like Pesapal) might return HTTP 200 but an error INSIDE the JSON
     if (data.status && String(data.status) !== "200") {
-      const errMsg = data.error?.message || data.message || "Unknown Pesapal API error";
+      const errMsg =
+        data.error?.message || data.message || "Unknown Pesapal API error";
       const errCode = data.error?.code || data.code || "unknown_error";
-      throw new Error(`Pesapal API Error (${data.status}): ${errCode} - ${errMsg}`);
+      throw new Error(
+        `Pesapal API Error (${data.status}): ${errCode} - ${errMsg}`,
+      );
     }
 
     // Some versions or variants might use token, access_token, or CaseVariations
-    const token = data.token || data.access_token || data.Token || data.Access_token || data.AccessToken;
-    
+    const token =
+      data.token ||
+      data.access_token ||
+      data.Token ||
+      data.Access_token ||
+      data.AccessToken;
+
     if (!token) {
-       throw new Error(`Pesapal Authentication Failed: No token present in response. ${JSON.stringify(data)}`);
+      throw new Error(
+        `Pesapal Authentication Failed: No token present in response. ${JSON.stringify(data)}`,
+      );
     }
 
     return token;
@@ -81,7 +108,7 @@ export class PesapalService {
     credentials?: any,
   ): Promise<string> {
     const token = await this.getAuthToken(credentials);
-    
+
     if (!token) {
       throw new Error("Pesapal Auth Failed: No token received from provider");
     }
@@ -89,7 +116,7 @@ export class PesapalService {
     const url = PESAPAL_URL.replace(/\/$/, "") + "/URLSetup/RegisterIPN";
     console.log("Pesapal IPN Register Request:", {
       url,
-      token: token.substring(0, 10) + "..."
+      token: token.substring(0, 10) + "...",
     });
 
     const response = await fetch(url, {
@@ -110,13 +137,31 @@ export class PesapalService {
       console.error("Pesapal IPN Register Error Response:", errText);
       try {
         const error = JSON.parse(errText);
-        throw new Error(`Pesapal IPN Registration Failed: ${JSON.stringify(error)}`);
+        throw new Error(
+          `Pesapal IPN Registration Failed: ${JSON.stringify(error)}`,
+        );
       } catch {
         throw new Error(`Pesapal IPN Registration Failed: ${errText}`);
       }
     }
 
     const data: PesapalIpnResponse = await response.json();
+
+    if (data.status && String(data.status) !== "200") {
+      const errMsg =
+        data.error?.message || data.message || "IPN registration failed";
+      const errCode = data.error?.code || "unknown_error";
+      throw new Error(
+        `Pesapal IPN Registration Failed (${data.status}): ${errCode} - ${errMsg}`,
+      );
+    }
+
+    if (!data.ipn_id) {
+      throw new Error(
+        `Pesapal IPN Registration Failed: missing ipn_id in response ${JSON.stringify(data)}`,
+      );
+    }
+
     return data.ipn_id;
   }
 
@@ -127,6 +172,7 @@ export class PesapalService {
     orderData: {
       id: string;
       amount: number;
+      currency: string;
       description: string;
       callback_url: string;
       notification_id: string;
@@ -140,22 +186,41 @@ export class PesapalService {
     credentials?: any,
   ) {
     const token = await this.getAuthToken(credentials);
-    const response = await fetch(`${PESAPAL_URL}/Transactions/SubmitOrderRequest`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
+    const response = await fetch(
+      `${PESAPAL_URL.replace(/\/$/, "")}/Transactions/SubmitOrderRequest`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(orderData),
       },
-      body: JSON.stringify(orderData),
-    });
+    );
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(`Pesapal Order Submission Failed: ${JSON.stringify(error)}`);
+      throw new Error(
+        `Pesapal Order Submission Failed: ${JSON.stringify(error)}`,
+      );
     }
 
-    return await response.json();
+    const data: any = await response.json();
+    console.log("Pesapal SubmitOrderRequest Response:", JSON.stringify(data));
+
+    if (data?.status && String(data.status) !== "200") {
+      const errMsg =
+        data?.error?.message ||
+        data?.message ||
+        "Pesapal order submission failed";
+      const errCode = data?.error?.code || data?.code || "unknown_error";
+      throw new Error(
+        `Pesapal Order Submission Failed (${data.status}): ${errCode} - ${errMsg}`,
+      );
+    }
+
+    return data;
   }
 
   /**
@@ -171,7 +236,7 @@ export class PesapalService {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
 
     if (!response.ok) {

@@ -1,8 +1,25 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Branch from "@/models/Branch";
 import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+import { resolveTenantPlanEntitlements } from "@/lib/tenant-plan-entitlements";
+
+function planLimitError(
+  message: string,
+  code: "PLAN_BRANCH_LIMIT_REACHED",
+  status = 403,
+) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+      message,
+      code,
+    },
+    { status },
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +42,21 @@ export async function POST(request: NextRequest) {
     await dbConnect();
     const auth = getAuthContext(request);
     if (auth.role !== "admin") return apiError("Insufficient permissions", 403);
+
+    const entitlements = await resolveTenantPlanEntitlements(auth.tenantId);
+    if (entitlements.maxBranches !== null) {
+      const activeBranchCount = await Branch.countDocuments({
+        tenantId: auth.tenantId,
+        isActive: { $ne: false },
+      });
+      if (activeBranchCount >= entitlements.maxBranches) {
+        return planLimitError(
+          `${entitlements.planName.toUpperCase()} plan allows up to ${entitlements.maxBranches} active branch${entitlements.maxBranches === 1 ? "" : "es"}. Upgrade your plan to add more branches.`,
+          "PLAN_BRANCH_LIMIT_REACHED",
+        );
+      }
+    }
+
     const body = await request.json();
     let code = typeof body.code === "string" ? body.code.trim() : "";
     if (!code) {

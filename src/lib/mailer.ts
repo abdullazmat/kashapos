@@ -18,9 +18,6 @@ type SendTenantEmailInput = {
   settings?: any; // Optional override settings
 };
 
-// Default Resend API key provided by user
-const DEFAULT_RESEND_KEY = "re_hPcsz2Ao_CVv84NqyQFZzUudkfjS85w7B";
-
 function parsePort(value: unknown, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -125,7 +122,10 @@ export async function sendSystemEmail({
   }
 
   // Fallback to Resend API
-  const apiKey = process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("Resend API key is not configured");
+  }
   const resend = new Resend(apiKey);
 
   const fromEmail = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -195,8 +195,7 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
   }
 
   if (provider === "resend") {
-    const apiKey =
-      settings.emailApiKey || process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
+    const apiKey = settings.emailApiKey || process.env.RESEND_API_KEY;
     if (!apiKey) {
       throw new Error("Resend API key is not configured");
     }
@@ -270,8 +269,7 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
     console.warn(
       `SMTP misconfigured, attempting Resend fallback for provider: ${provider}`,
     );
-    const resendApiKey =
-      settings.emailApiKey || process.env.RESEND_API_KEY || DEFAULT_RESEND_KEY;
+    const resendApiKey = settings.emailApiKey || process.env.RESEND_API_KEY;
     if (resendApiKey) {
       let resendFromFallback = `${fromName} <${fromEmail}>`;
       const isPublicDomain =

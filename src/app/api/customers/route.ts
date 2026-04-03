@@ -1,8 +1,28 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db";
 import Customer from "@/models/Customer";
 import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
+import {
+  resolveTenantPlanEntitlements,
+  formatResourceLimitMessage,
+} from "@/lib/tenant-plan-entitlements";
+
+function planLimitError(
+  message: string,
+  code: "PLAN_CUSTOMER_LIMIT_REACHED" | "PLAN_EXPIRED",
+  status = 403,
+) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+      message,
+      code,
+    },
+    { status },
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,6 +67,33 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect();
     const auth = getAuthContext(request);
+
+    // Check plan entitlements for customer creation
+    const entitlements = await resolveTenantPlanEntitlements(auth.tenantId);
+
+    // Check for plan expiry
+    if (entitlements.isExpired) {
+      return planLimitError(
+        "Your plan has expired. Please renew your subscription to add new customers.",
+        "PLAN_EXPIRED",
+      );
+    }
+
+    if (entitlements.maxCustomers !== null) {
+      const activeCustomerCount = await Customer.countDocuments({
+        tenantId: auth.tenantId,
+        isActive: true,
+      });
+      if (activeCustomerCount >= entitlements.maxCustomers) {
+        const message = formatResourceLimitMessage(
+          "customers",
+          entitlements.planName,
+          entitlements.maxCustomers,
+        );
+        return planLimitError(message, "PLAN_CUSTOMER_LIMIT_REACHED");
+      }
+    }
+
     const body = (await request.json()) as Record<string, unknown>;
 
     const customerPayload = {
