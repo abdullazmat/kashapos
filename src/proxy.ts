@@ -33,6 +33,9 @@ const publicPaths = [
   "/admin-login",
   "/api/admin/setup",
   "/api/admin/auth/sign-in",
+  "/api/integrations/silicon-pay/callback",
+  "/api/integrations/silicon-pay/subscription-callback",
+  "/api/subscription/plans",
 ];
 
 function getClientIp(request: NextRequest) {

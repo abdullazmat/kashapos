@@ -11,7 +11,7 @@ export interface ISubscriptionCheckout extends Document {
   discountRate?: number;
   savingsAmount?: number;
   currency: string;
-  provider: "pesapal";
+  provider: "pesapal" | "silicon_pay";
   status: "initiated" | "completed" | "failed";
   reference: string;
   trackingId?: string;
@@ -52,8 +52,8 @@ const SubscriptionCheckoutSchema = new Schema<ISubscriptionCheckout>(
     currency: { type: String, default: "UGX" },
     provider: {
       type: String,
-      enum: ["pesapal"],
-      default: "pesapal",
+      enum: ["pesapal", "silicon_pay"],
+      default: "silicon_pay",
     },
     status: {
       type: String,

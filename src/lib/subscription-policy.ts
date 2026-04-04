@@ -25,9 +25,9 @@ export interface SubscriptionPolicyPlan {
 
 function readGatewayLimit() {
   const value =
-    process.env.PESAPAL_SUBSCRIPTION_MAX_AMOUNT ||
-    process.env.PESAPAL_DEFAULT_LIMIT ||
-    process.env.PESAPAL_TRANSACTION_LIMIT ||
+    process.env.SILICON_PAY_SUBSCRIPTION_MAX_AMOUNT ||
+    process.env.SILICON_PAY_DEFAULT_LIMIT ||
+    process.env.SILICON_PAY_TRANSACTION_LIMIT ||
     "";
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -77,7 +77,7 @@ export function resolveSubscriptionWorkflow(
       workflow: "contact_sales",
       reason: "gateway_limit",
       message:
-        "Plan amount exceeds the current Pesapal checkout limit. Use contact sales.",
+        "Plan amount exceeds the current Silicon Pay checkout limit. Use contact sales.",
       gatewayLimit,
     };
   }

@@ -6,7 +6,7 @@ import { getSession } from "@/lib/auth";
 import Plan from "@/models/Plan";
 import Tenant from "@/models/Tenant";
 import SubscriptionCheckout from "@/models/SubscriptionCheckout";
-import { PesapalService } from "@/lib/pesapal";
+import { SiliconPayService } from "@/lib/silicon-pay";
 import { resolveSubscriptionWorkflow } from "@/lib/subscription-policy";
 
 type BillingCycle = "monthly" | "annual" | "biennial";
@@ -19,6 +19,26 @@ const BILLING_CYCLE_CONFIG: Record<
   annual: { months: 12, discountRate: 0.05 },
   biennial: { months: 24, discountRate: 0.1 },
 };
+
+const COMPLETED_STATUSES = new Set([
+  "COMPLETED",
+  "PAID",
+  "SUCCESS",
+  "APPROVED",
+  "OK",
+  "1",
+]);
+const FAILED_STATUSES = new Set([
+  "FAILED",
+  "FAIL",
+  "DECLINED",
+  "CANCELLED",
+  "CANCELED",
+  "ERROR",
+  "REJECTED",
+  "UNSUCCESSFUL",
+  "0",
+]);
 
 function parseBillingCycle(input: unknown): BillingCycle {
   const raw = String(input || "monthly")
@@ -53,39 +73,40 @@ function buildBillingQuote(monthlyPrice: number, cycle: BillingCycle) {
   };
 }
 
-const COMPLETED_STATUSES = new Set(["COMPLETED", "PAID", "SUCCESS", "1"]);
-const FAILED_STATUSES = new Set([
-  "FAILED",
-  "FAIL",
-  "DECLINED",
-  "CANCELLED",
-  "CANCELED",
-  "ERROR",
-  "0",
-]);
-
 function readStatusCode(statusResult: unknown) {
+  const payload = statusResult as {
+    status?: string;
+    payment_status?: string;
+    state?: string;
+    payment_status_code?: string;
+    status_code?: string | number;
+  } | null;
+
   return String(
-    (
-      statusResult as {
-        payment_status_code?: string;
-        status_code?: string | number;
-      } | null
-    )?.payment_status_code ||
-      (
-        statusResult as {
-          payment_status_code?: string;
-          status_code?: string | number;
-        } | null
-      )?.status_code ||
+    payload?.status ||
+      payload?.payment_status ||
+      payload?.state ||
+      payload?.payment_status_code ||
+      payload?.status_code ||
       "",
   )
     .toUpperCase()
     .trim();
 }
 
+function resolveCheckoutStatus(statusResult: unknown) {
+  const statusCode = readStatusCode(statusResult);
+  return {
+    statusCode,
+    completed: COMPLETED_STATUSES.has(statusCode),
+    failed: FAILED_STATUSES.has(statusCode),
+  };
+}
+
 function readStatusMessage(statusResult: unknown) {
   const payload = statusResult as {
+    message?: string;
+    error?: string;
     payment_status_description?: string;
     status_description?: string;
     description?: string;
@@ -93,6 +114,8 @@ function readStatusMessage(statusResult: unknown) {
   } | null;
 
   return (
+    payload?.message ||
+    payload?.error ||
     payload?.payment_status_description ||
     payload?.status_description ||
     payload?.description ||
@@ -115,6 +138,8 @@ function readCheckoutUrl(raw: unknown) {
     source.paymentUrl,
     source.payment_link,
     source.paymentLink,
+    source.hosted_link,
+    source.hostedLink,
     source.url,
     source.link,
     nested?.redirect_url,
@@ -125,6 +150,8 @@ function readCheckoutUrl(raw: unknown) {
     nested?.paymentUrl,
     nested?.payment_link,
     nested?.paymentLink,
+    nested?.hosted_link,
+    nested?.hostedLink,
     nested?.url,
     nested?.link,
   ];
@@ -150,16 +177,16 @@ function readGatewayError(raw: unknown) {
 
   const candidates = [
     source.message,
+    source.error_description,
     source.status,
     nested?.message,
+    nested?.error,
     nested?.status,
   ];
 
-  const message = candidates.find(
+  return candidates.find(
     (value) => typeof value === "string" && value.trim(),
   ) as string | undefined;
-
-  return message;
 }
 
 function readTrackingId(raw: unknown) {
@@ -172,14 +199,42 @@ function readTrackingId(raw: unknown) {
     source.orderTrackingId,
     source.transactionId,
     source.transaction_id,
+    source.txRef,
+    source.tx_ref,
+    source.txId,
+    source.reference,
+    source.merchant_reference,
     nested?.order_tracking_id,
     nested?.orderTrackingId,
     nested?.transactionId,
+    nested?.transaction_id,
+    nested?.txRef,
+    nested?.tx_ref,
+    nested?.txId,
+    nested?.reference,
+    nested?.merchant_reference,
   ];
 
   return candidates.find(
     (value) => typeof value === "string" && value.trim(),
   ) as string | undefined;
+}
+
+function splitDisplayName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { firstName: "Customer", lastName: "" };
+  }
+
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: "" };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
 }
 
 async function activateTenantPlan({
@@ -262,19 +317,6 @@ export async function GET() {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    const normalized = message.toLowerCase();
-
-    if (
-      normalized.includes("amount_exceeds_default_limit") ||
-      normalized.includes("transaction amount exceeds limit") ||
-      normalized.includes("contractual_error")
-    ) {
-      return apiError(
-        "PESAPAL_LIMIT: Checkout amount exceeds your current Pesapal account limit. Use Contact Sales or ask Pesapal support to raise the limit.",
-        422,
-      );
-    }
-
     return apiError(message, 500);
   }
 }
@@ -321,22 +363,17 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      if (!checkout.trackingId) {
-        return apiError("Tracking ID missing for this payment", 400);
-      }
-
-      const statusResult = await PesapalService.getTransactionStatus(
-        checkout.trackingId,
-      );
+      const statusReference = checkout.trackingId || checkout.reference;
+      const statusResult =
+        await SiliconPayService.getTransactionStatus(statusReference);
 
       if (!statusResult) {
-        return apiError("No status response from Pesapal", 502);
+        return apiError("No status response from Silicon Pay", 502);
       }
 
-      const statusCode = readStatusCode(statusResult);
+      const { statusCode, completed, failed } =
+        resolveCheckoutStatus(statusResult);
       const message = readStatusMessage(statusResult);
-      const completed = COMPLETED_STATUSES.has(statusCode);
-      const failed = FAILED_STATUSES.has(statusCode);
 
       if (completed) {
         checkout.status = "completed";
@@ -436,60 +473,59 @@ export async function POST(request: NextRequest) {
       return apiError("Account email is required for plan checkout", 400);
     }
 
-    const consumerKey = process.env.PESAPAL_CONSUMER_KEY?.trim();
-    const consumerSecret = process.env.PESAPAL_CONSUMER_SECRET?.trim();
+    const siliconPayPublicKey = process.env.SILICON_PAY_PUBLIC_KEY?.trim();
+    const siliconPayEncryptionKey =
+      process.env.SILICON_PAY_ENCRYPTION_KEY?.trim();
 
-    if (!consumerKey || !consumerSecret) {
-      return apiError("Pesapal credentials are not configured", 400);
+    if (!siliconPayPublicKey || !siliconPayEncryptionKey) {
+      return apiError("Silicon Pay credentials are not configured", 400);
     }
+
+    const tenantPhone = String(tenant.phone || "").trim();
+    if (!tenantPhone) {
+      return apiError(
+        "Tenant phone number is required for Silicon Pay checkout",
+        400,
+      );
+    }
+
+    const { firstName, lastName } = splitDisplayName(
+      session.name || tenant.name || "Customer",
+    );
 
     const appUrl = new URL(request.url).origin;
     const callbackToken =
-      process.env.PESAPAL_SUBSCRIPTION_CALLBACK_TOKEN?.trim() ||
-      process.env.PESAPAL_CALLBACK_TOKEN?.trim() ||
+      process.env.SILICON_PAY_SUBSCRIPTION_CALLBACK_TOKEN?.trim() ||
+      process.env.SILICON_PAY_CALLBACK_TOKEN?.trim() ||
       "";
     const callbackUrl = callbackToken
-      ? `${appUrl}/api/integrations/pesapal/subscription-callback?token=${encodeURIComponent(callbackToken)}`
-      : `${appUrl}/api/integrations/pesapal/subscription-callback`;
-
-    const notificationId =
-      process.env.PESAPAL_IPN_ID?.trim() ||
-      (await PesapalService.registerIpn(callbackUrl));
+      ? `${appUrl}/api/integrations/silicon-pay/subscription-callback?token=${encodeURIComponent(callbackToken)}`
+      : `${appUrl}/api/integrations/silicon-pay/subscription-callback`;
 
     const reference = `SUB-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-    const gatewayResponse = await PesapalService.submitOrderRequest({
-      id: reference,
-      amount: quote.amount,
-      currency: plan.currency || "UGX",
-      description: `Subscription payment for ${plan.name} (${billingCycle})`,
-      callback_url: callbackUrl,
-      notification_id: notificationId,
-      billing_address: {
-        email_address: customerEmail,
-        phone_number: tenant.phone || undefined,
-        first_name: session.name || tenant.name || "Customer",
-        last_name: "",
+    const gatewayResponse = await SiliconPayService.collect(
+      {
+        amount: quote.amount,
+        phoneNumber: tenantPhone,
+        email: customerEmail,
+        firstName,
+        lastName,
+        txId: reference,
+        reason: `Subscription payment for ${plan.name} (${billingCycle})`,
+        currency: plan.currency || "UGX",
+        callbackUrl,
       },
-    });
+      {
+        siliconPayPublicKey,
+        siliconPayEncryptionKey,
+      },
+    );
 
     const checkoutUrl = readCheckoutUrl(gatewayResponse);
-    const trackingId = readTrackingId(gatewayResponse);
-
-    if (!checkoutUrl) {
-      const gatewayError = readGatewayError(gatewayResponse);
-      console.error("Pesapal checkout URL missing", {
-        reference,
-        gatewayResponse,
-      });
-      return businessError(
-        gatewayError
-          ? `Pesapal checkout was not created: ${gatewayError}`
-          : "Pesapal checkout was not created. Verify IPN/callback configuration.",
-        "CHECKOUT_URL_MISSING",
-        502,
-      );
-    }
+    const trackingId = readTrackingId(gatewayResponse) || reference;
+    const immediateStatus = resolveCheckoutStatus(gatewayResponse);
+    const immediateError = readGatewayError(gatewayResponse);
 
     const checkout = await SubscriptionCheckout.create({
       tenantId: session.tenantId,
@@ -502,20 +538,40 @@ export async function POST(request: NextRequest) {
       discountRate: quote.discountRate,
       savingsAmount: quote.savingsAmount,
       currency: plan.currency || "UGX",
-      provider: "pesapal",
-      status: "initiated",
+      provider: "silicon_pay",
+      status: immediateStatus.completed
+        ? "completed"
+        : immediateStatus.failed
+          ? "failed"
+          : "initiated",
       reference,
       trackingId,
       checkoutUrl,
       customerEmail,
+      errorMessage: immediateStatus.failed
+        ? immediateError || "Payment was not completed"
+        : undefined,
       raw: gatewayResponse as Record<string, unknown>,
+      activatedAt: immediateStatus.completed ? new Date() : undefined,
     });
+
+    if (immediateStatus.completed) {
+      await activateTenantPlan({
+        tenantId: String(checkout.tenantId),
+        planName: checkout.planName,
+        billingMonths: checkout.billingMonths,
+      });
+    }
 
     return apiSuccess(
       {
         checkout,
         checkoutUrl,
-        message: "Checkout created. Complete payment to activate your plan.",
+        message: immediateStatus.completed
+          ? "Payment confirmed and plan activated."
+          : immediateStatus.failed
+            ? "Payment request created but marked as failed. Please try again."
+            : "Silicon Pay payment request created. Complete payment to activate your plan.",
       },
       201,
     );
@@ -523,15 +579,21 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "Unknown error";
     const normalized = message.toLowerCase();
 
-    if (
-      normalized.includes("amount_exceeds_default_limit") ||
-      normalized.includes("transaction amount exceeds limit") ||
-      normalized.includes("contractual_error")
-    ) {
+    if (normalized.includes("public key not configured")) {
+      return apiError("Silicon Pay public key is not configured", 400);
+    }
+
+    if (normalized.includes("silicon pay collection failed")) {
+      const gatewayMessage = message.replace(
+        /^Silicon Pay Collection Failed:\s*/i,
+        "",
+      );
       return businessError(
-        "Checkout amount exceeds your current Pesapal account limit. Use Contact Sales or ask Pesapal support to raise the limit.",
-        "PESAPAL_LIMIT",
-        422,
+        gatewayMessage ||
+          "Silicon Pay checkout request failed. Please verify gateway configuration and try again.",
+        "SILICON_PAY_REQUEST_FAILED",
+        502,
+        { gatewayMessage: gatewayMessage || message },
       );
     }
 

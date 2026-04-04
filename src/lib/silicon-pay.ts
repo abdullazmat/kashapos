@@ -23,12 +23,21 @@ export class SiliconPayService {
    */
   static async collect(
     input: SiliconPayCollectionInput,
-    credentials?: { siliconPayPublicKey?: string; siliconPayEncryptionKey?: string },
+    credentials?: {
+      siliconPayPublicKey?: string;
+      siliconPayEncryptionKey?: string;
+    },
   ) {
-    const pubKey = (credentials?.siliconPayPublicKey && credentials.siliconPayPublicKey !== "********") ? credentials.siliconPayPublicKey : PUBLIC_KEY;
-    const encKey = (credentials?.siliconPayEncryptionKey && credentials.siliconPayEncryptionKey !== "********") 
-      ? credentials.siliconPayEncryptionKey 
-      : (process.env.SILICON_PAY_ENCRYPTION_KEY || "");
+    const pubKey =
+      credentials?.siliconPayPublicKey &&
+      credentials.siliconPayPublicKey !== "********"
+        ? credentials.siliconPayPublicKey
+        : PUBLIC_KEY;
+    const encKey =
+      credentials?.siliconPayEncryptionKey &&
+      credentials.siliconPayEncryptionKey !== "********"
+        ? credentials.siliconPayEncryptionKey
+        : process.env.SILICON_PAY_ENCRYPTION_KEY || "";
 
     if (!pubKey) {
       throw new Error("Silicon Pay public key not configured");
@@ -54,9 +63,7 @@ export class SiliconPayService {
       txRef: input.txId,
       reason: input.reason,
       currency: input.currency || "UGX",
-      call_back: (input.callbackUrl && !input.callbackUrl.includes("localhost")) 
-        ? input.callbackUrl 
-        : "https://yourpos.com/api/integrations/silicon-pay/callback", 
+      call_back: input.callbackUrl || "",
     };
 
     console.log("Silicon Pay Request Details:", {
@@ -100,6 +107,9 @@ export class SiliconPayService {
     // Note: Silicon Pay usually checks via the callback or a specific status endpoint.
     // If there's a status endpoint, we'd use it here.
     // For now we'll assume the callback handles the truth.
-    return { success: true, message: "Status check not implemented as per typical callback-only flow" };
+    return {
+      success: true,
+      message: "Status check not implemented as per typical callback-only flow",
+    };
   }
 }

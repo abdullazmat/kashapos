@@ -88,6 +88,49 @@ const statusTone: Record<Checkout["status"], string> = {
   failed: "bg-rose-50 text-rose-700 ring-1 ring-rose-600/20",
 };
 
+function getReadableCheckoutError(message: string) {
+  const raw = String(message || "").trim();
+  if (!raw) {
+    return "We could not start Silicon Pay checkout. Please try again.";
+  }
+
+  const lowered = raw.toLowerCase();
+  if (
+    lowered.includes("403 forbidden") ||
+    lowered.includes("you don't have permission")
+  ) {
+    return "Silicon Pay blocked this checkout request (403). Please contact support to enable your merchant account/API access.";
+  }
+
+  if (lowered.includes("invalid email")) {
+    return "Silicon Pay rejected the customer email address. Please update the account email and try again.";
+  }
+
+  if (lowered.includes("silicon pay collection failed")) {
+    const cleaned = raw
+      .replace(/^silicon pay collection failed:\s*/i, "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (cleaned.toLowerCase().includes("403 forbidden")) {
+      return "Silicon Pay blocked this checkout request (403). Please contact support to enable your merchant account/API access.";
+    }
+
+    return cleaned || "Silicon Pay checkout failed. Please try again.";
+  }
+
+  const withoutHtml = raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!withoutHtml) {
+    return "Silicon Pay checkout failed. Please try again.";
+  }
+
+  return withoutHtml;
+}
+
 export default function SubscriptionPage() {
   const { tenant } = useSession();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -182,12 +225,13 @@ export default function SubscriptionPage() {
 
       if (!res.ok) {
         const backendCode = String(payload.code || "");
-        const backendMessage =
-          payload.error || payload.message || "Failed to start checkout";
+        const backendMessage = getReadableCheckoutError(
+          payload.error || payload.message || "Failed to start checkout",
+        );
 
         if (
           backendCode === "PLAN_CONTACT_SALES_REQUIRED" ||
-          backendCode === "PESAPAL_LIMIT" ||
+          backendCode === "SILICON_PAY_LIMIT" ||
           backendMessage.toLowerCase().includes("amount exceeds") ||
           backendMessage.toLowerCase().includes("amount_exceeds_default_limit")
         ) {
@@ -211,6 +255,15 @@ export default function SubscriptionPage() {
         payload.data?.checkoutUrl ||
         checkout.checkoutUrl;
 
+      if (!checkoutUrl) {
+        const failureMessage =
+          payload.error ||
+          payload.message ||
+          checkout.errorMessage ||
+          "Silicon Pay did not return a checkout page.";
+        throw new Error(failureMessage);
+      }
+
       setCheckouts((current) => [
         checkout,
         ...current.filter((item) => item._id !== checkout._id),
@@ -220,19 +273,21 @@ export default function SubscriptionPage() {
           "Checkout created successfully. Complete payment to activate the plan.",
       );
 
-      if (checkoutUrl) {
-        window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+      const opened = window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        window.location.assign(checkoutUrl);
       }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to start checkout";
+      const message = getReadableCheckoutError(
+        error instanceof Error ? error.message : "Failed to start checkout",
+      );
       if (
-        message.includes("PESAPAL_LIMIT") ||
+        message.includes("SILICON_PAY_LIMIT") ||
         message.toLowerCase().includes("amount exceeds") ||
         message.toLowerCase().includes("amount_exceeds_default_limit")
       ) {
         toast.error(
-          "This plan amount exceeds your Pesapal limit. Use Contact Sales while limit upgrade is processed.",
+          "This plan amount exceeds your Silicon Pay limit. Use Contact Sales while limit upgrade is processed.",
         );
         openContactSales(plan);
         return;
@@ -470,7 +525,8 @@ export default function SubscriptionPage() {
                   {activePendingCheckout.reference}
                 </p>
                 <p className="text-xs text-amber-700">
-                  Complete payment and recheck status to activate this plan.
+                  Complete the Silicon Pay prompt and recheck status to activate
+                  this plan.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -651,9 +707,9 @@ export default function SubscriptionPage() {
                     {!isCurrent && !isCustom && (
                       <p className="text-[11px] text-gray-400">
                         {plan.checkoutWorkflow === "gateway"
-                          ? `Secure checkout powered by Pesapal. ${billingCycle === "monthly" ? "Monthly billing selected." : `Auto-bill ${billingCycle === "annual" ? "annual" : "every 2 years"} selected.`}`
+                          ? `Secure checkout powered by Silicon Pay. ${billingCycle === "monthly" ? "Monthly billing selected." : `Auto-bill ${billingCycle === "annual" ? "annual" : "every 2 years"} selected.`}`
                           : plan.workflowMessage ||
-                            "Secure checkout powered by Pesapal."}
+                            "Secure checkout powered by Silicon Pay."}
                       </p>
                     )}
                     {!isCurrent && isCustom && (
