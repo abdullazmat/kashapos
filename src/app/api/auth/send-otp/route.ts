@@ -9,6 +9,29 @@ import { twilioService } from "@/lib/twilio";
 import { africasTalkingService } from "@/lib/africastalking";
 import { checkOutboundMessageGuard } from "@/lib/outbound-message-guard";
 
+const PROVIDER_TIMEOUT_MS = 8000;
+const BALANCE_TIMEOUT_MS = 3000;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timeoutId: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
@@ -117,7 +140,11 @@ export async function POST(request: NextRequest) {
 
         // Check balance before sending
         try {
-          const balance = await africasTalkingService.getBalance();
+          const balance = await withTimeout(
+            africasTalkingService.getBalance(),
+            BALANCE_TIMEOUT_MS,
+            "Africa's Talking balance check",
+          );
           if (balance && parseFloat(balance) <= 0) {
             console.warn(
               "Africa's Talking balance insufficient:",
@@ -134,9 +161,13 @@ export async function POST(request: NextRequest) {
           // Continue anyway, let the send fail if needed
         }
 
-        const result = await africasTalkingService.sendSMS(
-          identifier,
-          `Your Meka PoS verification code is: ${otp}`,
+        const result = await withTimeout(
+          africasTalkingService.sendSMS(
+            identifier,
+            `Your Meka PoS verification code is: ${otp}`,
+          ),
+          PROVIDER_TIMEOUT_MS,
+          "Africa's Talking SMS",
         );
         if (!result.success) {
           throw new Error(result.message || "SMS delivery failed");
@@ -149,9 +180,13 @@ export async function POST(request: NextRequest) {
 
         // Try Twilio SMS fallback before moving to email.
         try {
-          const twilioFallback = await twilioService.sendSMS(
-            identifier,
-            `Your Meka PoS verification code is: ${otp}`,
+          const twilioFallback = await withTimeout(
+            twilioService.sendSMS(
+              identifier,
+              `Your Meka PoS verification code is: ${otp}`,
+            ),
+            PROVIDER_TIMEOUT_MS,
+            "Twilio SMS fallback",
           );
           if (twilioFallback.success) {
             deliveryMethodUsed = "phone";
@@ -188,10 +223,11 @@ export async function POST(request: NextRequest) {
 
         // Only attempt email fallback if we found an email
         if (emailForFallback) {
-          const fallbackResult = await sendSystemEmail({
-            to: emailForFallback,
-            subject: "Your Meka PoS Verification Code",
-            html: `
+          const fallbackResult = await withTimeout(
+            sendSystemEmail({
+              to: emailForFallback,
+              subject: "Your Meka PoS Verification Code",
+              html: `
               <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                 <h2 style="color: #f97316;">Meka PoS</h2>
                 <p>Thank you for starting your sign up process.</p>
@@ -202,7 +238,10 @@ export async function POST(request: NextRequest) {
                 <p style="font-size: 14px; color: #666;">This code will expire in 15 minutes.</p>
               </div>
             `,
-          });
+            }),
+            PROVIDER_TIMEOUT_MS,
+            "Email fallback",
+          );
           if (fallbackResult && "mock" in fallbackResult && fallbackResult.mock)
             isMock = true;
           deliveryMethodUsed = "email";
@@ -233,9 +272,13 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        const result = await twilioService.sendWhatsApp(
-          identifier,
-          `Your Meka PoS verification code is: ${otp}`,
+        const result = await withTimeout(
+          twilioService.sendWhatsApp(
+            identifier,
+            `Your Meka PoS verification code is: ${otp}`,
+          ),
+          PROVIDER_TIMEOUT_MS,
+          "Twilio WhatsApp",
         );
         if (!result.success) isMock = true;
       } catch (whatsAppError: any) {
@@ -244,9 +287,13 @@ export async function POST(request: NextRequest) {
           whatsAppError,
         );
         try {
-          const fallbackResult = await africasTalkingService.sendSMS(
-            identifier,
-            `Your Meka PoS verification code is: ${otp}`,
+          const fallbackResult = await withTimeout(
+            africasTalkingService.sendSMS(
+              identifier,
+              `Your Meka PoS verification code is: ${otp}`,
+            ),
+            PROVIDER_TIMEOUT_MS,
+            "SMS fallback",
           );
           if (!fallbackResult.success) {
             throw new Error(
@@ -277,10 +324,11 @@ export async function POST(request: NextRequest) {
           }
 
           if (emailForFallback) {
-            const emailFallback = await sendSystemEmail({
-              to: emailForFallback,
-              subject: "Your Meka PoS Verification Code",
-              html: `
+            const emailFallback = await withTimeout(
+              sendSystemEmail({
+                to: emailForFallback,
+                subject: "Your Meka PoS Verification Code",
+                html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                   <h2 style="color: #f97316;">Meka PoS</h2>
                   <p>Thank you for starting your sign up process.</p>
@@ -291,7 +339,10 @@ export async function POST(request: NextRequest) {
                   <p style="font-size: 14px; color: #666;">This code will expire in 15 minutes.</p>
                 </div>
               `,
-            });
+              }),
+              PROVIDER_TIMEOUT_MS,
+              "Email fallback",
+            );
             if (emailFallback && "mock" in emailFallback && emailFallback.mock)
               isMock = true;
             deliveryMethodUsed = "email";

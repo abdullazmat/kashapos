@@ -9,6 +9,50 @@ import SubscriptionCheckout from "@/models/SubscriptionCheckout";
 import { PesapalService } from "@/lib/pesapal";
 import { resolveSubscriptionWorkflow } from "@/lib/subscription-policy";
 
+type BillingCycle = "monthly" | "annual" | "biennial";
+
+const BILLING_CYCLE_CONFIG: Record<
+  BillingCycle,
+  { months: number; discountRate: number }
+> = {
+  monthly: { months: 1, discountRate: 0 },
+  annual: { months: 12, discountRate: 0.05 },
+  biennial: { months: 24, discountRate: 0.1 },
+};
+
+function parseBillingCycle(input: unknown): BillingCycle {
+  const raw = String(input || "monthly")
+    .toLowerCase()
+    .trim();
+  if (raw === "annual" || raw === "biennial" || raw === "monthly") {
+    return raw;
+  }
+  return "monthly";
+}
+
+function addMonths(baseDate: Date, months: number) {
+  const next = new Date(baseDate);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function buildBillingQuote(monthlyPrice: number, cycle: BillingCycle) {
+  const config = BILLING_CYCLE_CONFIG[cycle];
+  const baseTotal = monthlyPrice * config.months;
+  const discountedTotal = Number(
+    (baseTotal * (1 - config.discountRate)).toFixed(2),
+  );
+  const savingsAmount = Number((baseTotal - discountedTotal).toFixed(2));
+
+  return {
+    months: config.months,
+    discountRate: config.discountRate,
+    amount: discountedTotal,
+    savingsAmount,
+    baseMonthlyPrice: monthlyPrice,
+  };
+}
+
 const COMPLETED_STATUSES = new Set(["COMPLETED", "PAID", "SUCCESS", "1"]);
 const FAILED_STATUSES = new Set([
   "FAILED",
@@ -141,9 +185,11 @@ function readTrackingId(raw: unknown) {
 async function activateTenantPlan({
   tenantId,
   planName,
+  billingMonths,
 }: {
   tenantId: string;
   planName: string;
+  billingMonths?: number;
 }) {
   const normalizedPlan = planName.toLowerCase();
   const allowedPlans = new Set([
@@ -159,7 +205,11 @@ async function activateTenantPlan({
   }
 
   const now = new Date();
-  const nextExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const months =
+    Number.isFinite(billingMonths) && (billingMonths || 0) > 0
+      ? Number(billingMonths)
+      : 1;
+  const nextExpiry = addMonths(now, months);
 
   await Tenant.findByIdAndUpdate(tenantId, {
     $set: {
@@ -245,6 +295,7 @@ export async function POST(request: NextRequest) {
       planId,
       action,
       reference: recheckReference,
+      billingCycle: requestedBillingCycle,
     } = await request.json();
 
     if (action === "recheck") {
@@ -306,6 +357,7 @@ export async function POST(request: NextRequest) {
         await activateTenantPlan({
           tenantId: String(checkout.tenantId),
           planName: checkout.planName,
+          billingMonths: checkout.billingMonths,
         });
       }
 
@@ -372,6 +424,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const billingCycle = parseBillingCycle(requestedBillingCycle);
+    const quote = buildBillingQuote(Number(plan.price), billingCycle);
+
     if (!tenant) {
       return apiError("Tenant not found", 404);
     }
@@ -405,9 +460,9 @@ export async function POST(request: NextRequest) {
 
     const gatewayResponse = await PesapalService.submitOrderRequest({
       id: reference,
-      amount: Number(plan.price),
+      amount: quote.amount,
       currency: plan.currency || "UGX",
-      description: `Subscription payment for ${plan.name}`,
+      description: `Subscription payment for ${plan.name} (${billingCycle})`,
       callback_url: callbackUrl,
       notification_id: notificationId,
       billing_address: {
@@ -440,7 +495,12 @@ export async function POST(request: NextRequest) {
       tenantId: session.tenantId,
       planId: plan._id,
       planName: plan.name,
-      amount: Number(plan.price),
+      amount: quote.amount,
+      baseMonthlyPrice: quote.baseMonthlyPrice,
+      billingCycle,
+      billingMonths: quote.months,
+      discountRate: quote.discountRate,
+      savingsAmount: quote.savingsAmount,
       currency: plan.currency || "UGX",
       provider: "pesapal",
       status: "initiated",

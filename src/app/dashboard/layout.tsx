@@ -89,6 +89,8 @@ interface TenantData {
   slug: string;
   logo?: string;
   plan: string;
+  planExpiry?: string;
+  createdAt?: string;
   settings: {
     currency: string;
     taxRate: number;
@@ -816,6 +818,7 @@ export default function DashboardLayout({
           <Link
             href={item.href}
             onClick={() => {
+              setIsMobileMenuOpen(false);
               if (!expandedMenus.includes(itemKey)) {
                 toggleMenu(itemKey);
               }
@@ -861,6 +864,7 @@ export default function DashboardLayout({
       <Link
         key={itemKey}
         href={item.href}
+        onClick={() => setIsMobileMenuOpen(false)}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all duration-200 ${depth === 0 ? "text-[13px]" : "text-[12px]"} ${
           isActive
             ? "bg-linear-to-r from-orange-500/20 to-amber-500/10 text-orange-400 shadow-sm shadow-orange-500/5"
@@ -889,6 +893,31 @@ export default function DashboardLayout({
   const unreadCount = notifications.filter(
     (notification) => !notification.read,
   ).length;
+
+  const trialBannerState = (() => {
+    if (!tenant?.createdAt) return null;
+    const plan = String(tenant.plan || "").toLowerCase();
+    if (plan !== "basic") return null;
+
+    const createdAt = new Date(tenant.createdAt);
+    if (Number.isNaN(createdAt.getTime())) return null;
+
+    const trialEndsAt = new Date(createdAt);
+    trialEndsAt.setDate(trialEndsAt.getDate() + 7);
+
+    const now = new Date();
+    const daysRemaining = Math.ceil(
+      (trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysRemaining > 7) return null;
+
+    const hasExpired = daysRemaining <= 0;
+    return {
+      hasExpired,
+      daysRemaining: Math.max(0, daysRemaining),
+    };
+  })();
 
   const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -1148,6 +1177,28 @@ export default function DashboardLayout({
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     const handleSettingsUpdated = () => {
@@ -1728,6 +1779,27 @@ export default function DashboardLayout({
               </div>
             </div>
           </header>
+
+          {trialBannerState && (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 md:px-6">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-start gap-2 text-amber-900">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="text-sm font-medium">
+                    {trialBannerState.hasExpired
+                      ? "Your 7-day trial has ended. Upgrade now to keep full access and continue billing."
+                      : `Your 7-day trial ends in ${trialBannerState.daysRemaining} day${trialBannerState.daysRemaining === 1 ? "" : "s"}. Upgrade now to avoid interruption.`}
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard/subscription"
+                  className="inline-flex items-center justify-center rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-amber-700"
+                >
+                  Upgrade Or Pay Now
+                </Link>
+              </div>
+            </div>
+          )}
 
           {showAiAssistant && (
             <>

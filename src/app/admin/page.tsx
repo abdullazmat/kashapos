@@ -297,13 +297,13 @@ export default function AdminDashboardPage() {
           <nav className="space-y-1">
             <button
               onClick={() => setActiveTab("overview")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "overview" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "overview" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
             >
               <LayoutDashboard className="w-4 h-4" /> Overview
             </button>
             <button
               onClick={() => setActiveTab("tenants")}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "tenants" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "tenants" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
             >
               <Users className="w-4 h-4" /> Tenants Management
             </button>
@@ -316,31 +316,31 @@ export default function AdminDashboardPage() {
             <nav className="space-y-1">
               <button
                 onClick={() => setActiveTab("health")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "health" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "health" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
               >
                 <HeartPulse className="w-4 h-4" /> System Health
               </button>
               <button
                 onClick={() => setActiveTab("activity")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "activity" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "activity" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
               >
                 <Activity className="w-4 h-4" /> Activity Log
               </button>
               <button
                 onClick={() => setActiveTab("billing")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "billing" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "billing" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
               >
                 <CreditCard className="w-4 h-4" /> Billing Overview
               </button>
               <button
                 onClick={() => setActiveTab("roles")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "roles" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "roles" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
               >
                 <UserCog className="w-4 h-4" /> Roles & Permissions
               </button>
               <button
                 onClick={() => setActiveTab("leads")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "leads" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "leads" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
               >
                 <Ticket className="w-4 h-4" /> Custom Plan Leads
               </button>
@@ -354,19 +354,19 @@ export default function AdminDashboardPage() {
             <nav className="space-y-1">
               <button
                 onClick={() => setActiveTab("plans")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "plans" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "plans" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
               >
                 <Package className="w-4 h-4" /> Pricing & Plans
               </button>
               <button
                 onClick={() => setActiveTab("flags")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "flags" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "flags" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
               >
                 <ToggleRight className="w-4 h-4" /> Global Feature Flags
               </button>
               <button
                 onClick={() => setActiveTab("settings")}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${activeTab === "settings" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 active:scale-[0.99] ${activeTab === "settings" ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-slate-400 hover:bg-[#1C2539] hover:text-white"}`}
               >
                 <Settings className="w-4 h-4" /> Platform Settings
               </button>
@@ -377,7 +377,7 @@ export default function AdminDashboardPage() {
         <div className="p-6 border-t border-[#1C2539] mt-auto">
           <button
             onClick={() => router.push("/admin-login")}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all duration-200 text-sm font-bold text-rose-500 hover:bg-rose-500/10"
+            className="flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all duration-200 text-sm font-bold text-rose-500 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/60 active:scale-[0.99]"
           >
             <LogOut className="w-4 h-4" />
             Super Admin Out
@@ -1258,14 +1258,20 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="overflow-auto rounded-2xl border border-[#1C2539]">
-                <table className="w-full min-w-[980px] text-left text-sm">
-                  <thead className="bg-[#0A0F1C] text-[10px] uppercase tracking-widest text-slate-500">
+              <div className="overflow-x-auto rounded-2xl border border-[#1C2539]">
+                <table className="w-full min-w-[700px] md:min-w-[980px] text-left text-xs md:text-sm">
+                  <thead className="bg-[#0A0F1C] text-[9px] md:text-[10px] uppercase tracking-widest text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Plan</th>
-                      <th className="px-4 py-3">Contact</th>
-                      <th className="px-4 py-3">Company</th>
-                      <th className="px-4 py-3">Message</th>
+                      <th className="hidden sm:table-cell px-4 py-3">
+                        Contact
+                      </th>
+                      <th className="hidden md:table-cell px-4 py-3">
+                        Company
+                      </th>
+                      <th className="hidden lg:table-cell px-4 py-3">
+                        Message
+                      </th>
                       <th className="px-4 py-3">Created</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3 text-right">Actions</th>
@@ -1280,7 +1286,7 @@ export default function AdminDashboardPage() {
                           </p>
                           <p className="text-xs text-slate-500">{lead._id}</p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden sm:table-cell px-4 py-3">
                           <p className="font-semibold text-slate-200">
                             {lead.contactName}
                           </p>
@@ -1291,10 +1297,10 @@ export default function AdminDashboardPage() {
                             {lead.contactPhone || "-"}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-slate-300">
+                        <td className="hidden md:table-cell px-4 py-3 text-slate-300">
                           {lead.companyName || "-"}
                         </td>
-                        <td className="px-4 py-3 text-slate-300 max-w-[280px]">
+                        <td className="hidden lg:table-cell px-4 py-3 text-slate-300 max-w-[280px]">
                           <p className="line-clamp-2">{lead.message || "-"}</p>
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-xs">
@@ -1317,7 +1323,7 @@ export default function AdminDashboardPage() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => updateLeadStatus(lead._id, "new")}
-                              className="rounded-lg border border-orange-500/20 bg-orange-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-orange-400 hover:bg-orange-500/20"
+                              className="rounded-lg border border-orange-500/20 bg-orange-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-orange-400 hover:bg-orange-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-[0.98]"
                             >
                               New
                             </button>
@@ -1325,7 +1331,7 @@ export default function AdminDashboardPage() {
                               onClick={() =>
                                 updateLeadStatus(lead._id, "contacted")
                               }
-                              className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:bg-blue-500/20"
+                              className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:bg-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 active:scale-[0.98]"
                             >
                               Contacted
                             </button>
@@ -1333,7 +1339,7 @@ export default function AdminDashboardPage() {
                               onClick={() =>
                                 updateLeadStatus(lead._id, "closed")
                               }
-                              className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/20"
+                              className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 active:scale-[0.98]"
                             >
                               Closed
                             </button>
@@ -1361,12 +1367,12 @@ export default function AdminDashboardPage() {
 
       {/* Plan Edit Modal */}
       {editingPlan && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
           <div
             className="absolute inset-0 bg-[#0A0F1C]/90 backdrop-blur-xl"
             onClick={() => setEditingPlan(null)}
           />
-          <div className="bg-[#0D1425] border border-[#1C2539] w-full max-w-[600px] rounded-[48px] p-10 relative z-10 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar ring-1 ring-white/5">
+          <div className="bg-[#0D1425] border border-[#1C2539] w-full max-w-[95vw] sm:max-w-[600px] rounded-[24px] sm:rounded-[48px] p-6 sm:p-10 relative z-10 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar ring-1 ring-white/5">
             <h3 className="text-2xl font-black text-white mb-10 flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
                 <Package className="w-6 h-6 text-orange-500" />

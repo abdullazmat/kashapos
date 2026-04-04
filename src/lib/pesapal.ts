@@ -2,10 +2,13 @@
  * Pesapal V3 API Service
  */
 
-const PESAPAL_URL =
-  process.env.PESAPAL_API_URL || "https://cybqa.pesapal.com/pesapalv3/api";
+const PESAPAL_URL = (process.env.PESAPAL_API_URL || "").trim();
 const CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY || "";
 const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET || "";
+
+if (!PESAPAL_URL) {
+  throw new Error("PESAPAL_API_URL is required");
+}
 
 export interface PesapalAuthResponse {
   token: string;

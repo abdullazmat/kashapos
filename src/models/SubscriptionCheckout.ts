@@ -5,6 +5,11 @@ export interface ISubscriptionCheckout extends Document {
   planId: mongoose.Types.ObjectId;
   planName: string;
   amount: number;
+  baseMonthlyPrice?: number;
+  billingCycle?: "monthly" | "annual" | "biennial";
+  billingMonths?: number;
+  discountRate?: number;
+  savingsAmount?: number;
   currency: string;
   provider: "pesapal";
   status: "initiated" | "completed" | "failed";
@@ -35,6 +40,15 @@ const SubscriptionCheckoutSchema = new Schema<ISubscriptionCheckout>(
     },
     planName: { type: String, required: true },
     amount: { type: Number, required: true },
+    baseMonthlyPrice: { type: Number },
+    billingCycle: {
+      type: String,
+      enum: ["monthly", "annual", "biennial"],
+      default: "monthly",
+    },
+    billingMonths: { type: Number, default: 1 },
+    discountRate: { type: Number, default: 0 },
+    savingsAmount: { type: Number, default: 0 },
     currency: { type: String, default: "UGX" },
     provider: {
       type: String,

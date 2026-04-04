@@ -41,9 +41,9 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0F172A] relative overflow-hidden px-4">
       {/* Decorative background elements */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-orange-500/10 rounded-full blur-[120px] -mr-64 -mt-64" />
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-amber-500/5 rounded-full blur-[120px] -ml-64 -mb-64" />
-      
+      <div className="absolute top-0 right-0 h-[250px] w-[250px] -mr-32 -mt-32 rounded-full bg-orange-500/10 blur-[80px] sm:h-[500px] sm:w-[500px] sm:-mr-64 sm:-mt-64 sm:blur-[120px]" />
+      <div className="absolute bottom-0 left-0 h-[250px] w-[250px] -mb-32 -ml-32 rounded-full bg-amber-500/5 blur-[80px] sm:h-[500px] sm:w-[500px] sm:-mb-64 sm:-ml-64 sm:blur-[120px]" />
+
       <div className="w-full max-w-[420px] relative z-10">
         <div className="text-center mb-10">
           <div className="flex items-center justify-center gap-2.5 mb-6 group transition-all">
@@ -54,8 +54,12 @@ export default function AdminLoginPage() {
               SaaS <span className="text-orange-500">Master</span>
             </span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Platform Administration</h1>
-          <p className="text-slate-400 text-sm mt-2">Enter credentials to access the master dashboard.</p>
+          <h1 className="text-2xl font-bold text-white">
+            Platform Administration
+          </h1>
+          <p className="text-slate-400 text-sm mt-2">
+            Enter credentials to access the master dashboard.
+          </p>
         </div>
 
         <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-8 shadow-2xl">
@@ -68,7 +72,9 @@ export default function AdminLoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Admin Email</label>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Admin Email
+              </label>
               <div className="relative">
                 <input
                   type="email"
@@ -82,7 +88,9 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Security Key</label>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Security Key
+              </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -97,7 +105,11 @@ export default function AdminLoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>

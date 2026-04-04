@@ -554,7 +554,7 @@ export default function BatchesPage() {
             <h3 className="font-semibold text-gray-800">Batch Items</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[680px] text-sm">
               <thead>
                 <tr className="border-b border-blue-100 bg-blue-50/60">
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -566,10 +566,10 @@ export default function BatchesPage() {
                   <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     Remaining
                   </th>
-                  <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  <th className="hidden sm:table-cell px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     Cost Price
                   </th>
-                  <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  <th className="hidden md:table-cell px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     Sell Price
                   </th>
                   <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -610,10 +610,10 @@ export default function BatchesPage() {
                           {item.remainingQty}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right text-gray-600">
+                      <td className="hidden sm:table-cell px-5 py-3 text-right text-gray-600">
                         {formatCurrency(item.costPrice, currency)}
                       </td>
-                      <td className="px-5 py-3 text-right text-gray-600">
+                      <td className="hidden md:table-cell px-5 py-3 text-right text-gray-600">
                         {formatCurrency(item.sellingPrice, currency)}
                       </td>
                       <td className="px-5 py-3 text-right">
@@ -790,7 +790,7 @@ export default function BatchesPage() {
           </div>
         ) : filteredBatches.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-blue-100 bg-blue-50/60">
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -799,7 +799,7 @@ export default function BatchesPage() {
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     Items
                   </th>
-                  <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  <th className="hidden sm:table-cell px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                     Received
                   </th>
                   <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -853,7 +853,7 @@ export default function BatchesPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-5 py-3 text-xs text-gray-500">
+                      <td className="hidden sm:table-cell px-5 py-3 text-xs text-gray-500">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="h-3 w-3" />
                           {new Date(batch.receivedDate).toLocaleDateString(

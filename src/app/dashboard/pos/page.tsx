@@ -300,6 +300,10 @@ export default function POSTerminalPage() {
   const [transferDate, setTransferDate] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("name-asc");
   const [showSort, setShowSort] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<"products" | "sale">(
+    "products",
+  );
+  const [isCustomerSectionOpen, setIsCustomerSectionOpen] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const [lastSale, setLastSale] = useState<{
@@ -1263,6 +1267,13 @@ export default function POSTerminalPage() {
       setWalkInPhone("");
       setWalkInEmail("");
     }
+
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 1023px)").matches
+    ) {
+      setIsCustomerSectionOpen(false);
+    }
   };
 
   if (loading) {
@@ -1279,9 +1290,38 @@ export default function POSTerminalPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-[28px] border border-gray-200/70 bg-linear-to-br from-gray-50 to-gray-100/80 shadow-sm">
+    <div className="flex min-h-[calc(100vh-7rem)] flex-col overflow-hidden rounded-[28px] border border-gray-200/70 bg-linear-to-br from-gray-50 to-gray-100/80 shadow-sm lg:h-[calc(100vh-7rem)] lg:flex-row">
+      <div className="flex items-center gap-2 border-b border-gray-200/80 bg-white/90 px-4 py-2.5 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobilePanel("products")}
+          className={`flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+            mobilePanel === "products"
+              ? "bg-linear-to-r from-orange-500 to-amber-600 text-white shadow-md shadow-orange-500/20"
+              : "bg-gray-100 text-gray-600"
+          }`}
+        >
+          Products
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobilePanel("sale")}
+          className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+            mobilePanel === "sale"
+              ? "bg-linear-to-r from-orange-500 to-amber-600 text-white shadow-md shadow-orange-500/20"
+              : "bg-gray-100 text-gray-600"
+          }`}
+        >
+          <span>Current Sale</span>
+          <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">
+            {cartCount}
+          </span>
+        </button>
+      </div>
       {/* ── Left: Products ── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div
+        className={`${mobilePanel === "sale" ? "hidden" : "flex"} flex-1 flex-col overflow-hidden lg:flex`}
+      >
         {scannerAlert && (
           <div
             className={`mx-4 mt-4 flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${scannerAlert.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}
@@ -1420,10 +1460,14 @@ export default function POSTerminalPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-3.5 py-2 text-white shadow-md shadow-orange-500/20">
+          <button
+            type="button"
+            onClick={() => setMobilePanel("sale")}
+            className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-3.5 py-2 text-white shadow-md shadow-orange-500/20 transition-transform hover:scale-[1.02]"
+          >
             <ShoppingCart className="h-4 w-4" />
             <span className="text-sm font-bold">{cartCount}</span>
-          </div>
+          </button>
         </div>
 
         <div className="border-b border-gray-100 bg-white/70 px-5 py-2 text-xs text-gray-500">
@@ -1739,7 +1783,7 @@ export default function POSTerminalPage() {
       {/* ── Right: Cart Sidebar ── */}
       <div
         ref={cartSidebarRef}
-        className="flex w-90 flex-col border-l border-gray-200/80 bg-white"
+        className={`${mobilePanel === "products" ? "hidden" : "flex"} min-h-[42vh] max-h-[calc(100vh-12rem)] w-full flex-col border-t border-gray-200/80 bg-white lg:flex lg:min-h-0 lg:max-h-none lg:w-90 lg:border-l lg:border-t-0`}
       >
         {/* Cart Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
@@ -1757,7 +1801,7 @@ export default function POSTerminalPage() {
           {cart.length > 0 && (
             <button
               onClick={() => setCart([])}
-              className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-red-500 transition-colors hover:bg-red-50"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
             >
               Clear
             </button>
@@ -1766,103 +1810,121 @@ export default function POSTerminalPage() {
 
         {/* Customer Selector */}
         <div className="border-b border-gray-100 px-5 py-3">
-          <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            <User className="h-3 w-3" />
-            Customer
-          </label>
-          <input
-            value={customerSearch}
-            onChange={(e) => setCustomerSearch(e.target.value)}
-            placeholder="Search customer by name, phone..."
-            className="mb-2 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-          />
-          <div className="max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+              <User className="h-3 w-3" />
+              Customer
+            </label>
             <button
               type="button"
-              onClick={() => {
-                setSelectedCustomer("");
-                setCustomerSearch("");
-                setWalkInName("");
-                setWalkInPhone("");
-                setWalkInEmail("");
-                if (paymentMethod === "credit") {
-                  setPaymentMethod("cash");
-                  setCreditDueDate("");
-                }
-              }}
-              className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${!selectedCustomer ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
+              onClick={() => setIsCustomerSectionOpen((previous) => !previous)}
+              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40 lg:hidden"
             >
-              <span>Walk-in Customer</span>
-              {!selectedCustomer && (
-                <span className="text-[11px] font-semibold">Selected</span>
-              )}
+              {isCustomerSectionOpen ? "Hide" : "Show"}
             </button>
-            {filteredCustomers.length === 0 ? (
-              <div className="px-3 py-3 text-xs text-gray-400">
-                No customers found.
+          </div>
+
+          <div className={isCustomerSectionOpen ? "block" : "hidden lg:block"}>
+            <input
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              placeholder="Search customer by name, phone..."
+              className="mb-2 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+            />
+            <div className="max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCustomer("");
+                  setCustomerSearch("");
+                  setWalkInName("");
+                  setWalkInPhone("");
+                  setWalkInEmail("");
+                  if (paymentMethod === "credit") {
+                    setPaymentMethod("cash");
+                    setCreditDueDate("");
+                  }
+                }}
+                className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${!selectedCustomer ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
+              >
+                <span>Walk-in Customer</span>
+                {!selectedCustomer && (
+                  <span className="text-[11px] font-semibold">Selected</span>
+                )}
+              </button>
+              {filteredCustomers.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-gray-400">
+                  No customers found.
+                </div>
+              ) : (
+                filteredCustomers.map((c) => {
+                  const active = selectedCustomer === c._id;
+                  return (
+                    <button
+                      key={c._id}
+                      type="button"
+                      onClick={() => handleSelectCustomer(c._id)}
+                      className={`mb-1 flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors ${active ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
+                    >
+                      <span className="text-sm font-medium">{c.name}</span>
+                      <span className="text-[11px] text-gray-400">
+                        {c.phone || c.email || "No contact details"}
+                        {(c.outstandingBalance || 0) > 0
+                          ? ` • Bal ${formatCurrency(c.outstandingBalance || 0, currency)}`
+                          : ""}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCreateCustomerModal(true)}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add New Customer
+            </button>
+            {!selectedCustomer && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <input
+                  value={walkInName}
+                  onChange={(e) => setWalkInName(e.target.value)}
+                  placeholder="Walk-in name"
+                  className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                />
+                <input
+                  value={walkInPhone}
+                  onChange={(e) => setWalkInPhone(e.target.value)}
+                  placeholder="Phone (optional)"
+                  className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                />
+                <input
+                  value={walkInEmail}
+                  onChange={(e) => setWalkInEmail(e.target.value)}
+                  placeholder="Email for payment link"
+                  className="col-span-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                />
               </div>
-            ) : (
-              filteredCustomers.map((c) => {
-                const active = selectedCustomer === c._id;
-                return (
-                  <button
-                    key={c._id}
-                    type="button"
-                    onClick={() => handleSelectCustomer(c._id)}
-                    className={`mb-1 flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors ${active ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
-                  >
-                    <span className="text-sm font-medium">{c.name}</span>
-                    <span className="text-[11px] text-gray-400">
-                      {c.phone || c.email || "No contact details"}
-                      {(c.outstandingBalance || 0) > 0
-                        ? ` • Bal ${formatCurrency(c.outstandingBalance || 0, currency)}`
-                        : ""}
-                    </span>
-                  </button>
-                );
-              })
+            )}
+            {selectedCustomer && selectedCustomerRecord && (
+              <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] text-blue-700">
+                {selectedCustomerOutstanding > 0
+                  ? `Existing credit due: ${formatCurrency(selectedCustomerOutstanding, currency)}`
+                  : "No existing credit due"}
+              </div>
+            )}
+            {!selectedCustomer && (
+              <p className="mt-2 text-[11px] text-amber-700">
+                Credit is available for saved customers only.
+              </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setShowCreateCustomerModal(true)}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add New Customer
-          </button>
-          {!selectedCustomer && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <input
-                value={walkInName}
-                onChange={(e) => setWalkInName(e.target.value)}
-                placeholder="Walk-in name"
-                className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-              />
-              <input
-                value={walkInPhone}
-                onChange={(e) => setWalkInPhone(e.target.value)}
-                placeholder="Phone (optional)"
-                className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-              />
-              <input
-                value={walkInEmail}
-                onChange={(e) => setWalkInEmail(e.target.value)}
-                placeholder="Email for payment link"
-                className="col-span-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-              />
-            </div>
-          )}
-          {selectedCustomer && selectedCustomerRecord && (
-            <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] text-blue-700">
-              {selectedCustomerOutstanding > 0
-                ? `Existing credit due: ${formatCurrency(selectedCustomerOutstanding, currency)}`
-                : "No existing credit due"}
-            </div>
-          )}
-          {!selectedCustomer && (
-            <p className="mt-2 text-[11px] text-amber-700">
-              Credit is available for saved customers only.
+
+          {!isCustomerSectionOpen && (
+            <p className="text-[11px] text-gray-400 lg:hidden">
+              Customer panel collapsed for more checkout space.
             </p>
           )}
         </div>
@@ -1962,7 +2024,7 @@ export default function POSTerminalPage() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => updateQty(item.lineKey, -1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
                     >
                       <Minus className="h-3 w-3" />
                     </button>
@@ -1978,7 +2040,7 @@ export default function POSTerminalPage() {
                     />
                     <button
                       onClick={() => updateQty(item.lineKey, 1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50"
                     >
                       <Plus className="h-3 w-3" />
                     </button>
@@ -1991,7 +2053,7 @@ export default function POSTerminalPage() {
                     </span>
                     <button
                       onClick={() => removeItem(item.lineKey)}
-                      className="text-gray-300 opacity-0 transition-all hover:text-red-500 group-hover:opacity-100"
+                      className="text-gray-400 opacity-100 transition-all hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

@@ -55,9 +55,11 @@ function readStatusMessage(statusResult: unknown) {
 async function activateTenantPlan({
   tenantId,
   planName,
+  billingMonths,
 }: {
   tenantId: string;
   planName: string;
+  billingMonths?: number;
 }) {
   const normalizedPlan = planName.toLowerCase();
   const allowedPlans = new Set([
@@ -71,7 +73,12 @@ async function activateTenantPlan({
   if (!allowedPlans.has(normalizedPlan)) return;
 
   const now = new Date();
-  const nextExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const months =
+    Number.isFinite(billingMonths) && (billingMonths || 0) > 0
+      ? Number(billingMonths)
+      : 1;
+  const nextExpiry = new Date(now);
+  nextExpiry.setMonth(nextExpiry.getMonth() + months);
 
   await Tenant.findByIdAndUpdate(tenantId, {
     $set: {
@@ -176,6 +183,7 @@ export async function GET(req: NextRequest) {
       await activateTenantPlan({
         tenantId: String(checkout.tenantId),
         planName: checkout.planName,
+        billingMonths: checkout.billingMonths,
       });
     } else if (failed) {
       checkout.status = "failed";

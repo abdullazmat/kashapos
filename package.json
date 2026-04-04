@@ -7,13 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "test": "node --import tsx --test src/lib/customer-balance.test.ts src/lib/user-route-payload.test.ts src/lib/settings-route-payload.test.ts \"src/app/api/customers/[id]/route.test.ts\" src/app/api/sales/route.test.ts src/app/api/sales/receipt-send.route.test.ts src/app/api/customers/balance-reminder.route.test.ts",
-    "test:twilio-creds": "node --import tsx test-twilio-credentials.ts",
-    "test:twilio-sms": "node --import tsx test-twilio-sms.ts",
-    "test:twilio-whatsapp": "node --import tsx test-twilio-whatsapp.ts",
-    "send:sms": "node --import tsx send-sms-test.ts",
-    "send:whatsapp": "node --import tsx send-whatsapp-test.ts"
+    "lint": "eslint"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

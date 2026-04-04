@@ -37,6 +37,10 @@ type Checkout = {
   reference: string;
   planName: string;
   amount: number;
+  billingCycle?: "monthly" | "annual" | "biennial";
+  billingMonths?: number;
+  discountRate?: number;
+  savingsAmount?: number;
   currency: string;
   status: "initiated" | "completed" | "failed";
   checkoutUrl?: string;
@@ -52,6 +56,31 @@ type TenantBilling = {
 type RecheckOptions = {
   silent?: boolean;
 };
+
+type BillingCycle = "monthly" | "annual" | "biennial";
+
+const BILLING_CYCLE_META: Record<
+  BillingCycle,
+  { label: string; months: number; discountRate: number }
+> = {
+  monthly: { label: "Monthly", months: 1, discountRate: 0 },
+  annual: { label: "Annual Auto-Bill", months: 12, discountRate: 0.05 },
+  biennial: { label: "2-Year Auto-Bill", months: 24, discountRate: 0.1 },
+};
+
+function getCyclePricing(monthlyPrice: number, cycle: BillingCycle) {
+  const meta = BILLING_CYCLE_META[cycle];
+  const baseTotal = monthlyPrice * meta.months;
+  const total = Number((baseTotal * (1 - meta.discountRate)).toFixed(2));
+  const savings = Number((baseTotal - total).toFixed(2));
+  return {
+    ...meta,
+    baseTotal,
+    total,
+    savings,
+    effectiveMonthly: Number((total / meta.months).toFixed(2)),
+  };
+}
 
 const statusTone: Record<Checkout["status"], string> = {
   initiated: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20",
@@ -71,6 +100,7 @@ export default function SubscriptionPage() {
     null,
   );
   const [recheckingRef, setRecheckingRef] = useState<string | null>(null);
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [showContactSales, setShowContactSales] = useState(false);
   const [sendingContactSales, setSendingContactSales] = useState(false);
   const [selectedCustomPlan, setSelectedCustomPlan] = useState<Plan | null>(
@@ -146,7 +176,7 @@ export default function SubscriptionPage() {
       const res = await fetch("/api/subscription/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: plan._id }),
+        body: JSON.stringify({ planId: plan._id, billingCycle }),
       });
       const payload = await res.json();
 
@@ -394,6 +424,40 @@ export default function SubscriptionPage() {
           </div>
         </div>
 
+        <div className="rounded-3xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+            Billing Cycle
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+            {(Object.keys(BILLING_CYCLE_META) as BillingCycle[]).map(
+              (cycle) => {
+                const active = billingCycle === cycle;
+                return (
+                  <button
+                    key={cycle}
+                    type="button"
+                    onClick={() => setBillingCycle(cycle)}
+                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                      active
+                        ? "border-blue-500 bg-white ring-2 ring-blue-500/20"
+                        : "border-blue-100 bg-white/80 hover:border-blue-300"
+                    }`}
+                  >
+                    <p className="text-sm font-bold text-gray-900">
+                      {BILLING_CYCLE_META[cycle].label}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {BILLING_CYCLE_META[cycle].discountRate > 0
+                        ? `Save ${Math.round(BILLING_CYCLE_META[cycle].discountRate * 100)}% vs monthly total`
+                        : "No discount applied"}
+                    </p>
+                  </button>
+                );
+              },
+            )}
+          </div>
+        </div>
+
         {activePendingCheckout && (
           <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -461,6 +525,10 @@ export default function SubscriptionPage() {
                 plan.name.toLowerCase();
               const subscribing = subscribingPlanId === plan._id;
               const isCustom = plan.price == null;
+              const cyclePricing =
+                plan.price == null
+                  ? null
+                  : getCyclePricing(Number(plan.price), billingCycle);
 
               return (
                 <article
@@ -486,14 +554,40 @@ export default function SubscriptionPage() {
 
                   <div className="mt-5 flex items-end gap-2">
                     <p className="text-3xl font-black text-gray-900">
-                      {plan.price == null
+                      {cyclePricing == null
                         ? "Custom"
-                        : formatCurrency(plan.price, plan.currency || "UGX")}
+                        : formatCurrency(
+                            cyclePricing.total,
+                            plan.currency || "UGX",
+                          )}
                     </p>
                     <p className="mb-1 text-sm text-gray-400">
-                      {plan.price == null ? "" : plan.period}
+                      {cyclePricing == null
+                        ? ""
+                        : cyclePricing.months === 1
+                          ? "per month"
+                          : `for ${cyclePricing.months} months`}
                     </p>
                   </div>
+
+                  {cyclePricing && cyclePricing.discountRate > 0 && (
+                    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                      <p className="font-semibold">
+                        You save{" "}
+                        {formatCurrency(
+                          cyclePricing.savings,
+                          plan.currency || "UGX",
+                        )}
+                      </p>
+                      <p>
+                        Effective monthly:{" "}
+                        {formatCurrency(
+                          cyclePricing.effectiveMonthly,
+                          plan.currency || "UGX",
+                        )}
+                      </p>
+                    </div>
+                  )}
 
                   <ul className="mt-5 space-y-2">
                     {plan.features.slice(0, 8).map((feature) => (
@@ -557,7 +651,7 @@ export default function SubscriptionPage() {
                     {!isCurrent && !isCustom && (
                       <p className="text-[11px] text-gray-400">
                         {plan.checkoutWorkflow === "gateway"
-                          ? "Secure checkout powered by Pesapal. Activation happens after payment verification."
+                          ? `Secure checkout powered by Pesapal. ${billingCycle === "monthly" ? "Monthly billing selected." : `Auto-bill ${billingCycle === "annual" ? "annual" : "every 2 years"} selected.`}`
                           : plan.workflowMessage ||
                             "Secure checkout powered by Pesapal."}
                       </p>
@@ -598,6 +692,11 @@ export default function SubscriptionPage() {
                     </p>
                     <p className="text-xs text-gray-500">
                       {formatCurrency(item.amount, item.currency)} •{" "}
+                      {item.billingCycle && (
+                        <span className="capitalize">
+                          {item.billingCycle} •{" "}
+                        </span>
+                      )}
                       {new Date(item.createdAt).toLocaleString("en-UG")}
                     </p>
                     {item.errorMessage && (

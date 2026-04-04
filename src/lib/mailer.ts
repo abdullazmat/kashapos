@@ -128,7 +128,7 @@ export async function sendSystemEmail({
   }
   const resend = new Resend(apiKey);
 
-  const fromEmail = process.env.SMTP_FROM || "onboarding@resend.dev";
+  const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || "";
   const fromName = "Meka PoS";
   let resendFrom = `${fromName} <${fromEmail}>`;
 
@@ -170,7 +170,7 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
     settings.emailFromAddress ||
     process.env.SMTP_FROM ||
     process.env.SMTP_USER ||
-    "onboarding@resend.dev";
+    "";
   const replyTo = settings.emailReplyToAddress || undefined;
 
   const smtp = resolveSmtpConfig({

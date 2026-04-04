@@ -42,9 +42,13 @@ export function getRefreshTokenMaxAge(role?: string): number {
     : REFRESH_TOKEN_MAX_AGE_SECONDS;
 }
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "kashapos-secret-key-change-in-production",
-);
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error("JWT_SECRET must be configured in the environment");
+  }
+  return new TextEncoder().encode(secret);
+}
 
 export async function createAccessToken(payload: JWTPayload): Promise<string> {
   const expiration = getAccessTokenExpiration(payload.role);
@@ -52,7 +56,7 @@ export async function createAccessToken(payload: JWTPayload): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime(expiration)
     .setIssuedAt()
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function createRefreshToken(payload: JWTPayload): Promise<string> {
@@ -61,14 +65,14 @@ export async function createRefreshToken(payload: JWTPayload): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime(expiration)
     .setIssuedAt()
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifyJwt(
   token: string,
 ): Promise<(JWTPayload & { tokenType?: string }) | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as JWTPayload & { tokenType?: string };
   } catch {
     return null;

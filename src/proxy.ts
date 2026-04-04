@@ -12,9 +12,13 @@ import {
 } from "@/lib/auth-tokens";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "kashapos-secret-key-change-in-production",
-);
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error("JWT_SECRET must be configured in the environment");
+  }
+  return new TextEncoder().encode(secret);
+}
 
 const publicPaths = [
   "/",
@@ -89,8 +93,6 @@ function withRequestHeaders(
     }),
   );
 }
-
-
 
 export async function proxy(request: NextRequest) {
   const originalPathname = request.nextUrl.pathname;
@@ -204,8 +206,16 @@ export async function proxy(request: NextRequest) {
       maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
       path: "/",
     };
-    response.cookies.set(ACCESS_TOKEN_COOKIE, rotatedAccessToken, cookieOptions);
-    response.cookies.set(LEGACY_TOKEN_COOKIE, rotatedAccessToken, cookieOptions);
+    response.cookies.set(
+      ACCESS_TOKEN_COOKIE,
+      rotatedAccessToken,
+      cookieOptions,
+    );
+    response.cookies.set(
+      LEGACY_TOKEN_COOKIE,
+      rotatedAccessToken,
+      cookieOptions,
+    );
   }
 
   return response;

@@ -270,12 +270,12 @@ export default function ExpensesPage() {
       </div>
 
       {/* Quick Add Expense */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm overflow-hidden hidden sm:block">
+      <div className="rounded-2xl border border-gray-100 bg-white p-4 sm:p-5 shadow-sm overflow-hidden">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">
           Quick Add Expense
         </h3>
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="flex-1 min-w-[200px]">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-end">
+          <div className="sm:col-span-2 lg:flex-1 lg:min-w-[200px]">
             <label className="text-[11px] font-medium text-gray-400 uppercase">
               Description
             </label>
@@ -288,7 +288,7 @@ export default function ExpensesPage() {
               className={inputClass}
             />
           </div>
-          <div className="w-32">
+          <div className="w-full sm:w-auto sm:min-w-[140px] lg:w-32">
             <label className="text-[11px] font-medium text-gray-400 uppercase">
               Amount
             </label>
@@ -300,7 +300,7 @@ export default function ExpensesPage() {
               className={inputClass}
             />
           </div>
-          <div className="w-36">
+          <div className="w-full sm:w-auto sm:min-w-[160px] lg:w-36">
             <label className="text-[11px] font-medium text-gray-400 uppercase">
               Category
             </label>
@@ -316,7 +316,7 @@ export default function ExpensesPage() {
               ))}
             </select>
           </div>
-          <div className="w-36">
+          <div className="w-full sm:w-auto sm:min-w-[160px] lg:w-36">
             <label className="text-[11px] font-medium text-gray-400 uppercase">
               Date
             </label>
@@ -330,7 +330,7 @@ export default function ExpensesPage() {
           <button
             onClick={handleSave}
             disabled={saving || !form.description || !form.amount}
-            className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 h-[42px] mt-1.5"
+            className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-orange-500/25 transition-all hover:shadow-lg disabled:opacity-50 h-[42px] mt-1.5"
           >
             {saving ? "Saving..." : "Add"}
           </button>

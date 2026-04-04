@@ -24,6 +24,8 @@ function validatePhone(phone: string) {
   return /^(\+?[0-9]{7,15})$/.test(clean);
 }
 
+const OTP_REQUEST_TIMEOUT_MS = 15000;
+
 export default function SignUpPage() {
   const router = useRouter();
   const [signupMethod, setSignupMethod] = useState<
@@ -103,6 +105,11 @@ export default function SignUpPage() {
     }
 
     setLoading(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      OTP_REQUEST_TIMEOUT_MS,
+    );
 
     try {
       const identifier =
@@ -111,10 +118,16 @@ export default function SignUpPage() {
           : signupMethod === "whatsapp"
             ? form.whatsapp
             : form.phone;
+
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, method: signupMethod }),
+        body: JSON.stringify({
+          identifier,
+          method: signupMethod,
+          purpose: "signup",
+        }),
+        signal: controller.signal,
       });
 
       const data = await res.json();
@@ -132,11 +145,15 @@ export default function SignUpPage() {
       }
 
       setShowOtpField(true);
-    } catch {
-      const msg = "Something went wrong. Please try again.";
+    } catch (err: any) {
+      const msg =
+        err?.name === "AbortError"
+          ? "Request timed out. Please try again."
+          : "Something went wrong. Please try again.";
       setError(msg);
       showOtpSendErrorToast(msg);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

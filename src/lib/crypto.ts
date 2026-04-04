@@ -24,8 +24,13 @@ function getKey(): Buffer | null {
 
 export function encryptAtRest(value: string): string {
   const key = getKey();
-  if (!key || !value) {
+  if (!value) {
     return value;
+  }
+  if (!key) {
+    throw new Error(
+      "APP_ENCRYPTION_KEY is required to encrypt sensitive settings.",
+    );
   }
 
   const iv = randomBytes(12);

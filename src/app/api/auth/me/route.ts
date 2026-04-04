@@ -28,6 +28,8 @@ export async function GET() {
             slug: tenant.slug,
             logo: tenant.logo,
             plan: tenant.plan,
+            planExpiry: tenant.planExpiry,
+            createdAt: tenant.createdAt,
             settings: tenant.settings,
             saasProduct: tenant.saasProduct,
           }
