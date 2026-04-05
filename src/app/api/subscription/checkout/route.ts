@@ -237,6 +237,38 @@ function splitDisplayName(name: string) {
   };
 }
 
+function isLocalHost(hostname: string) {
+  const value = hostname.toLowerCase();
+  return (
+    value === "localhost" ||
+    value === "127.0.0.1" ||
+    value === "::1" ||
+    value.endsWith(".local")
+  );
+}
+
+function resolveCallbackBaseUrl(request: NextRequest) {
+  const candidates = [
+    process.env.SILICON_PAY_CALLBACK_BASE_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXT_PUBLIC_BASE_URL,
+    process.env.NEXTAUTH_URL,
+    new URL(request.url).origin,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate?.trim()) continue;
+    try {
+      const parsed = new URL(candidate.trim());
+      return parsed;
+    } catch {
+      continue;
+    }
+  }
+
+  return new URL(request.url);
+}
+
 async function activateTenantPlan({
   tenantId,
   planName,
@@ -363,17 +395,41 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      if (checkout.status === "failed") {
+        return apiSuccess({
+          checkout,
+          completed: false,
+          statusCode: "FAILED",
+          message: checkout.errorMessage || "Payment was marked as failed.",
+        });
+      }
+
       const statusReference = checkout.trackingId || checkout.reference;
       const statusResult =
         await SiliconPayService.getTransactionStatus(statusReference);
 
       if (!statusResult) {
-        return apiError("No status response from Silicon Pay", 502);
+        return apiSuccess({
+          checkout,
+          completed: false,
+          statusCode: "PENDING",
+          message:
+            "Payment is still pending. Complete the Silicon Pay prompt and wait for callback confirmation.",
+        });
       }
 
       const { statusCode, completed, failed } =
         resolveCheckoutStatus(statusResult);
       const message = readStatusMessage(statusResult);
+
+      if (!statusCode) {
+        return apiSuccess({
+          checkout,
+          completed: false,
+          statusCode: "PENDING",
+          message: "Payment is pending callback confirmation from Silicon Pay.",
+        });
+      }
 
       if (completed) {
         checkout.status = "completed";
@@ -476,13 +532,18 @@ export async function POST(request: NextRequest) {
     const siliconPayPublicKey = process.env.SILICON_PAY_PUBLIC_KEY?.trim();
     const siliconPayEncryptionKey =
       process.env.SILICON_PAY_ENCRYPTION_KEY?.trim();
+    const checkoutMode = (
+      process.env.SILICON_PAY_SUBSCRIPTION_CHECKOUT_MODE || "hosted"
+    )
+      .trim()
+      .toLowerCase();
 
     if (!siliconPayPublicKey || !siliconPayEncryptionKey) {
       return apiError("Silicon Pay credentials are not configured", 400);
     }
 
     const tenantPhone = String(tenant.phone || "").trim();
-    if (!tenantPhone) {
+    if (!tenantPhone && checkoutMode === "mobile_money") {
       return apiError(
         "Tenant phone number is required for Silicon Pay checkout",
         400,
@@ -493,34 +554,72 @@ export async function POST(request: NextRequest) {
       session.name || tenant.name || "Customer",
     );
 
-    const appUrl = new URL(request.url).origin;
+    const appUrl = resolveCallbackBaseUrl(request);
+    if (checkoutMode === "hosted") {
+      if (appUrl.protocol !== "https:" || isLocalHost(appUrl.hostname)) {
+        return businessError(
+          "Hosted Silicon Pay checkout requires a public HTTPS callback base URL. Set SILICON_PAY_CALLBACK_BASE_URL to your public app URL.",
+          "SILICON_PAY_PUBLIC_CALLBACK_URL_REQUIRED",
+          400,
+        );
+      }
+    }
+
     const callbackToken =
       process.env.SILICON_PAY_SUBSCRIPTION_CALLBACK_TOKEN?.trim() ||
       process.env.SILICON_PAY_CALLBACK_TOKEN?.trim() ||
       "";
     const callbackUrl = callbackToken
-      ? `${appUrl}/api/integrations/silicon-pay/subscription-callback?token=${encodeURIComponent(callbackToken)}`
-      : `${appUrl}/api/integrations/silicon-pay/subscription-callback`;
+      ? `${appUrl.origin}/api/integrations/silicon-pay/subscription-callback?token=${encodeURIComponent(callbackToken)}`
+      : `${appUrl.origin}/api/integrations/silicon-pay/subscription-callback`;
+    const redirectBase = `${appUrl.origin}/dashboard/subscription`;
 
     const reference = `SUB-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-    const gatewayResponse = await SiliconPayService.collect(
-      {
-        amount: quote.amount,
-        phoneNumber: tenantPhone,
-        email: customerEmail,
-        firstName,
-        lastName,
-        txId: reference,
-        reason: `Subscription payment for ${plan.name} (${billingCycle})`,
-        currency: plan.currency || "UGX",
-        callbackUrl,
-      },
-      {
+    const gatewayInput = {
+      amount: quote.amount,
+      phoneNumber: tenantPhone || undefined,
+      email: customerEmail,
+      firstName,
+      lastName,
+      txId: reference,
+      reason: `Subscription payment for ${plan.name} (${billingCycle})`,
+      currency: plan.currency || "UGX",
+      callbackUrl,
+      successUrl: `${redirectBase}?payment=success&reference=${encodeURIComponent(reference)}`,
+      failureUrl: `${redirectBase}?payment=failed&reference=${encodeURIComponent(reference)}`,
+    };
+
+    let gatewayResponse: unknown;
+    if (checkoutMode === "mobile_money") {
+      gatewayResponse = await SiliconPayService.collect(gatewayInput, {
         siliconPayPublicKey,
         siliconPayEncryptionKey,
-      },
-    );
+      });
+    } else if (checkoutMode === "auto") {
+      try {
+        gatewayResponse = await SiliconPayService.collectHostedCheckout(
+          gatewayInput,
+          {
+            siliconPayPublicKey,
+            siliconPayEncryptionKey,
+          },
+        );
+      } catch {
+        gatewayResponse = await SiliconPayService.collect(gatewayInput, {
+          siliconPayPublicKey,
+          siliconPayEncryptionKey,
+        });
+      }
+    } else {
+      gatewayResponse = await SiliconPayService.collectHostedCheckout(
+        gatewayInput,
+        {
+          siliconPayPublicKey,
+          siliconPayEncryptionKey,
+        },
+      );
+    }
 
     const checkoutUrl = readCheckoutUrl(gatewayResponse);
     const trackingId = readTrackingId(gatewayResponse) || reference;
@@ -571,7 +670,9 @@ export async function POST(request: NextRequest) {
           ? "Payment confirmed and plan activated."
           : immediateStatus.failed
             ? "Payment request created but marked as failed. Please try again."
-            : "Silicon Pay payment request created. Complete payment to activate your plan.",
+            : checkoutUrl
+              ? "Silicon Pay payment page created. Complete payment to activate your plan."
+              : "Silicon Pay mobile payment prompt sent. Approve it on your phone to activate your plan.",
       },
       201,
     );

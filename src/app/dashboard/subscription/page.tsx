@@ -106,6 +106,10 @@ function getReadableCheckoutError(message: string) {
     return "Silicon Pay rejected the customer email address. Please update the account email and try again.";
   }
 
+  if (lowered.includes("hosted checkout is unavailable")) {
+    return "Hosted web checkout is not enabled for this Silicon Pay account. Ask Silicon Pay support to enable hosted/card checkout or switch checkout mode to mobile money.";
+  }
+
   if (lowered.includes("silicon pay collection failed")) {
     const cleaned = raw
       .replace(/^silicon pay collection failed:\s*/i, "")
@@ -255,27 +259,26 @@ export default function SubscriptionPage() {
         payload.data?.checkoutUrl ||
         checkout.checkoutUrl;
 
-      if (!checkoutUrl) {
-        const failureMessage =
-          payload.error ||
-          payload.message ||
-          checkout.errorMessage ||
-          "Silicon Pay did not return a checkout page.";
-        throw new Error(failureMessage);
-      }
-
       setCheckouts((current) => [
         checkout,
         ...current.filter((item) => item._id !== checkout._id),
       ]);
       toast.success(
         payload.message ||
-          "Checkout created successfully. Complete payment to activate the plan.",
+          (checkoutUrl
+            ? "Checkout page created. Complete payment to activate the plan."
+            : "Mobile payment prompt sent. Approve it on your phone to activate the plan."),
       );
 
-      const opened = window.open(checkoutUrl, "_blank", "noopener,noreferrer");
-      if (!opened) {
-        window.location.assign(checkoutUrl);
+      if (checkoutUrl) {
+        const opened = window.open(
+          checkoutUrl,
+          "_blank",
+          "noopener,noreferrer",
+        );
+        if (!opened) {
+          window.location.assign(checkoutUrl);
+        }
       }
     } catch (error) {
       const message = getReadableCheckoutError(
