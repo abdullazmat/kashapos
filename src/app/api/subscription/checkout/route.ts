@@ -237,6 +237,25 @@ function splitDisplayName(name: string) {
   };
 }
 
+function normalizeUgandaMsisdn(raw: string) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+
+  if (digits.startsWith("256")) {
+    return `+${digits}`;
+  }
+
+  if (digits.startsWith("0") && digits.length >= 10) {
+    return `+256${digits.slice(1)}`;
+  }
+
+  if (digits.length <= 9) {
+    return `+256${digits}`;
+  }
+
+  return `+${digits}`;
+}
+
 function isLocalHost(hostname: string) {
   const value = hostname.toLowerCase();
   return (
@@ -370,6 +389,7 @@ export async function POST(request: NextRequest) {
       action,
       reference: recheckReference,
       billingCycle: requestedBillingCycle,
+      phoneNumber: requestedPhoneNumber,
     } = await request.json();
 
     if (action === "recheck") {
@@ -542,12 +562,24 @@ export async function POST(request: NextRequest) {
       return apiError("Silicon Pay credentials are not configured", 400);
     }
 
-    const tenantPhone = String(tenant.phone || "").trim();
-    if (!tenantPhone && checkoutMode === "mobile_money") {
-      return apiError(
-        "Tenant phone number is required for Silicon Pay checkout",
-        400,
-      );
+    const tenantPhone = normalizeUgandaMsisdn(String(tenant.phone || ""));
+    const requestedPhone = normalizeUgandaMsisdn(
+      String(requestedPhoneNumber || ""),
+    );
+    const checkoutPhone = requestedPhone || tenantPhone;
+    let phoneSavedForFutureCheckouts = false;
+    if (!checkoutPhone && checkoutMode === "mobile_money") {
+      return apiError("Phone number is required for Silicon Pay checkout", 400);
+    }
+
+    if (requestedPhone && requestedPhone !== tenantPhone) {
+      await Tenant.findByIdAndUpdate(session.tenantId, {
+        $set: {
+          phone: requestedPhone,
+          "settings.phoneNumber": requestedPhone,
+        },
+      });
+      phoneSavedForFutureCheckouts = true;
     }
 
     const { firstName, lastName } = splitDisplayName(
@@ -578,7 +610,7 @@ export async function POST(request: NextRequest) {
 
     const gatewayInput = {
       amount: quote.amount,
-      phoneNumber: tenantPhone || undefined,
+      phoneNumber: checkoutPhone || undefined,
       email: customerEmail,
       firstName,
       lastName,
@@ -591,6 +623,9 @@ export async function POST(request: NextRequest) {
     };
 
     let gatewayResponse: unknown;
+    let checkoutFlowUsed: "hosted" | "mobile_money" =
+      checkoutMode === "mobile_money" ? "mobile_money" : "hosted";
+    let autoFallbackReason = "";
     if (checkoutMode === "mobile_money") {
       gatewayResponse = await SiliconPayService.collect(gatewayInput, {
         siliconPayPublicKey,
@@ -605,11 +640,16 @@ export async function POST(request: NextRequest) {
             siliconPayEncryptionKey,
           },
         );
-      } catch {
+        checkoutFlowUsed = "hosted";
+      } catch (error) {
+        const fallbackMessage =
+          error instanceof Error ? error.message : String(error || "");
+        autoFallbackReason = fallbackMessage;
         gatewayResponse = await SiliconPayService.collect(gatewayInput, {
           siliconPayPublicKey,
           siliconPayEncryptionKey,
         });
+        checkoutFlowUsed = "mobile_money";
       }
     } else {
       gatewayResponse = await SiliconPayService.collectHostedCheckout(
@@ -619,6 +659,7 @@ export async function POST(request: NextRequest) {
           siliconPayEncryptionKey,
         },
       );
+      checkoutFlowUsed = "hosted";
     }
 
     const checkoutUrl = readCheckoutUrl(gatewayResponse);
@@ -666,6 +707,11 @@ export async function POST(request: NextRequest) {
       {
         checkout,
         checkoutUrl,
+        phoneSavedForFutureCheckouts,
+        checkoutMode,
+        checkoutFlowUsed,
+        autoFallbackApplied: checkoutMode === "auto" && !!autoFallbackReason,
+        autoFallbackReason: autoFallbackReason || undefined,
         message: immediateStatus.completed
           ? "Payment confirmed and plan activated."
           : immediateStatus.failed

@@ -153,6 +153,11 @@ export default function SubscriptionPage() {
   const [selectedCustomPlan, setSelectedCustomPlan] = useState<Plan | null>(
     null,
   );
+  const [showCheckoutPhoneModal, setShowCheckoutPhoneModal] = useState(false);
+  const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<Plan | null>(
+    null,
+  );
+  const [checkoutPhone, setCheckoutPhone] = useState("");
   const [contactSalesForm, setContactSalesForm] = useState({
     contactName: "",
     contactEmail: "",
@@ -217,13 +222,17 @@ export default function SubscriptionPage() {
     void loadData();
   }, [loadData]);
 
-  async function handleSubscribe(plan: Plan) {
+  async function handleSubscribe(plan: Plan, phoneNumber?: string) {
     setSubscribingPlanId(plan._id);
     try {
       const res = await fetch("/api/subscription/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: plan._id, billingCycle }),
+        body: JSON.stringify({
+          planId: plan._id,
+          billingCycle,
+          phoneNumber: (phoneNumber || "").trim() || undefined,
+        }),
       });
       const payload = await res.json();
 
@@ -258,6 +267,13 @@ export default function SubscriptionPage() {
         payload.checkoutUrl ||
         payload.data?.checkoutUrl ||
         checkout.checkoutUrl;
+      const phoneSavedForFutureCheckouts = Boolean(
+        payload.phoneSavedForFutureCheckouts ||
+        payload.data?.phoneSavedForFutureCheckouts,
+      );
+      const autoFallbackApplied = Boolean(
+        payload.autoFallbackApplied || payload.data?.autoFallbackApplied,
+      );
 
       setCheckouts((current) => [
         checkout,
@@ -269,6 +285,15 @@ export default function SubscriptionPage() {
             ? "Checkout page created. Complete payment to activate the plan."
             : "Mobile payment prompt sent. Approve it on your phone to activate the plan."),
       );
+      if (autoFallbackApplied) {
+        toast(
+          "Hosted Silicon Pay checkout was unavailable, so we switched to mobile money prompt.",
+          { icon: "ℹ️" },
+        );
+      }
+      if (phoneSavedForFutureCheckouts) {
+        toast.success("Phone saved for future checkouts");
+      }
 
       if (checkoutUrl) {
         const opened = window.open(
@@ -299,6 +324,40 @@ export default function SubscriptionPage() {
     } finally {
       setSubscribingPlanId(null);
     }
+  }
+
+  function startCheckoutWithPhone(plan: Plan) {
+    setSelectedCheckoutPlan(plan);
+    setCheckoutPhone(
+      String(tenant?.settings?.phoneNumber || checkoutPhone || "").trim(),
+    );
+    setShowCheckoutPhoneModal(true);
+  }
+
+  function closeCheckoutPhoneModal() {
+    if (
+      selectedCheckoutPlan &&
+      subscribingPlanId === selectedCheckoutPlan._id
+    ) {
+      return;
+    }
+    setShowCheckoutPhoneModal(false);
+    setSelectedCheckoutPlan(null);
+  }
+
+  async function submitCheckoutWithPhone() {
+    if (!selectedCheckoutPlan) return;
+
+    const enteredPhone = checkoutPhone.trim();
+    if (!enteredPhone) {
+      toast.error("Phone number is required to continue.");
+      return;
+    }
+
+    setShowCheckoutPhoneModal(false);
+    const planToCheckout = selectedCheckoutPlan;
+    setSelectedCheckoutPlan(null);
+    await handleSubscribe(planToCheckout, enteredPhone);
   }
 
   const handleRecheck = useCallback(
@@ -684,7 +743,7 @@ export default function SubscriptionPage() {
                           );
                           return;
                         }
-                        void handleSubscribe(plan);
+                        startCheckoutWithPhone(plan);
                       }}
                       disabled={subscribing}
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors disabled:opacity-60 ${
@@ -900,6 +959,87 @@ export default function SubscriptionPage() {
                   <Sparkles className="h-4 w-4" />
                 )}
                 {sendingContactSales ? "Sending..." : "Send Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCheckoutPhoneModal && selectedCheckoutPlan && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/45 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeCheckoutPhoneModal();
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                  Payment Details
+                </p>
+                <h3 className="mt-1 text-xl font-black text-gray-900">
+                  Buy {selectedCheckoutPlan.name}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Enter your mobile money number before we send the Silicon Pay
+                  request.
+                </p>
+              </div>
+              <button
+                onClick={closeCheckoutPhoneModal}
+                disabled={subscribingPlanId === selectedCheckoutPlan._id}
+                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+                aria-label="Close"
+              >
+                <CircleX className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label
+                htmlFor="subscriptionCheckoutPhone"
+                className="text-xs font-semibold uppercase tracking-wide text-gray-600"
+              >
+                Phone Number
+              </label>
+              <input
+                id="subscriptionCheckoutPhone"
+                value={checkoutPhone}
+                onChange={(event) => setCheckoutPhone(event.target.value)}
+                placeholder="e.g. 0772123456 or +256772123456"
+                inputMode="tel"
+                autoComplete="tel"
+                className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15"
+              />
+              <p className="text-[11px] text-gray-400">
+                Use your Airtel or MTN number to receive the payment prompt.
+              </p>
+            </div>
+
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={closeCheckoutPhoneModal}
+                disabled={subscribingPlanId === selectedCheckoutPlan._id}
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitCheckoutWithPhone}
+                disabled={subscribingPlanId === selectedCheckoutPlan._id}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {subscribingPlanId === selectedCheckoutPlan._id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CreditCard className="h-4 w-4" />
+                )}
+                {subscribingPlanId === selectedCheckoutPlan._id
+                  ? "Starting..."
+                  : "Continue to Pay"}
               </button>
             </div>
           </div>

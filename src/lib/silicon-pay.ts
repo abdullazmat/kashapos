@@ -234,6 +234,7 @@ export class SiliconPayService {
    * Verifies a transaction status
    */
   static async getTransactionStatus(txId: string) {
+    void txId;
     // Note: Silicon Pay usually checks via the callback or a specific status endpoint.
     // If there's a status endpoint, we'd use it here.
     // For now we'll assume the callback handles the truth.
