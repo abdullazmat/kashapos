@@ -20,7 +20,7 @@ export async function GET() {
       .populate('userId', 'name email');
     
     return apiSuccess(logs);
-  } catch (error: any) {
-    return apiError(error.message, 500);
+  } catch (error: unknown) {
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }

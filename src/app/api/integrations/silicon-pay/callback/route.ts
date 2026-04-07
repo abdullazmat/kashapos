@@ -10,7 +10,7 @@ import { applyStockUpdate } from "@/lib/stock-service";
  */
 export async function POST(req: NextRequest) {
   try {
-    const data = await req.json();
+    const data = (await req.json()) as Record<string, unknown>;
     console.log("Silicon Pay Callback received:", data);
 
     // Silicon Pay sends data like:
@@ -26,12 +26,12 @@ export async function POST(req: NextRequest) {
 
     // Log the event
     await writeAuditLog({
-      tenantId: "system", // Or determine from txId if possible
-      action: "payment_callback",
+      tenantId: "system",
+      action: "system",
       tableAffected: "payments",
-      recordId: data.txId || "unknown",
+      recordId: (data.txId as string) || "unknown",
       newValue: data,
-    } as any);
+    });
 
     const txId = String(data.txId || data.txRef || data.reference || "").trim();
     const statusText = String(
@@ -105,10 +105,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Silicon Pay Callback Error:", error);
     return NextResponse.json(
-      { success: false, message: error.message },
+      { success: false, message: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 },
     );
   }

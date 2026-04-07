@@ -5,6 +5,17 @@
 
 const SERIAL_PORT_KEY = "kashapos-printer-port";
 
+type SerialPort = {
+  open: (options: { baudRate: number }) => Promise<void>;
+  close: () => Promise<void>;
+  readonly writable: {
+    getWriter: () => {
+      write: (data: Uint8Array) => Promise<void>;
+      releaseLock: () => void;
+    };
+  };
+};
+
 export async function openCashDrawer() {
   // ESC/POS command to open drawer: ESC p m t1 t2
   // p: 112 (hex 0x70)
@@ -20,12 +31,13 @@ export async function openCashDrawer() {
 
   try {
     // Check if we already have a port authorized
-    const ports = await (navigator as any).serial.getPorts();
+    const serial = (navigator as unknown as { serial: { getPorts: () => Promise<SerialPort[]>, requestPort: () => Promise<SerialPort> } }).serial;
+    const ports = await serial.getPorts();
     let port = ports[0];
 
     if (!port) {
       // Request user to pick a port
-      port = await (navigator as any).serial.requestPort();
+      port = await serial.requestPort();
     }
 
     await port.open({ baudRate: 9600 });
@@ -37,11 +49,11 @@ export async function openCashDrawer() {
     await port.close();
     
     return true;
-  } catch (err: any) {
-    if (err.name === 'NotFoundError') {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'NotFoundError') {
       throw new Error("No printer found or selected.");
     }
-    if (err.name === 'InvalidStateError') {
+    if (err instanceof Error && err.name === 'InvalidStateError') {
       throw new Error("Printer port is already open.");
     }
     throw err;

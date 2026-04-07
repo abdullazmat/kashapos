@@ -8,6 +8,7 @@ import { sendSystemEmail } from "@/lib/mailer";
 import { twilioService } from "@/lib/twilio";
 import { africasTalkingService } from "@/lib/africastalking";
 import { checkOutboundMessageGuard } from "@/lib/outbound-message-guard";
+import { normalizeIdentifier } from "@/lib/auth";
 
 const PROVIDER_TIMEOUT_MS = 8000;
 const BALANCE_TIMEOUT_MS = 3000;
@@ -36,20 +37,18 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect();
     const { identifier: rawIdentifier, method, purpose = "signup" } = await request.json();
-    const identifier = method === "email" 
-      ? (rawIdentifier || "").trim().toLowerCase() 
-      : (rawIdentifier || "").replace(/\s+/g, "");
+    const identifier = normalizeIdentifier(rawIdentifier);
 
     if (!identifier || !method) {
       return apiError("Identifier and method are required", 400);
     }
 
     // Check if the user already exists
-    const query: Record<string, any> = {};
+    const query: Record<string, string> = {};
     if (method === "email") {
-      query.email = identifier.toLowerCase();
+      query.email = identifier;
     } else {
-      query.phone = identifier.replace(/\s+/g, "");
+      query.phone = identifier;
     }
 
     const existingUser = await User.findOne(query);
@@ -109,21 +108,25 @@ export async function POST(request: NextRequest) {
     let deliveryMethodUsed = method;
     let deliveryWarning: string | undefined;
     if (method === "email") {
-      const res = await sendSystemEmail({
-        to: identifier,
-        subject: "Your KashaPOS Verification Code",
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-            <h2 style="color: #f97316;">KashaPOS</h2>
-            <p>Thank you for starting your sign up process.</p>
-            <p>Your one-time verification code is:</p>
-            <div style="background-color: #f3f4f6; padding: 12px 24px; font-size: 24px; font-weight: bold; letter-spacing: 4px; border-radius: 8px; text-align: center; margin: 24px 0; color: #111;">
-              ${otp}
+      const res = await withTimeout(
+        sendSystemEmail({
+          to: identifier,
+          subject: "Your KashaPOS Verification Code",
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+              <h2 style="color: #f97316;">KashaPOS</h2>
+              <p>Thank you for starting your sign up process.</p>
+              <p>Your one-time verification code is:</p>
+              <div style="background-color: #f3f4f6; padding: 12px 24px; font-size: 24px; font-weight: bold; letter-spacing: 4px; border-radius: 8px; text-align: center; margin: 24px 0; color: #111;">
+                ${otp}
+              </div>
+              <p style="font-size: 14px; color: #666;">This code will expire in 30 minutes.</p>
             </div>
-            <p style="font-size: 14px; color: #666;">This code will expire in 30 minutes.</p>
-          </div>
-        `,
-      });
+          `,
+        }),
+        PROVIDER_TIMEOUT_MS,
+        "Email delivery",
+      );
       if (res && "mock" in res && res.mock) isMock = true;
     } else if (method === "phone") {
       try {
@@ -156,10 +159,10 @@ export async function POST(request: NextRequest) {
             );
             throw new Error("Insufficient Africa's Talking balance");
           }
-        } catch (balanceError: any) {
+        } catch (balanceError: unknown) {
           console.warn(
             "Could not verify Africa's Talking balance:",
-            balanceError.message,
+            balanceError instanceof Error ? balanceError.message : String(balanceError),
           );
           // Continue anyway, let the send fail if needed
         }
@@ -175,7 +178,7 @@ export async function POST(request: NextRequest) {
         if (!result.success) {
           throw new Error(result.message || "SMS delivery failed");
         }
-      } catch (phoneError: any) {
+      } catch (phoneError: unknown) {
         console.error(
           "Phone SMS delivery via Africa's Talking failed, trying Twilio fallback:",
           phoneError,
@@ -203,57 +206,13 @@ export async function POST(request: NextRequest) {
               mockOtp: isMock ? otp : undefined,
             });
           }
-        } catch (twilioError: any) {
+        } catch (twilioError: unknown) {
           console.error(
-            "Twilio SMS fallback failed, falling back to email:",
+            "Twilio SMS fallback failed, no further fallbacks:",
             twilioError,
           );
-        }
-
-        // Try to find user by phone to get their email for fallback
-        let emailForFallback: string | undefined;
-        try {
-          const user = await User.findOne({
-            phone: identifier.replace(/\s+/g, ""),
-          });
-          emailForFallback = user?.email;
-        } catch (userLookupError: any) {
-          console.warn(
-            "Could not lookup user email for SMS fallback:",
-            userLookupError.message,
-          );
-        }
-
-        // Only attempt email fallback if we found an email
-        if (emailForFallback) {
-          const fallbackResult = await withTimeout(
-            sendSystemEmail({
-              to: emailForFallback,
-              subject: "Your KashaPOS Verification Code",
-              html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                <h2 style="color: #f97316;">KashaPOS</h2>
-                <p>Thank you for starting your sign up process.</p>
-                <p>Your one-time verification code is:</p>
-                <div style="background-color: #f3f4f6; padding: 12px 24px; font-size: 24px; font-weight: bold; letter-spacing: 4px; border-radius: 8px; text-align: center; margin: 24px 0; color: #111;">
-                  ${otp}
-                </div>
-                <p style="font-size: 14px; color: #666;">This code will expire in 30 minutes.</p>
-              </div>
-            `,
-            }),
-            PROVIDER_TIMEOUT_MS,
-            "Email fallback",
-          );
-          if (fallbackResult && "mock" in fallbackResult && fallbackResult.mock)
-            isMock = true;
-          deliveryMethodUsed = "email";
-          deliveryWarning = "SMS delivery failed; OTP sent via email fallback.";
-        } else {
-          // No email found - can't deliver OTP
-          const errorMsg = "SMS delivery failed and no email on file for fallback";
-          console.error(errorMsg);
-          return apiError(errorMsg, 503);
+          const err = twilioError as { message?: string };
+          return apiError(`SMS Delivery Failed: ${err.message || 'Unknown provider error'}`, 502);
         }
       }
     } else if (method === "whatsapp") {
@@ -281,7 +240,7 @@ export async function POST(request: NextRequest) {
           "Twilio WhatsApp",
         );
         if (!result.success) throw new Error(result.message || "WhatsApp delivery failed");
-      } catch (whatsAppError: any) {
+      } catch (whatsAppError: unknown) {
         console.error(
           "WhatsApp OTP delivery failed, falling back to SMS:",
           whatsAppError,
@@ -303,56 +262,13 @@ export async function POST(request: NextRequest) {
           deliveryMethodUsed = "phone";
           deliveryWarning =
             "WhatsApp delivery failed; OTP sent via SMS fallback.";
-        } catch (smsError: any) {
+        } catch (smsError: unknown) {
           console.error(
-            "SMS fallback also failed, falling back to email:",
+            "SMS fallback also failed, no further fallbacks:",
             smsError,
           );
-
-          // Try to find user by phone to get their email for fallback
-          let emailForFallback: string | undefined;
-          try {
-            const user = await User.findOne({
-              phone: identifier.replace(/\s+/g, ""),
-            });
-            emailForFallback = user?.email;
-          } catch (userLookupError: any) {
-            console.warn(
-              "Could not lookup user email for SMS fallback:",
-              userLookupError.message,
-            );
-          }
-
-          if (emailForFallback) {
-            const emailFallback = await withTimeout(
-              sendSystemEmail({
-                to: emailForFallback,
-                subject: "Your KashaPOS Verification Code",
-                html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                  <h2 style="color: #f97316;">KashaPOS</h2>
-                  <p>Thank you for starting your sign up process.</p>
-                  <p>Your one-time verification code is:</p>
-                  <div style="background-color: #f3f4f6; padding: 12px 24px; font-size: 24px; font-weight: bold; letter-spacing: 4px; border-radius: 8px; text-align: center; margin: 24px 0; color: #111;">
-                    ${otp}
-                  </div>
-                  <p style="font-size: 14px; color: #666;">This code will expire in 30 minutes.</p>
-                </div>
-              `,
-              }),
-              PROVIDER_TIMEOUT_MS,
-              "Email fallback",
-            );
-            if (emailFallback && "mock" in emailFallback && emailFallback.mock)
-              isMock = true;
-            deliveryMethodUsed = "email";
-            deliveryWarning =
-              "WhatsApp and SMS delivery failed; OTP sent via email fallback.";
-          } else {
-            const errorMsg = "WhatsApp and SMS delivery failed and no email on file for fallback";
-            console.error(errorMsg);
-            return apiError(errorMsg, 503);
-          }
+          const err = smsError as { message?: string };
+          return apiError(`WhatsApp and SMS Delivery Failed: ${err.message || 'Unknown provider error'}`, 502);
         }
       }
     } else {
@@ -363,11 +279,10 @@ export async function POST(request: NextRequest) {
       message: "OTP sent successfully",
       deliveryMethodUsed,
       warning: deliveryWarning,
-      mock: isMock,
-      mockOtp: isMock ? otp : undefined,
+      mock: false,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Send OTP error:", error);
-    return apiError(error.message || "Internal server error", 500);
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }

@@ -287,7 +287,7 @@ export default function InventoryPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [units, setUnits] = useState<any[]>([]);
+  const [units, setUnits] = useState<Array<{ _id: string; name: string; shortName: string }>>([]);
   const [stockFilter, setStockFilter] = useState<
     "all" | "in-stock" | "low" | "out"
   >("all");

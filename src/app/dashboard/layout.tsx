@@ -1785,7 +1785,7 @@ export default function DashboardLayout({
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-start gap-2 text-amber-900">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-medium animate-soft-bounce animate-premium-shimmer">
                     {trialBannerState.hasExpired
                       ? "Your 7-day trial has ended. Upgrade now to keep full access and continue billing."
                       : `Your 7-day trial ends in ${trialBannerState.daysRemaining} day${trialBannerState.daysRemaining === 1 ? "" : "s"}. Upgrade now to avoid interruption.`}

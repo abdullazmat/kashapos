@@ -34,7 +34,7 @@ export async function GET() {
     const totalMRR = stats.reduce((sum, s) => sum + s.mrr, 0);
 
     return apiSuccess({ stats, totalMRR });
-  } catch (error: any) {
-    return apiError(error.message, 500);
+  } catch (error: unknown) {
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }

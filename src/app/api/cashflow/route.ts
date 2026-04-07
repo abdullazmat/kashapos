@@ -297,7 +297,13 @@ export async function GET(request: NextRequest) {
         amount: Number(sale.amountPaid || 0),
       }));
 
-      const paymentInflows = payments.map((p: any) => ({
+      const paymentInflows = (payments as unknown as Array<{
+        _id: string;
+        createdAt: string;
+        customerId?: { name?: string };
+        method?: string;
+        amount?: number;
+      }>).map((p) => ({
         id: String(p._id),
         date: new Date(p.createdAt).toISOString(),
         description: `Payment from ${p.customerId?.name || "Customer"}`,
@@ -324,7 +330,12 @@ export async function GET(request: NextRequest) {
         amount: Number(expense.amount || 0),
       }));
 
-      const returnOutflows = returns.map((ret: any) => ({
+      const returnOutflows = (returns as unknown as Array<{
+        _id: string;
+        createdAt: string;
+        returnNumber?: string;
+        total?: number;
+      }>).map((ret) => ({
         id: String(ret._id),
         date: new Date(ret.createdAt).toISOString(),
         description: `Sales Return ${ret.returnNumber}`,

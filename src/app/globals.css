@@ -29,6 +29,8 @@
   --color-sidebar-active: hsl(var(--sidebar-active));
 
   --animate-fade-zoom-in: fade-zoom-in 0.25s ease-out;
+  --animate-soft-bounce: soft-bounce 2s ease-in-out infinite;
+  --animate-premium-shimmer: premium-shimmer 3s ease-in-out infinite;
 
   @keyframes fade-zoom-in {
     from {
@@ -38,6 +40,26 @@
     to {
       opacity: 1;
       transform: scale(1);
+    }
+  }
+
+  @keyframes soft-bounce {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(4px);
+    }
+  }
+
+  @keyframes premium-shimmer {
+    0%, 100% {
+      opacity: 1;
+      filter: brightness(1);
+    }
+    50% {
+      opacity: 0.8;
+      filter: brightness(1.2);
     }
   }
 }

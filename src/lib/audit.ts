@@ -2,11 +2,11 @@ import type { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import AuditLog from "@/models/AuditLog";
 
-type AuditAction = "create" | "update" | "delete";
+type AuditAction = "create" | "update" | "delete" | "system";
 
 export async function writeAuditLog(input: {
   tenantId: string;
-  userId: string;
+  userId?: string;
   action: AuditAction;
   tableAffected: string;
   recordId: string;
@@ -20,14 +20,21 @@ export async function writeAuditLog(input: {
     input.request?.headers.get("x-real-ip") ||
     undefined;
 
-  await AuditLog.create({
-    tenantId: new mongoose.Types.ObjectId(input.tenantId),
-    userId: new mongoose.Types.ObjectId(input.userId),
+  const doc: Record<string, unknown> = {
+    tenantId: mongoose.isValidObjectId(input.tenantId)
+      ? new mongoose.Types.ObjectId(input.tenantId)
+      : undefined,
     action: input.action,
     tableAffected: input.tableAffected,
     recordId: input.recordId,
     oldValue: input.oldValue,
     newValue: input.newValue,
     ipAddress,
-  });
+  };
+
+  if (input.userId && mongoose.isValidObjectId(input.userId)) {
+    doc.userId = new mongoose.Types.ObjectId(input.userId);
+  }
+
+  await AuditLog.create(doc);
 }

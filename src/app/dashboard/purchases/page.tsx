@@ -10,7 +10,6 @@ import {
   Truck,
   ChevronLeft,
   ChevronRight,
-  Search,
   Filter,
   Package,
   Calendar,
@@ -18,7 +17,6 @@ import {
   DollarSign,
   CreditCard,
   Edit,
-  Trash2,
   Layers,
   Scan,
 } from "lucide-react";
@@ -31,14 +29,7 @@ interface PurchaseOrder {
   orderNumber: string;
   vendorId?: { _id: string; name: string };
   branchId?: string;
-  items: {
-    productName: string;
-    sku?: string;
-    quantity: number;
-    unitCost: number;
-    receivedQuantity: number;
-    total: number;
-  }[];
+  items: OrderItem[];
   subtotal: number;
   tax: number;
   shippingCost: number;
@@ -55,6 +46,24 @@ interface Vendor {
   _id: string;
   name: string;
 }
+interface OrderItem {
+  productId?: string;
+  productName: string;
+  sku?: string;
+  unit?: string;
+  quantity: number;
+  unitCost: number;
+  receivedQuantity: number;
+  total: number;
+}
+
+interface ProductVariant {
+  name: string;
+  sku: string;
+  barcode?: string;
+  costPrice: number;
+}
+
 interface Product {
   _id: string;
   name: string;
@@ -62,12 +71,7 @@ interface Product {
   barcode?: string;
   costPrice: number;
   unit?: string;
-  variants?: {
-    name: string;
-    sku: string;
-    barcode?: string;
-    costPrice: number;
-  }[];
+  variants?: ProductVariant[];
 }
 interface Branch {
   _id: string;
@@ -104,7 +108,10 @@ export default function PurchasesPage() {
   const [newUnit, setNewUnit] = useState({ name: "", shortName: "" });
   const [savingUnit, setSavingUnit] = useState(false);
   const [barcodeMatches, setBarcodeMatches] = useState<
-    { product: Product; variant?: any }[]
+    {
+      product: Product;
+      variant?: ProductVariant;
+    }[]
   >([]);
   const [showBarcodeDropdown, setShowBarcodeDropdown] = useState(false);
 
@@ -307,13 +314,16 @@ export default function PurchasesPage() {
       return;
     }
     // Search for matches
-    const matches: { product: Product; variant?: any }[] = [];
+    const matches: {
+      product: Product;
+      variant?: ProductVariant;
+    }[] = [];
     const query = val.toLowerCase().trim();
     products.forEach((p) => {
       if (p.barcode?.toLowerCase().includes(query)) {
         matches.push({ product: p });
       }
-      p.variants?.forEach((v: any) => {
+      p.variants?.forEach((v) => {
         if (v.barcode?.toLowerCase().includes(query)) {
           matches.push({ product: p, variant: v });
         }
@@ -923,7 +933,7 @@ export default function PurchasesPage() {
                               tax: o.tax,
                               shippingCost: o.shippingCost,
                               total: o.total,
-                              items: o.items.map((i: any) => ({
+                              items: o.items.map((i) => ({
                                 productId: i.productId || "",
                                 productName: i.productName,
                                 sku: i.sku,

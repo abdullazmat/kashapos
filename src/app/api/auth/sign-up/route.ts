@@ -4,7 +4,7 @@ import User from "@/models/User";
 import Tenant from "@/models/Tenant";
 import Branch from "@/models/Branch";
 import OTP from "@/models/OTP";
-import { hashPassword, setSession } from "@/lib/auth";
+import { hashPassword, setSession, normalizeIdentifier } from "@/lib/auth";
 import { validatePasswordPolicy } from "@/lib/security";
 import { slugify } from "@/lib/utils";
 import { apiError, apiSuccess } from "@/lib/api-helpers";
@@ -36,11 +36,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if email or phone already exists
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = {};
     if (email) {
-      query.email = email.toLowerCase();
+      query.email = email.trim().toLowerCase();
     } else if (phone) {
-      query.phone = phone.replace(/\s+/g, "");
+      query.phone = normalizeIdentifier(phone);
     }
 
     const existingUser = await User.findOne(query);
@@ -55,10 +55,14 @@ export async function POST(request: NextRequest) {
     const identifier =
       signupMethod === "email"
         ? email.trim().toLowerCase()
-        : phone.replace(/\s+/g, "");
+        : normalizeIdentifier(phone);
 
     // Verify OTP
-    const validOtp = await OTP.findOne({ identifier, otp });
+    const validOtp = await OTP.findOne({ 
+      identifier, 
+      otp,
+      expiresAt: { $gt: new Date() }
+    });
     if (!validOtp) {
       return apiError("Invalid or expired OTP", 400);
     }

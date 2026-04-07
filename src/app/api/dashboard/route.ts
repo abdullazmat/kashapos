@@ -268,9 +268,10 @@ export async function GET(request: NextRequest) {
         ordersGrowth: 0,
       },
       weeklySales,
-      lowStockAlerts: lowStockData.filter(
-        (s: any) => s.quantity <= (s.productId?.reorderLevel || 0),
-      ),
+      lowStockAlerts: (lowStockData as unknown as Array<{
+        quantity: number;
+        productId?: { reorderLevel?: number };
+      }>).filter((s) => s.quantity <= (s.productId?.reorderLevel || 0)),
       topProducts,
     });
   } catch (error) {

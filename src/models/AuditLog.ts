@@ -2,8 +2,8 @@ import mongoose, { Document, Model, Schema } from "mongoose";
 
 export interface IAuditLog extends Document {
   tenantId: mongoose.Types.ObjectId;
-  userId: mongoose.Types.ObjectId;
-  action: "create" | "update" | "delete";
+  userId?: mongoose.Types.ObjectId;
+  action: "create" | "update" | "delete" | "system";
   tableAffected: string;
   recordId: string;
   oldValue?: Record<string, unknown>;
@@ -20,10 +20,10 @@ const AuditLogSchema = new Schema<IAuditLog>(
       required: true,
       index: true,
     },
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User" },
     action: {
       type: String,
-      enum: ["create", "update", "delete"],
+      enum: ["create", "update", "delete", "system"],
       required: true,
     },
     tableAffected: { type: String, required: true },

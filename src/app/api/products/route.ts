@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     const active = searchParams.get("active");
     const purchaseOrderId = searchParams.get("purchase_order_id");
 
-    const query: Record<string, any> = { tenantId: auth.tenantId };
+    const query: Record<string, unknown> = { tenantId: auth.tenantId };
 
     if (purchaseOrderId) {
       const PurchaseOrder = (await import("@/models/PurchaseOrder")).default;

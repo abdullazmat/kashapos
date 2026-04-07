@@ -21,9 +21,9 @@ export async function GET() {
         ipn_id: process.env.PESAPAL_IPN_ID || "Not Registered",
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, message: error.message },
+      { success: false, message: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }
@@ -57,9 +57,9 @@ export async function POST(req: NextRequest) {
       { success: false, message: "Invalid action" },
       { status: 400 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, message: error.message },
+      { success: false, message: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }

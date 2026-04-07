@@ -227,6 +227,22 @@ const defaultIntegrations: Integration[] = [
   },
 ];
 
+interface IntegrationSettings {
+  siliconPayPublicKey?: string;
+  siliconPayEncryptionKey?: string;
+  pesapalConsumerKey?: string;
+  pesapalConsumerSecret?: string;
+  twilioAccountSid?: string;
+  twilioApiSecret?: string;
+  emailApiKey?: string;
+  emailSmtpHost?: string;
+  emailSmtpPort?: number;
+  emailSmtpUser?: string;
+  emailSmtpPass?: string;
+  callbackUrl?: string;
+  [key: string]: string | number | undefined;
+}
+
 export default function IntegrationsPage() {
   const [integrations, setIntegrations] =
     useState<Integration[]>(defaultIntegrations);
@@ -240,8 +256,7 @@ export default function IntegrationsPage() {
     success: boolean;
     message: string;
   } | null>(null);
-  const [settings, setSettings] = useState<any>({});
-  const [formValues, setFormValues] = useState<any>({});
+  const [formValues, setFormValues] = useState<IntegrationSettings>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -254,7 +269,6 @@ export default function IntegrationsPage() {
       const data = await res.json();
       if (res.ok) {
         const s = (data.data?.settings || data.settings || data) || {};
-        setSettings(s);
         setFormValues(s);
 
         // Update connected status based on settings
@@ -298,7 +312,7 @@ export default function IntegrationsPage() {
       if (id === "mtn-momo" || id === "airtel-money") type = "silicon-pay";
 
       const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-      const testPayload = { ...formValues } as any;
+      const testPayload: IntegrationSettings = { ...formValues };
 
       if (type === "pesapal") {
         testPayload.callbackUrl = `${baseUrl}/api/integrations/pesapal/callback`;
@@ -325,9 +339,10 @@ export default function IntegrationsPage() {
         });
         toast.error(cleanError.substring(0, 500), { id: toastId });
       }
-    } catch (err: any) {
-      setTestResult({ success: false, message: err.message });
-      toast.error(err.message, { id: toastId });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setTestResult({ success: false, message });
+      toast.error(message, { id: toastId });
     } finally {
       setTesting(false);
     }
@@ -384,15 +399,14 @@ export default function IntegrationsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setSettings(data.data?.settings || data.settings || data);
         toast.success(`Settings saved successfully`);
         setShowConfigModal(false);
       } else {
         toast.error(data.error || data.message || "Failed to save settings");
         console.error("Save Error:", data.error || data.message);
       }
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -954,9 +968,10 @@ export default function IntegrationsPage() {
                           setTestResult({ success: false, message: data.error || data.message });
                           toast.error(data.error || data.message, { id: toastId });
                         }
-                      } catch (err: any) {
-                        setTestResult({ success: false, message: err.message });
-                        toast.error(err.message, { id: toastId });
+                      } catch (err: unknown) {
+                        const message = err instanceof Error ? err.message : String(err);
+                        setTestResult({ success: false, message });
+                        toast.error(message, { id: toastId });
                       } finally {
                         setTesting(false);
                       }

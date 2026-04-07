@@ -52,9 +52,10 @@ export async function POST(request: NextRequest) {
     });
 
     return apiSuccess(unit, 201);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Units POST error:", error);
-    if (error.code === 11000) {
+    const err = error as { code?: number };
+    if (err.code === 11000) {
       return apiError("Unit with this name already exists", 409);
     }
     return apiError("Internal server error", 500);

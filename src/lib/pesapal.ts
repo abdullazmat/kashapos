@@ -17,6 +17,17 @@ export interface PesapalAuthResponse {
   message: string;
 }
 
+export interface PesapalBaseResponse {
+  status: string | number;
+  message?: string;
+  code?: string;
+  error?: {
+    message?: string;
+    code?: string;
+  };
+  [key: string]: unknown;
+}
+
 export interface PesapalIpnResponse {
   url: string;
   created_date: string;
@@ -70,7 +81,7 @@ export class PesapalService {
       throw new Error(`Pesapal Auth Failed: ${err}`);
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as PesapalBaseResponse;
     // Pesapal token response received
 
     // Some APIs (like Pesapal) might return HTTP 200 but an error INSIDE the JSON
@@ -84,12 +95,13 @@ export class PesapalService {
     }
 
     // Some versions or variants might use token, access_token, or CaseVariations
-    const token =
+    const token = (
       data.token ||
       data.access_token ||
       data.Token ||
       data.Access_token ||
-      data.AccessToken;
+      data.AccessToken
+    ) as string | undefined;
 
     if (!token) {
       throw new Error(
@@ -105,7 +117,10 @@ export class PesapalService {
    */
   static async registerIpn(
     callbackUrl: string,
-    credentials?: any,
+    credentials?: {
+      pesapalConsumerKey?: string;
+      pesapalConsumerSecret?: string;
+    },
   ): Promise<string> {
     const token = await this.getAuthToken(credentials);
 
@@ -180,7 +195,10 @@ export class PesapalService {
         last_name?: string;
       };
     },
-    credentials?: any,
+    credentials?: {
+      pesapalConsumerKey?: string;
+      pesapalConsumerSecret?: string;
+    },
   ) {
     const token = await this.getAuthToken(credentials);
     const response = await fetch(
@@ -203,7 +221,7 @@ export class PesapalService {
       );
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as PesapalBaseResponse;
     // Pesapal order request completed
 
     if (data?.status && String(data.status) !== "200") {

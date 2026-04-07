@@ -14,8 +14,8 @@ export async function GET() {
     await dbConnect();
     const tenants = await Tenant.find().sort({ createdAt: -1 });
     return apiSuccess(tenants);
-  } catch (error: any) {
-    return apiError(error.message, 500);
+  } catch (error: unknown) {
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }
 
@@ -33,7 +33,7 @@ export async function PATCH(request: NextRequest) {
     if (!tenant) return apiError("Tenant not found", 404);
 
     return apiSuccess(tenant);
-  } catch (error: any) {
-    return apiError(error.message, 500);
+  } catch (error: unknown) {
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }

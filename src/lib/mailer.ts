@@ -9,13 +9,26 @@ export type MailProvider =
   | "postmark"
   | "resend";
 
+export interface MailerSettings {
+  emailProvider?: MailProvider;
+  emailApiKey?: string;
+  emailFromName?: string;
+  emailFromAddress?: string;
+  emailReplyToAddress?: string;
+  emailSmtpHost?: string;
+  emailSmtpPort?: string | number;
+  emailSmtpUser?: string;
+  emailSmtpPassword?: string;
+  [key: string]: unknown;
+}
+
 type SendTenantEmailInput = {
   tenantId: string;
   to: string;
   subject: string;
   html: string;
   text?: string;
-  settings?: any; // Optional override settings
+  settings?: MailerSettings;
 };
 
 function parsePort(value: unknown, fallback: number) {
@@ -162,7 +175,7 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
     throw new Error("Tenant not found for email delivery");
   }
 
-  const settings = input.settings || tenant.settings || {};
+  const settings = (input.settings || tenant.settings || {}) as MailerSettings;
   const provider = (settings.emailProvider || "resend") as MailProvider;
 
   const fromName = settings.emailFromName || tenant.name || "MEKA POS";

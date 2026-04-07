@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Search,
   ArrowUpRight,
-  ArrowDownRight,
   Package,
   CheckCircle2,
   XCircle,
@@ -16,7 +15,6 @@ import {
   Edit,
   Save,
   Plus,
-  MoreVertical,
   LogOut,
   Globe,
   Settings,
@@ -49,24 +47,90 @@ type TabType =
   | "roles"
   | "leads";
 
+interface AdminTenant {
+  _id: string;
+  name: string;
+  slug: string;
+  email?: string;
+  phone?: string;
+  plan?: string;
+  isActive: boolean;
+  createdAt: string;
+  settings?: {
+    currency?: string;
+    taxRate?: number;
+    [key: string]: unknown;
+  };
+}
+
+interface AdminPlan {
+  _id?: string;
+  name: string;
+  price: number | null;
+  duration?: string;
+  features: string[];
+  description?: string;
+  isActive?: boolean;
+  isPopular?: boolean;
+  period?: string;
+  maxBranches?: number | null;
+  maxUsers?: number | null;
+  ctaText?: string;
+}
+
+interface AdminActivity {
+  _id: string;
+  userName?: string;
+  userId?: { name: string };
+  action: string;
+  module: string;
+  description: string;
+  createdAt: string;
+}
+
+interface AdminBilling {
+  stats: Array<{ name: string; mrr: number; count: number }>;
+  totalMRR: number;
+}
+
+interface AdminSubscriptionLead {
+  _id: string;
+  planName: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone?: string;
+  companyName?: string;
+  message?: string;
+  status: "new" | "contacted" | "closed";
+  createdAt: string;
+}
+
+interface AdminSettings {
+  platformName?: string;
+  supportEmail?: string;
+  defaultCurrency?: string;
+  taxEngine?: string;
+  featureFlags?: Record<string, boolean>;
+  [key: string]: unknown;
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
-  const [tenants, setTenants] = useState<any[]>([]);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<AdminTenant[]>([]);
+  const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [editingPlan, setEditingPlan] = useState<any>(null);
-  const [activity, setActivity] = useState<any[]>([]);
-  const [billing, setBilling] = useState<any>({ stats: [], totalMRR: 0 });
-  const [settings, setSettings] = useState<any>(null);
-  const [subscriptionLeads, setSubscriptionLeads] = useState<any[]>([]);
+  const [editingPlan, setEditingPlan] = useState<AdminPlan | null>(null);
+  const [activity, setActivity] = useState<AdminActivity[]>([]);
+  const [billing, setBilling] = useState<AdminBilling>({
+    stats: [],
+    totalMRR: 0,
+  });
+  const [settings, setSettings] = useState<AdminSettings | null>(null);
+  const [subscriptionLeads, setSubscriptionLeads] = useState<AdminSubscriptionLead[]>([]);
 
-  useEffect(() => {
-    fetchData();
-  }, [activeTab]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const endpoints = [
@@ -104,14 +168,22 @@ export default function AdminDashboardPage() {
       setSubscriptionLeads(
         Array.isArray(data[5]) ? data[5] : data[5]?.data || [],
       );
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(String(err));
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
-  const updateSetting = async (updates: any) => {
+  useEffect(() => {
+    fetchData();
+  }, [activeTab, fetchData]);
+
+  const updateSetting = async (updates: Record<string, unknown>) => {
     try {
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
@@ -119,7 +191,8 @@ export default function AdminDashboardPage() {
         body: JSON.stringify(updates),
       });
       if (res.ok) fetchData();
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to update setting", err);
       alert("Failed to update setting");
     }
   };
@@ -134,7 +207,8 @@ export default function AdminDashboardPage() {
         },
       };
       await updateSetting(updates);
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to update flag", err);
       alert(
         "Failed to update flag: Action rejected because master settings are not in sync.",
       );
@@ -149,12 +223,14 @@ export default function AdminDashboardPage() {
         body: JSON.stringify({ id, updates: { isActive: !currentStatus } }),
       });
       if (res.ok) fetchData();
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to toggle tenant status", err);
       alert("Failed to update status");
     }
   };
 
   const savePlan = async () => {
+    if (!editingPlan) return;
     try {
       const method = editingPlan._id ? "PATCH" : "POST";
       const payload = editingPlan._id
@@ -170,7 +246,8 @@ export default function AdminDashboardPage() {
         setEditingPlan(null);
         fetchData();
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to save plan", err);
       alert("Failed to save plan");
     }
   };
@@ -684,6 +761,7 @@ export default function AdminDashboardPage() {
                         name: "",
                         description: "",
                         price: 0,
+                        duration: "",
                         period: "/per month",
                         isActive: true,
                         features: [],
@@ -905,37 +983,40 @@ export default function AdminDashboardPage() {
                     icon: ShieldAlert,
                     desc: "Lock out all non-admin users across all tenants",
                   },
-                ].map((flag: any) => (
-                  <div
-                    key={flag.id}
-                    className="bg-[#0A0F1C] border border-[#1C2539] p-5 rounded-2xl flex items-start gap-4 hover:border-orange-500/30 transition-colors"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-[#1C2539] flex items-center justify-center shrink-0">
-                      <flag.icon className="w-5 h-5 text-slate-400" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <h4 className="font-bold text-white">{flag.label}</h4>
-                        <div
-                          onClick={() =>
-                            updateFlag(
-                              flag.id,
-                              !settings?.featureFlags?.[flag.id],
-                            )
-                          }
-                          className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings?.featureFlags?.[flag.id] ? "bg-orange-600" : "bg-slate-700"}`}
-                        >
-                          <div
-                            className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-all ${settings?.featureFlags?.[flag.id] ? "right-0.5" : "left-0.5"}`}
-                          />
-                        </div>
+                ].map((flag: { id: string; label: string; icon: React.ElementType; desc: string }) => {
+                  const Icon = flag.icon;
+                  return (
+                    <div
+                      key={flag.id}
+                      className="bg-[#0A0F1C] border border-[#1C2539] p-5 rounded-2xl flex items-start gap-4 hover:border-orange-500/30 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-[#1C2539] flex items-center justify-center shrink-0">
+                        <Icon className="w-5 h-5 text-slate-400" />
                       </div>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        {flag.desc}
-                      </p>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="font-bold text-white">{flag.label}</h4>
+                          <div
+                            onClick={() =>
+                              updateFlag(
+                                flag.id,
+                                !settings?.featureFlags?.[flag.id],
+                              )
+                            }
+                            className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${settings?.featureFlags?.[flag.id] ? "bg-orange-600" : "bg-slate-700"}`}
+                          >
+                            <div
+                              className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-all ${settings?.featureFlags?.[flag.id] ? "right-0.5" : "left-0.5"}`}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          {flag.desc}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -948,7 +1029,7 @@ export default function AdminDashboardPage() {
                 Feed
               </h3>
               <div className="relative border-l border-[#1C2539] ml-4 space-y-8 pb-4">
-                {activity.map((log: any) => (
+                {activity.map((log: { _id: string; description: string; module: string; userName?: string; userId?: { name: string }; createdAt: string | number | Date }) => (
                   <div key={log._id} className="relative pl-6">
                     <div
                       className={`absolute -left-1.5 top-1.5 w-3 h-3 rounded-full border-2 border-[#0D1425] ${log.module === "auth" ? "bg-orange-500" : log.module === "sales" ? "bg-emerald-500" : "bg-blue-500"}`}
@@ -994,7 +1075,7 @@ export default function AdminDashboardPage() {
               </h3>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                {billingStats.map((b: any, i: number) => (
+                {billingStats.map((b: { name: string; mrr: number; count: number }, i: number) => (
                   <div
                     key={i}
                     className="bg-[#0A0F1C] border border-[#1C2539] p-5 rounded-2xl"
@@ -1396,9 +1477,9 @@ export default function AdminDashboardPage() {
                   <input
                     type="text"
                     placeholder="e.g. Professional"
-                    value={editingPlan.name || ""}
+                    value={editingPlan?.name || ""}
                     onChange={(e) =>
-                      setEditingPlan({ ...editingPlan, name: e.target.value })
+                      editingPlan && setEditingPlan({ ...editingPlan, name: e.target.value })
                     }
                     className="w-full bg-[#1C2539]/20 border border-[#1C2539] rounded-2xl px-5 py-4 text-sm text-white focus:ring-2 focus:ring-orange-500/50 outline-none transition-all font-bold placeholder:text-slate-700 shadow-inner"
                   />
@@ -1410,17 +1491,17 @@ export default function AdminDashboardPage() {
                   <div className="flex p-1 bg-[#1C2539]/40 rounded-2xl border border-[#1C2539]">
                     <button
                       onClick={() =>
-                        setEditingPlan({ ...editingPlan, isActive: true })
+                        editingPlan && setEditingPlan({ ...editingPlan, isActive: true })
                       }
-                      className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${editingPlan.isActive ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-500 hover:text-slate-300"}`}
+                      className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${editingPlan?.isActive ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-500 hover:text-slate-300"}`}
                     >
                       Active
                     </button>
                     <button
                       onClick={() =>
-                        setEditingPlan({ ...editingPlan, isActive: false })
+                        editingPlan && setEditingPlan({ ...editingPlan, isActive: false })
                       }
-                      className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!editingPlan.isActive ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-slate-500 hover:text-slate-300"}`}
+                      className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${editingPlan && !editingPlan.isActive ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-slate-500 hover:text-slate-300"}`}
                     >
                       Hidden
                     </button>
@@ -1435,9 +1516,9 @@ export default function AdminDashboardPage() {
                 <input
                   type="text"
                   placeholder="Short value proposition..."
-                  value={editingPlan.description || ""}
+                  value={editingPlan?.description || ""}
                   onChange={(e) =>
-                    setEditingPlan({
+                    editingPlan && setEditingPlan({
                       ...editingPlan,
                       description: e.target.value,
                     })
@@ -1454,9 +1535,9 @@ export default function AdminDashboardPage() {
                   <div className="relative">
                     <input
                       type="number"
-                      value={editingPlan.price || ""}
+                      value={editingPlan?.price || ""}
                       onChange={(e) =>
-                        setEditingPlan({
+                        editingPlan && setEditingPlan({
                           ...editingPlan,
                           price: e.target.value
                             ? parseInt(e.target.value)
@@ -1478,9 +1559,9 @@ export default function AdminDashboardPage() {
                   <label className="flex items-center gap-3 p-4 bg-[#1C2539]/20 border border-[#1C2539] rounded-2xl cursor-pointer hover:bg-[#1C2539]/40 transition-all shadow-inner">
                     <input
                       type="checkbox"
-                      checked={editingPlan.isPopular}
+                      checked={editingPlan?.isPopular || false}
                       onChange={(e) =>
-                        setEditingPlan({
+                        editingPlan && setEditingPlan({
                           ...editingPlan,
                           isPopular: e.target.checked,
                         })
@@ -1488,7 +1569,7 @@ export default function AdminDashboardPage() {
                       className="w-5 h-5 rounded-lg accent-orange-500"
                     />
                     <span className="text-xs font-bold text-slate-300">
-                      Show 'Popular' Badge
+                      Show &apos;Popular&apos; Badge
                     </span>
                   </label>
                 </div>
@@ -1501,9 +1582,9 @@ export default function AdminDashboardPage() {
                   </label>
                   <input
                     type="number"
-                    value={editingPlan.maxBranches || ""}
+                    value={editingPlan?.maxBranches || ""}
                     onChange={(e) =>
-                      setEditingPlan({
+                      editingPlan && setEditingPlan({
                         ...editingPlan,
                         maxBranches: e.target.value
                           ? parseInt(e.target.value)
@@ -1520,9 +1601,9 @@ export default function AdminDashboardPage() {
                   </label>
                   <input
                     type="number"
-                    value={editingPlan.maxUsers || ""}
+                    value={editingPlan?.maxUsers || ""}
                     onChange={(e) =>
-                      setEditingPlan({
+                      editingPlan && setEditingPlan({
                         ...editingPlan,
                         maxUsers: e.target.value
                           ? parseInt(e.target.value)
@@ -1542,10 +1623,10 @@ export default function AdminDashboardPage() {
                 <textarea
                   rows={5}
                   value={
-                    editingPlan.features ? editingPlan.features.join("\n") : ""
+                    editingPlan?.features ? editingPlan.features.join("\n") : ""
                   }
                   onChange={(e) =>
-                    setEditingPlan({
+                    editingPlan && setEditingPlan({
                       ...editingPlan,
                       features: e.target.value.split("\n"),
                     })

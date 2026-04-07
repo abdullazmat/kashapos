@@ -3,7 +3,7 @@ import dbConnect from "@/lib/db";
 import User from "@/models/User";
 import Tenant from "@/models/Tenant";
 import ActivityLog from "@/models/ActivityLog";
-import { verifyPassword, setSession } from "@/lib/auth";
+import { verifyPassword, setSession, normalizeIdentifier } from "@/lib/auth";
 import { apiError, apiSuccess } from "@/lib/api-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -24,9 +24,10 @@ export async function POST(request: NextRequest) {
       return apiError("Email or phone number and password are required", 400);
     }
 
+    const normalizedIdentifier = normalizeIdentifier(email || phone);
     const query = email
-      ? { email: email.toLowerCase() }
-      : { phone: phone.replace(/\s+/g, "") };
+      ? { email: normalizedIdentifier }
+      : { phone: normalizedIdentifier };
     const user = await User.findOne(query);
     if (!user) {
       // Generic error handling (Checklist #8): Return identical responses for wrong user/pass

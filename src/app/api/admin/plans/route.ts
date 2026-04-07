@@ -16,8 +16,8 @@ export async function GET() {
     await dbConnect();
     const plans = await Plan.find().sort({ order: 1 });
     return apiSuccess(plans);
-  } catch (error: any) {
-    return apiError(error.message, 500);
+  } catch (error: unknown) {
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }
 
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
     const plan = await Plan.create(data);
     return apiSuccess(plan);
-  } catch (error: any) {
-    return apiError(error.message, 500);
+  } catch (error: unknown) {
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }
 
@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest) {
     if (!plan) return apiError("Plan not found", 404);
 
     return apiSuccess(plan);
-  } catch (error: any) {
-    return apiError(error.message, 500);
+  } catch (error: unknown) {
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }

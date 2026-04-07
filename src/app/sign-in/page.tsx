@@ -35,6 +35,7 @@ function SignInForm() {
   const [mode, setMode] = useState<"signin" | "forgot" | "reset">("signin");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   const handlePhoneChange = (val: string) => {
@@ -111,8 +112,8 @@ function SignInForm() {
       }
 
       setMode("reset");
-      if (data.mock) {
-        alert(`DEVELOPMENT MOCK\nOTP Code: ${data.otp}`);
+      if (data.mock && data.mockOtp) {
+        alert(`DEVELOPMENT MOCK\nOTP Code: ${data.mockOtp}`);
       }
     } catch {
       setError("Network error. Try again.");
@@ -125,6 +126,12 @@ function SignInForm() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    if (newPassword.trim() !== confirmPassword.trim()) {
+      setError("Passwords do not match");
+      setLoading(false);
+      return;
+    }
 
     try {
       const isEmail = loginMethod === "email";
@@ -147,6 +154,7 @@ function SignInForm() {
       setPassword("");
       setOtp("");
       setNewPassword("");
+      setConfirmPassword("");
     } catch {
       setError("Network error. Try again.");
     } finally {
@@ -400,7 +408,20 @@ function SignInForm() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
-                      placeholder="At least 6 characters"
+                      placeholder="At least 8 characters"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                      placeholder="Confirm your new password"
                       required
                     />
                   </div>

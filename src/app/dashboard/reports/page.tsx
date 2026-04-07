@@ -330,7 +330,7 @@ export default function ReportsPage() {
           })),
         ];
     }
-  }, [data, monthlySales, purchaseOrders, receivables, view]);
+  }, [data, monthlySales, purchaseOrders, receivables, view, activities]);
 
   const handleExport = useCallback(() => {
     const rows = exportRowsForView();
@@ -426,6 +426,7 @@ export default function ReportsPage() {
     receivables,
     purchaseOrders,
     totalPurchased,
+    activities,
   ]);
 
   const periodSelector = (

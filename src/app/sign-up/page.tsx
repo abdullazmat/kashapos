@@ -82,8 +82,15 @@ export default function SignUpPage() {
           "Please enter a valid WhatsApp number (e.g., +256700000000)";
     }
 
-    if (!form.password || form.password.length < 6)
-      errors.password = "Password must be at least 6 characters";
+    if (!form.password) {
+      errors.password = "Password is required";
+    } else if (form.password.length < 8) {
+      errors.password = "Password must be at least 8 characters";
+    } else if (!/[0-9]/.test(form.password)) {
+      errors.password = "Password must include at least one number";
+    } else if (!/[^A-Za-z0-9]/.test(form.password)) {
+      errors.password = "Password must include at least one symbol";
+    }
 
     // Cross-validate: if email provided in any method, validate it
     if (form.email && !validateEmail(form.email))
@@ -145,9 +152,9 @@ export default function SignUpPage() {
       }
 
       setShowOtpField(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg =
-        err?.name === "AbortError"
+        err instanceof Error && err.name === "AbortError"
           ? "Request timed out. Please try again."
           : "Something went wrong. Please try again.";
       setError(msg);

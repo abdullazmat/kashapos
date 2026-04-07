@@ -20,9 +20,9 @@ export async function GET() {
       config = await GlobalConfig.create({});
     }
     return apiSuccess(config);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("GET /api/admin/settings Error:", error);
-    return apiError(error.message, 500);
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }
 
@@ -36,9 +36,9 @@ export async function PATCH(request: NextRequest) {
     await dbConnect();
     const updates = await request.json();
     
-    let config = await GlobalConfig.findOneAndUpdate({}, updates, { new: true, upsert: true });
+    const config = await GlobalConfig.findOneAndUpdate({}, updates, { new: true, upsert: true });
     return apiSuccess(config);
-  } catch (error: any) {
-    return apiError(error.message, 500);
+  } catch (error: unknown) {
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }

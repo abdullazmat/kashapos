@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import dbConnect from "@/lib/db";
-import PurchaseOrder from "@/models/PurchaseOrder";
+import PurchaseOrder, { IPurchaseOrderItem } from "@/models/PurchaseOrder";
 import Stock from "@/models/Stock";
 import ActivityLog from "@/models/ActivityLog";
 import { getAuthContext, apiSuccess, apiError } from "@/lib/api-helpers";
@@ -9,7 +9,7 @@ import { applyStockUpdate } from "@/lib/stock-service";
 async function applyStockDeltas(
   tenantId: string,
   branchId: string,
-  items: any[],
+  items: IPurchaseOrderItem[],
 ) {
   await applyStockUpdate(
     tenantId,
@@ -18,7 +18,6 @@ async function applyStockDeltas(
       productId: i.productId,
       sku: i.sku,
       productName: i.productName,
-      unit: i.unit,
       quantity: i.receivedQuantity > 0 ? i.receivedQuantity : i.quantity,
       unitCost: i.unitCost,
     })),
@@ -81,7 +80,7 @@ export async function PUT(
         userName: auth.name || "Unknown",
         action: "update",
         module: "purchases",
-        description: `Received purchase order ${existingOrder.orderNumber} from ${(existingOrder.vendorId as any)?.name || "supplier"}`,
+        description: `Received purchase order ${existingOrder.orderNumber} from ${(existingOrder.vendorId as { name?: string })?.name || "supplier"}`,
         metadata: { orderId: existingOrder._id.toString(), numItems: existingOrder.items.length },
       });
     }

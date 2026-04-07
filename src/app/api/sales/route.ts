@@ -181,7 +181,11 @@ async function ensureStockAvailability(
 async function applyStockDeltas(
   tenantId: string,
   branchId: string,
-  items: any[],
+  items: Array<{
+    productId: string;
+    sku: string;
+    quantity: number;
+  }>,
 ) {
   await applyStockUpdate(
     tenantId,

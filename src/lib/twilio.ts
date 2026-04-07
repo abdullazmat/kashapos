@@ -13,7 +13,7 @@ function sleep(ms: number) {
 const cleanEnv = (val: string | undefined): string => (val || "").trim().replace(/^['"]|['"]$/g, "").replace(/;+$/, "").trim();
 
 class TwilioService {
-  private client: any;
+  private client: ReturnType<typeof twilio> | undefined;
 
   constructor() {
     this.refreshClient();
@@ -71,25 +71,26 @@ class TwilioService {
     return this.client;
   }
 
-  private isEnabled(client?: any) {
+  private isEnabled(client?: ReturnType<typeof twilio>) {
     return !!(client || this.client);
   }
 
   private async createMessageWithRetry(
-    client: any,
+    client: ReturnType<typeof twilio> | undefined,
     payload: { body: string; from: string; to: string },
   ) {
     if (!client) {
       throw new Error("Twilio client is not initialized. Please check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in your environment.");
     }
-    let lastError: any;
+    let lastError: unknown;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         return await client.messages.create(payload);
-      } catch (error: any) {
+      } catch (error: unknown) {
         lastError = error;
-        const status = Number(error?.status || 0);
-        const code = Number(error?.code || 0);
+        const err = error as { status?: number; code?: number };
+        const status = Number(err?.status || 0);
+        const code = Number(err?.code || 0);
         const isTransient =
           TRANSIENT_TWILIO_CODES.has(code) || status >= 500 || status === 429;
         if (!isTransient || attempt === 3) break;
@@ -102,7 +103,7 @@ class TwilioService {
   /**
    * Send SMS via Twilio
    */
-  async sendSMS(to: string, message: string, credentials?: any) {
+  async sendSMS(to: string, message: string, credentials?: Record<string, string>) {
     const client = this.getClient(credentials);
     if (!this.isEnabled(client)) {
       console.warn("Twilio not configured, SMS not sent to:", to);
@@ -139,16 +140,16 @@ class TwilioService {
         to: normalizedTo,
       });
       return { success: true, sid: resp.sid };
-    } catch (error: any) {
-      console.error("Twilio SMS failed:", error);
-      throw new Error(`Twilio SMS failed: ${error.message} (Code: ${error.code})`);
+    } catch (error: unknown) {
+      const err = error as { message?: string; code?: number };
+      throw new Error(`Twilio SMS failed: ${err.message || "Unknown error"} (Code: ${err.code || "N/A"})`);
     }
   }
 
   /**
    * Send WhatsApp message via Twilio
    */
-  async sendWhatsApp(to: string, message: string, credentials?: any) {
+  async sendWhatsApp(to: string, message: string, credentials?: Record<string, string>) {
     const client = this.getClient(credentials);
     if (!this.isEnabled(client)) {
       console.warn("Twilio not configured, WhatsApp not sent to:", to);
@@ -178,9 +179,9 @@ class TwilioService {
         to: formattedTo,
       });
       return { success: true, sid: resp.sid };
-    } catch (error: any) {
-      console.error("Twilio WhatsApp failed:", error);
-      throw new Error(`Twilio WhatsApp failed: ${error.message} (Code: ${error.code})`);
+    } catch (error: unknown) {
+      const err = error as { message?: string; code?: number };
+      throw new Error(`Twilio WhatsApp failed: ${err.message || "Unknown error"} (Code: ${err.code || "N/A"})`);
     }
   }
 }

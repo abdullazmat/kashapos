@@ -87,7 +87,7 @@ export async function applyStockUpdate(
         product.costPrice = item.unitCost;
         productChanged = true;
       } else if (item.sku) {
-        const variantIndex = product.variants.findIndex((v: any) => v.sku === item.sku);
+        const variantIndex = product.variants.findIndex((v: { sku: string }) => v.sku === item.sku);
         if (variantIndex > -1) {
           product.variants[variantIndex].costPrice = item.unitCost;
           productChanged = true;
@@ -97,7 +97,7 @@ export async function applyStockUpdate(
 
     // Update variant-specific stock if it's a variant match
     if (product.hasVariants && item.sku) {
-      const variantIndex = product.variants.findIndex((v: any) => v.sku === item.sku);
+      const variantIndex = product.variants.findIndex((v: { sku: string }) => v.sku === item.sku);
       if (variantIndex > -1) {
         product.variants[variantIndex].stock = (product.variants[variantIndex].stock || 0) + delta;
         productChanged = true;

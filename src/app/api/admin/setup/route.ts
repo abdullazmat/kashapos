@@ -136,8 +136,8 @@ export async function GET() {
         password: `${adminPassword} (Please change this immediately)`,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Setup error:", error);
-    return apiError(error.message, 500);
+    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
   }
 }

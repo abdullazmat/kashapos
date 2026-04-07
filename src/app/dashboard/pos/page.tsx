@@ -1114,8 +1114,8 @@ export default function POSTerminalPage() {
       try {
         await openCashDrawer();
         toast.success("Drawer opened", { id: waitToast });
-      } catch (err: any) {
-        toast.error(err.message || "Failed to open via Serial", {
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Failed to open via Serial", {
           id: waitToast,
         });
         // Fallback: Driver-based kick via print
@@ -2333,7 +2333,7 @@ export default function POSTerminalPage() {
                   )}
                   {creditLimitExceeded && (
                     <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      This credit sale would exceed the customer's credit limit
+                      This credit sale would exceed the customer&apos;s credit limit
                       by{" "}
                       <span className="font-semibold">
                         {formatCurrency(creditLimitOverage, currency)}

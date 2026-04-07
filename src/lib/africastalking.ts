@@ -7,7 +7,7 @@ const AT_API_KEY = process.env.AT_API_KEY || "";
 const AT_SENDER_ID = process.env.AT_SENDER_ID || "";
 
 class AfricasTalkingService {
-  private sms: any;
+  private sms: unknown;
   private isConfigured: boolean = false;
 
   constructor() {
@@ -61,7 +61,7 @@ class AfricasTalkingService {
     return this.sms;
   }
 
-  async sendSMS(to: string, message: string, credentials?: any) {
+  async sendSMS(to: string, message: string, credentials?: Record<string, string>) {
     const smsClient = this.getSmsClient(credentials);
     if (!smsClient && !this.isConfigured) {
       console.warn("Africa's Talking not configured, SMS not sent to:", to);
@@ -91,7 +91,11 @@ class AfricasTalkingService {
         ...(senderId ? { from: senderId } : {}),
       };
 
-      const response = await smsClient.send(options);
+      const response = await (smsClient as { send: (options: unknown) => Promise<unknown> }).send(options) as {
+        SMSMessageData?: {
+          Recipients: { status: string; cost?: string }[];
+        };
+      };
 
       // SMS response received
 
@@ -117,16 +121,16 @@ class AfricasTalkingService {
       }
 
       return { success: true, data: response };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Africa's Talking SMS error:", error);
       return {
         success: false,
-        message: error.message || JSON.stringify(error),
+        message: error instanceof Error ? error.message : JSON.stringify(error),
       };
     }
   }
 
-  async getBalance(credentials?: any) {
+  async getBalance(credentials?: Record<string, string>) {
     const username =
       credentials?.atUsername && credentials.atUsername !== "********"
         ? credentials.atUsername
@@ -146,10 +150,10 @@ class AfricasTalkingService {
         const data = await at.APPLICATION.fetchApplicationData();
         // Balance data received
         return data.UserData.balance;
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Failed to fetch Africa's Talking balance", error);
         throw new Error(
-          `Failed to fetch balance: ${error.message || JSON.stringify(error)}`,
+          `Failed to fetch balance: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
         );
       }
     }
