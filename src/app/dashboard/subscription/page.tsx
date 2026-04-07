@@ -12,6 +12,8 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  Smartphone,
+  Wallet,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useSession } from "../layout";
@@ -44,6 +46,7 @@ type Checkout = {
   currency: string;
   status: "initiated" | "completed" | "failed";
   checkoutUrl?: string;
+  paymentFlow?: "direct_prompt" | "hosted_web";
   errorMessage?: string;
   createdAt: string;
 };
@@ -165,6 +168,7 @@ export default function SubscriptionPage() {
     companyName: tenant?.name || "",
     message: "",
   });
+  const [paymentMethod, setPaymentMethod] = useState<"mobile_money" | "card">("mobile_money");
   const autoPollRef = useRef<number | null>(null);
 
   const activePendingCheckout = useMemo(
@@ -232,6 +236,7 @@ export default function SubscriptionPage() {
           planId: plan._id,
           billingCycle,
           phoneNumber: (phoneNumber || "").trim() || undefined,
+          paymentMethod,
         }),
       });
       const payload = await res.json();
@@ -296,14 +301,7 @@ export default function SubscriptionPage() {
       }
 
       if (checkoutUrl) {
-        const opened = window.open(
-          checkoutUrl,
-          "_blank",
-          "noopener,noreferrer",
-        );
-        if (!opened) {
-          window.location.assign(checkoutUrl);
-        }
+        window.location.assign(checkoutUrl);
       }
     } catch (error) {
       const message = getReadableCheckoutError(
@@ -349,8 +347,8 @@ export default function SubscriptionPage() {
     if (!selectedCheckoutPlan) return;
 
     const enteredPhone = checkoutPhone.trim();
-    if (!enteredPhone) {
-      toast.error("Phone number is required to continue.");
+    if (!enteredPhone && paymentMethod === "mobile_money") {
+      toast.error("Mobile number is required for Mobile Money prompts.");
       return;
     }
 
@@ -817,11 +815,21 @@ export default function SubscriptionPage() {
                       )}
                       {new Date(item.createdAt).toLocaleString("en-UG")}
                     </p>
-                    {item.errorMessage && (
-                      <p className="mt-1 text-xs text-rose-600">
-                        {item.errorMessage}
-                      </p>
-                    )}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ${item.paymentFlow === "hosted_web" ? "bg-orange-50 text-orange-700 ring-1 ring-orange-600/10" : "bg-blue-50 text-blue-700 ring-1 ring-blue-600/10"}`}>
+                        {item.paymentFlow === "hosted_web" ? (
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        ) : (
+                          <Smartphone className="h-2.5 w-2.5" />
+                        )}
+                        {item.paymentFlow === "hosted_web" ? "Hosted Web Payment" : "Direct Mobile Prompt"}
+                      </span>
+                      {item.errorMessage && (
+                        <p className="text-[10px] font-semibold text-rose-600">
+                          Error: {item.errorMessage}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span
@@ -998,25 +1006,65 @@ export default function SubscriptionPage() {
               </button>
             </div>
 
-            <div className="space-y-2">
-              <label
-                htmlFor="subscriptionCheckoutPhone"
-                className="text-xs font-semibold uppercase tracking-wide text-gray-600"
-              >
-                Phone Number
-              </label>
-              <input
-                id="subscriptionCheckoutPhone"
-                value={checkoutPhone}
-                onChange={(event) => setCheckoutPhone(event.target.value)}
-                placeholder="e.g. 0772123456 or +256772123456"
-                inputMode="tel"
-                autoComplete="tel"
-                className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15"
-              />
-              <p className="text-[11px] text-gray-400">
-                Use your Airtel or MTN number to receive the payment prompt.
-              </p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                  Select Payment Method
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("mobile_money")}
+                    className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all ${
+                      paymentMethod === "mobile_money"
+                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500/10"
+                        : "border-gray-100 bg-white hover:border-gray-300"
+                    }`}
+                  >
+                    <Smartphone className={`h-6 w-6 ${paymentMethod === "mobile_money" ? "text-blue-600" : "text-gray-400"}`} />
+                    <span className={`text-[11px] font-bold ${paymentMethod === "mobile_money" ? "text-blue-700" : "text-gray-600"}`}>
+                      Direct Mobile Prompt
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("card")}
+                    className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all ${
+                      paymentMethod === "card"
+                        ? "border-orange-500 bg-orange-50 ring-2 ring-orange-500/10"
+                        : "border-gray-100 bg-white hover:border-gray-300"
+                    }`}
+                  >
+                    <ExternalLink className={`h-6 w-6 ${paymentMethod === "card" ? "text-orange-600" : "text-gray-400"}`} />
+                    <span className={`text-[11px] font-bold ${paymentMethod === "card" ? "text-orange-700" : "text-gray-600"}`}>
+                      Hosted Web Payment
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="subscriptionCheckoutPhone"
+                  className="text-[11px] font-bold uppercase tracking-wider text-gray-500"
+                >
+                  {paymentMethod === "mobile_money" ? "Mobile Number" : "Contact Phone (Optional)"}
+                </label>
+                <input
+                  id="subscriptionCheckoutPhone"
+                  value={checkoutPhone}
+                  onChange={(event) => setCheckoutPhone(event.target.value)}
+                  placeholder={paymentMethod === "mobile_money" ? "e.g. 0772123456" : "Your contact number"}
+                  inputMode="tel"
+                  autoComplete="tel"
+                  className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15"
+                />
+                <p className="text-[10px] text-gray-400">
+                  {paymentMethod === "mobile_money" 
+                    ? "Enter your Airtel or MTN number to receive a secure payment prompt on your phone."
+                    : "Redirects you to a secure hosted page to pay via Visa, Mastercard, or Mobile Money."}
+                </p>
+              </div>
             </div>
 
             <div className="mt-5 flex gap-2">
@@ -1034,12 +1082,14 @@ export default function SubscriptionPage() {
               >
                 {subscribingPlanId === selectedCheckoutPlan._id ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : paymentMethod === "mobile_money" ? (
+                  <Smartphone className="h-4 w-4" />
                 ) : (
-                  <CreditCard className="h-4 w-4" />
+                  <ExternalLink className="h-4 w-4" />
                 )}
                 {subscribingPlanId === selectedCheckoutPlan._id
                   ? "Starting..."
-                  : "Continue to Pay"}
+                  : paymentMethod === "mobile_money" ? "Send Prompt" : "Proceed to Payment"}
               </button>
             </div>
           </div>

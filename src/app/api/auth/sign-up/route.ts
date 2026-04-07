@@ -12,8 +12,16 @@ import { apiError, apiSuccess } from "@/lib/api-helpers";
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
-    const { businessName, email, password, name, phone, saasProduct, otp } =
-      await request.json();
+    const {
+      businessName,
+      email,
+      password,
+      name,
+      phone,
+      saasProduct,
+      otp,
+      signupMethod,
+    } = await request.json();
 
     if (!businessName || (!email && !phone) || !password || !name || !otp) {
       return apiError(
@@ -34,14 +42,21 @@ export async function POST(request: NextRequest) {
     } else if (phone) {
       query.phone = phone.replace(/\s+/g, "");
     }
-    
+
     const existingUser = await User.findOne(query);
     if (existingUser) {
-      return apiError(email ? "Email already registered" : "Phone number already registered", 409);
+      return apiError(
+        email ? "Email already registered" : "Phone number already registered",
+        409,
+      );
     }
 
-    const identifier = email ? email.toLowerCase() : phone.replace(/\s+/g, "");
-    
+    // Use the specific signup method identifier for OTP verification
+    const identifier =
+      signupMethod === "email"
+        ? email.trim().toLowerCase()
+        : phone.replace(/\s+/g, "");
+
     // Verify OTP
     const validOtp = await OTP.findOne({ identifier, otp });
     if (!validOtp) {

@@ -16,6 +16,7 @@ export interface ISubscriptionCheckout extends Document {
   reference: string;
   trackingId?: string;
   checkoutUrl?: string;
+  paymentFlow?: "direct_prompt" | "hosted_web";
   customerEmail?: string;
   errorMessage?: string;
   raw?: Record<string, unknown>;
@@ -64,6 +65,11 @@ const SubscriptionCheckoutSchema = new Schema<ISubscriptionCheckout>(
     reference: { type: String, required: true, unique: true, index: true },
     trackingId: { type: String, index: true },
     checkoutUrl: { type: String },
+    paymentFlow: {
+      type: String,
+      enum: ["direct_prompt", "hosted_web"],
+      default: "direct_prompt",
+    },
     customerEmail: { type: String },
     errorMessage: { type: String },
     raw: { type: Schema.Types.Mixed, default: undefined },

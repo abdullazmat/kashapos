@@ -1,6 +1,0 @@
-﻿Γû▓ Next.js 16.1.6 (Turbopack)
-- Environments: .env.local
-
-  Creating an optimized production build ...
-Γ£ô Compiled successfully in 5.2s
-  Running TypeScript ...

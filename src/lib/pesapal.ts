@@ -50,10 +50,7 @@ export class PesapalService {
 
     const url = PESAPAL_URL.replace(/\/$/, "") + "/Auth/RequestToken";
 
-    console.log("Pesapal Token Request:", {
-      url,
-      consumer_key: key,
-    });
+    // Pesapal token request initiated
 
     const response = await fetch(url, {
       method: "POST",
@@ -74,7 +71,7 @@ export class PesapalService {
     }
 
     const data: any = await response.json();
-    console.log("Pesapal Token Response Body:", JSON.stringify(data));
+    // Pesapal token response received
 
     // Some APIs (like Pesapal) might return HTTP 200 but an error INSIDE the JSON
     if (data.status && String(data.status) !== "200") {
@@ -117,10 +114,7 @@ export class PesapalService {
     }
 
     const url = PESAPAL_URL.replace(/\/$/, "") + "/URLSetup/RegisterIPN";
-    console.log("Pesapal IPN Register Request:", {
-      url,
-      token: token.substring(0, 10) + "...",
-    });
+    // Pesapal IPN registration initiated
 
     const response = await fetch(url, {
       method: "POST",
@@ -210,7 +204,7 @@ export class PesapalService {
     }
 
     const data: any = await response.json();
-    console.log("Pesapal SubmitOrderRequest Response:", JSON.stringify(data));
+    // Pesapal order request completed
 
     if (data?.status && String(data.status) !== "200") {
       const errMsg =

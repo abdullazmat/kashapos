@@ -35,7 +35,10 @@ async function withTimeout<T>(
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
-    const { identifier, method, purpose = "signup" } = await request.json();
+    const { identifier: rawIdentifier, method, purpose = "signup" } = await request.json();
+    const identifier = method === "email" 
+      ? (rawIdentifier || "").trim().toLowerCase() 
+      : (rawIdentifier || "").replace(/\s+/g, "");
 
     if (!identifier || !method) {
       return apiError("Identifier and method are required", 400);
@@ -97,8 +100,8 @@ export async function POST(request: NextRequest) {
     await OTP.create({
       identifier,
       otp,
-      // Expires in 15 minutes
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      // Expires in 30 minutes
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     });
 
     // Send OTP
@@ -108,16 +111,16 @@ export async function POST(request: NextRequest) {
     if (method === "email") {
       const res = await sendSystemEmail({
         to: identifier,
-        subject: "Your Meka PoS Verification Code",
+        subject: "Your KashaPOS Verification Code",
         html: `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-            <h2 style="color: #f97316;">Meka PoS</h2>
+            <h2 style="color: #f97316;">KashaPOS</h2>
             <p>Thank you for starting your sign up process.</p>
             <p>Your one-time verification code is:</p>
             <div style="background-color: #f3f4f6; padding: 12px 24px; font-size: 24px; font-weight: bold; letter-spacing: 4px; border-radius: 8px; text-align: center; margin: 24px 0; color: #111;">
               ${otp}
             </div>
-            <p style="font-size: 14px; color: #666;">This code will expire in 15 minutes.</p>
+            <p style="font-size: 14px; color: #666;">This code will expire in 30 minutes.</p>
           </div>
         `,
       });
@@ -164,7 +167,7 @@ export async function POST(request: NextRequest) {
         const result = await withTimeout(
           africasTalkingService.sendSMS(
             identifier,
-            `Your Meka PoS verification code is: ${otp}`,
+            `Your KashaPOS verification code is: ${otp}`,
           ),
           PROVIDER_TIMEOUT_MS,
           "Africa's Talking SMS",
@@ -183,7 +186,7 @@ export async function POST(request: NextRequest) {
           const twilioFallback = await withTimeout(
             twilioService.sendSMS(
               identifier,
-              `Your Meka PoS verification code is: ${otp}`,
+              `Your KashaPOS verification code is: ${otp}`,
             ),
             PROVIDER_TIMEOUT_MS,
             "Twilio SMS fallback",
@@ -226,16 +229,16 @@ export async function POST(request: NextRequest) {
           const fallbackResult = await withTimeout(
             sendSystemEmail({
               to: emailForFallback,
-              subject: "Your Meka PoS Verification Code",
+              subject: "Your KashaPOS Verification Code",
               html: `
               <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                <h2 style="color: #f97316;">Meka PoS</h2>
+                <h2 style="color: #f97316;">KashaPOS</h2>
                 <p>Thank you for starting your sign up process.</p>
                 <p>Your one-time verification code is:</p>
                 <div style="background-color: #f3f4f6; padding: 12px 24px; font-size: 24px; font-weight: bold; letter-spacing: 4px; border-radius: 8px; text-align: center; margin: 24px 0; color: #111;">
                   ${otp}
                 </div>
-                <p style="font-size: 14px; color: #666;">This code will expire in 15 minutes.</p>
+                <p style="font-size: 14px; color: #666;">This code will expire in 30 minutes.</p>
               </div>
             `,
             }),
@@ -248,12 +251,9 @@ export async function POST(request: NextRequest) {
           deliveryWarning = "SMS delivery failed; OTP sent via email fallback.";
         } else {
           // No email found - can't deliver OTP
-          console.warn(
-            "SMS delivery failed and unable to fallback to email (no email on file)",
-          );
-          isMock = true;
-          deliveryWarning =
-            "SMS delivery failed and email not available on file. OTP: " + otp;
+          const errorMsg = "SMS delivery failed and no email on file for fallback";
+          console.error(errorMsg);
+          return apiError(errorMsg, 503);
         }
       }
     } else if (method === "whatsapp") {
@@ -275,12 +275,12 @@ export async function POST(request: NextRequest) {
         const result = await withTimeout(
           twilioService.sendWhatsApp(
             identifier,
-            `Your Meka PoS verification code is: ${otp}`,
+            `Your KashaPOS verification code is: ${otp}`,
           ),
           PROVIDER_TIMEOUT_MS,
           "Twilio WhatsApp",
         );
-        if (!result.success) isMock = true;
+        if (!result.success) throw new Error(result.message || "WhatsApp delivery failed");
       } catch (whatsAppError: any) {
         console.error(
           "WhatsApp OTP delivery failed, falling back to SMS:",
@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
           const fallbackResult = await withTimeout(
             africasTalkingService.sendSMS(
               identifier,
-              `Your Meka PoS verification code is: ${otp}`,
+              `Your KashaPOS verification code is: ${otp}`,
             ),
             PROVIDER_TIMEOUT_MS,
             "SMS fallback",
@@ -327,16 +327,16 @@ export async function POST(request: NextRequest) {
             const emailFallback = await withTimeout(
               sendSystemEmail({
                 to: emailForFallback,
-                subject: "Your Meka PoS Verification Code",
+                subject: "Your KashaPOS Verification Code",
                 html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                  <h2 style="color: #f97316;">Meka PoS</h2>
+                  <h2 style="color: #f97316;">KashaPOS</h2>
                   <p>Thank you for starting your sign up process.</p>
                   <p>Your one-time verification code is:</p>
                   <div style="background-color: #f3f4f6; padding: 12px 24px; font-size: 24px; font-weight: bold; letter-spacing: 4px; border-radius: 8px; text-align: center; margin: 24px 0; color: #111;">
                     ${otp}
                   </div>
-                  <p style="font-size: 14px; color: #666;">This code will expire in 15 minutes.</p>
+                  <p style="font-size: 14px; color: #666;">This code will expire in 30 minutes.</p>
                 </div>
               `,
               }),
@@ -349,13 +349,9 @@ export async function POST(request: NextRequest) {
             deliveryWarning =
               "WhatsApp and SMS delivery failed; OTP sent via email fallback.";
           } else {
-            console.warn(
-              "WhatsApp and SMS delivery failed and unable to fallback to email (no email on file)",
-            );
-            isMock = true;
-            deliveryWarning =
-              "WhatsApp and SMS delivery failed and email not available on file. OTP: " +
-              otp;
+            const errorMsg = "WhatsApp and SMS delivery failed and no email on file for fallback";
+            console.error(errorMsg);
+            return apiError(errorMsg, 503);
           }
         }
       }

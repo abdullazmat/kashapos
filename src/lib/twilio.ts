@@ -4,28 +4,31 @@ import twilio from "twilio";
  * Twilio Service for SMS and WhatsApp
  */
 
-const ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "";
-const API_KEY = process.env.TWILIO_API_KEY || "";
-const API_SECRET = process.env.TWILIO_API_SECRET || "";
-const AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "";
-const WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || "";
-const SMS_NUMBER = process.env.TWILIO_SMS_NUMBER || "";
-
 const TRANSIENT_TWILIO_CODES = new Set([20429]);
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const cleanEnv = (val: string | undefined): string => (val || "").trim().replace(/^['"]|['"]$/g, "").replace(/;+$/, "").trim();
+
 class TwilioService {
   private client: any;
 
   constructor() {
-    if (ACCOUNT_SID && AUTH_TOKEN) {
-      // Prefer Account SID + Auth Token for the broadest compatibility.
-      this.client = twilio(ACCOUNT_SID, AUTH_TOKEN);
-    } else if (ACCOUNT_SID && API_KEY && API_SECRET) {
-      this.client = twilio(API_KEY, API_SECRET, { accountSid: ACCOUNT_SID });
+    this.refreshClient();
+  }
+
+  private refreshClient() {
+    const accSid = cleanEnv(process.env.TWILIO_ACCOUNT_SID);
+    const authToken = cleanEnv(process.env.TWILIO_AUTH_TOKEN);
+    const apiKey = cleanEnv(process.env.TWILIO_API_KEY);
+    const apiSecret = cleanEnv(process.env.TWILIO_API_SECRET);
+
+    if (accSid && authToken) {
+      this.client = twilio(accSid, authToken);
+    } else if (accSid && apiKey && apiSecret) {
+      this.client = twilio(apiKey, apiSecret, { accountSid: accSid });
     }
   }
 
@@ -38,29 +41,32 @@ class TwilioService {
     const sid =
       credentials?.twilioAccountSid &&
       credentials.twilioAccountSid !== "********"
-        ? credentials.twilioAccountSid
-        : ACCOUNT_SID;
-    const key =
-      credentials?.twilioApiKey && credentials.twilioApiKey !== "********"
-        ? credentials.twilioApiKey
-        : API_KEY;
-    const secret =
-      credentials?.twilioApiSecret && credentials.twilioApiSecret !== "********"
-        ? credentials.twilioApiSecret
-        : API_SECRET;
+        ? credentials.twilioAccountSid.trim()
+        : cleanEnv(process.env.TWILIO_ACCOUNT_SID);
     const authToken =
       credentials?.twilioAuthToken && credentials.twilioAuthToken !== "********"
-        ? credentials.twilioAuthToken
-        : AUTH_TOKEN;
+        ? credentials.twilioAuthToken.trim()
+        : cleanEnv(process.env.TWILIO_AUTH_TOKEN);
 
     if (sid && authToken) {
       return twilio(sid, authToken);
     }
 
+    const key =
+      credentials?.twilioApiKey && credentials.twilioApiKey !== "********"
+        ? credentials.twilioApiKey.trim()
+        : cleanEnv(process.env.TWILIO_API_KEY);
+    const secret =
+      credentials?.twilioApiSecret && credentials.twilioApiSecret !== "********"
+        ? credentials.twilioApiSecret.trim()
+        : cleanEnv(process.env.TWILIO_API_SECRET);
+
     if (sid && key && secret) {
-      return twilio(key, secret, {
-        accountSid: sid,
-      });
+      return twilio(key, secret, { accountSid: sid });
+    }
+    
+    if (!this.client) {
+      this.refreshClient();
     }
     return this.client;
   }
@@ -73,6 +79,9 @@ class TwilioService {
     client: any,
     payload: { body: string; from: string; to: string },
   ) {
+    if (!client) {
+      throw new Error("Twilio client is not initialized. Please check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in your environment.");
+    }
     let lastError: any;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -97,13 +106,14 @@ class TwilioService {
     const client = this.getClient(credentials);
     if (!this.isEnabled(client)) {
       console.warn("Twilio not configured, SMS not sent to:", to);
-      return { success: false, message: "Twilio not configured" };
+      return { success: false, message: "Twilio not configured (Check credentials)" };
     }
 
     const fromNumber =
       credentials?.twilioSmsNumber && credentials.twilioSmsNumber !== "********"
-        ? credentials.twilioSmsNumber
-        : SMS_NUMBER;
+        ? credentials.twilioSmsNumber.trim()
+        : cleanEnv(process.env.TWILIO_SMS_NUMBER);
+
     if (!fromNumber) {
       return {
         success: false,
@@ -111,16 +121,27 @@ class TwilioService {
       };
     }
 
+    let normalizedTo = to.replace(/[\s\-()]/g, "");
+    if (normalizedTo.startsWith("0")) {
+      normalizedTo = "+256" + normalizedTo.substring(1);
+    } else if (normalizedTo.startsWith("7") && normalizedTo.length === 9) {
+      normalizedTo = "+256" + normalizedTo;
+    } else if (normalizedTo.startsWith("256") && !normalizedTo.startsWith("+")) {
+      normalizedTo = "+" + normalizedTo;
+    } else if (!normalizedTo.startsWith("+")) {
+      normalizedTo = "+" + normalizedTo;
+    }
+
     try {
       const resp = await this.createMessageWithRetry(client, {
         body: message,
         from: fromNumber,
-        to: to,
+        to: normalizedTo,
       });
       return { success: true, sid: resp.sid };
     } catch (error: any) {
       console.error("Twilio SMS failed:", error);
-      throw new Error(`Twilio SMS failed: ${error.message}`);
+      throw new Error(`Twilio SMS failed: ${error.message} (Code: ${error.code})`);
     }
   }
 
@@ -131,14 +152,15 @@ class TwilioService {
     const client = this.getClient(credentials);
     if (!this.isEnabled(client)) {
       console.warn("Twilio not configured, WhatsApp not sent to:", to);
-      return { success: false, message: "Twilio not configured" };
+      return { success: false, message: "Twilio not configured (Check credentials)" };
     }
 
     const fromNumber =
       credentials?.twilioWhatsAppNumber &&
       credentials.twilioWhatsAppNumber !== "********"
-        ? credentials.twilioWhatsAppNumber
-        : WHATSAPP_NUMBER;
+        ? credentials.twilioWhatsAppNumber.trim()
+        : cleanEnv(process.env.TWILIO_WHATSAPP_NUMBER);
+
     if (!fromNumber) {
       return {
         success: false,
@@ -147,23 +169,18 @@ class TwilioService {
     }
 
     try {
-      // Format destination number if needed for WhatsApp (e.g. whatsapp:+256...)
       const formattedTo = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
+      const formattedFrom = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
 
       const resp = await this.createMessageWithRetry(client, {
         body: message,
-        from: fromNumber,
+        from: formattedFrom,
         to: formattedTo,
       });
       return { success: true, sid: resp.sid };
     } catch (error: any) {
       console.error("Twilio WhatsApp failed:", error);
-      if (error?.code === 70051) {
-        throw new Error(
-          "Twilio WhatsApp authorization failed (70051). Verify credentials belong to the same Twilio account and use TWILIO_AUTH_TOKEN or a properly scoped API Key/Secret.",
-        );
-      }
-      throw new Error(`Twilio WhatsApp failed: ${error.message}`);
+      throw new Error(`Twilio WhatsApp failed: ${error.message} (Code: ${error.code})`);
     }
   }
 }

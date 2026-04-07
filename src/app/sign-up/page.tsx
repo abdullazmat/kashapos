@@ -24,7 +24,7 @@ function validatePhone(phone: string) {
   return /^(\+?[0-9]{7,15})$/.test(clean);
 }
 
-const OTP_REQUEST_TIMEOUT_MS = 15000;
+const OTP_REQUEST_TIMEOUT_MS = 30000;
 
 export default function SignUpPage() {
   const router = useRouter();

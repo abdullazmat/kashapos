@@ -390,6 +390,7 @@ export async function POST(request: NextRequest) {
       reference: recheckReference,
       billingCycle: requestedBillingCycle,
       phoneNumber: requestedPhoneNumber,
+      paymentMethod: requestedPaymentMethod,
     } = await request.json();
 
     if (action === "recheck") {
@@ -425,8 +426,13 @@ export async function POST(request: NextRequest) {
       }
 
       const statusReference = checkout.trackingId || checkout.reference;
-      const statusResult =
-        await SiliconPayService.getTransactionStatus(statusReference);
+      const statusResult = await SiliconPayService.getTransactionStatus(
+        statusReference,
+        {
+          siliconPayEncryptionKey:
+            process.env.SILICON_PAY_ENCRYPTION_KEY?.trim(),
+        },
+      );
 
       if (!statusResult) {
         return apiSuccess({
@@ -552,11 +558,19 @@ export async function POST(request: NextRequest) {
     const siliconPayPublicKey = process.env.SILICON_PAY_PUBLIC_KEY?.trim();
     const siliconPayEncryptionKey =
       process.env.SILICON_PAY_ENCRYPTION_KEY?.trim();
-    const checkoutMode = (
+    
+    // Determine checkout mode: user choice > environment variable > default 'hosted'
+    let checkoutMode = (
       process.env.SILICON_PAY_SUBSCRIPTION_CHECKOUT_MODE || "hosted"
     )
       .trim()
       .toLowerCase();
+
+    if (requestedPaymentMethod === "mobile_money") {
+      checkoutMode = "mobile_money";
+    } else if (requestedPaymentMethod === "card") {
+      checkoutMode = "hosted";
+    }
 
     if (!siliconPayPublicKey || !siliconPayEncryptionKey) {
       return apiError("Silicon Pay credentials are not configured", 400);
@@ -687,6 +701,7 @@ export async function POST(request: NextRequest) {
       reference,
       trackingId,
       checkoutUrl,
+      paymentFlow: checkoutFlowUsed === "mobile_money" ? "direct_prompt" : "hosted_web",
       customerEmail,
       errorMessage: immediateStatus.failed
         ? immediateError || "Payment was not completed"

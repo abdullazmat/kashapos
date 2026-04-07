@@ -11,13 +11,16 @@ class AfricasTalkingService {
   private isConfigured: boolean = false;
 
   constructor() {
-    if (AT_USERNAME && AT_API_KEY) {
+    const username = (process.env.AT_USERNAME || "").trim();
+    const apiKey = (process.env.AT_API_KEY || "").trim();
+
+    if (username && apiKey) {
       try {
         // Safe require since there are no official types
         const africastalking = require("africastalking");
         const at = africastalking({
-          apiKey: AT_API_KEY,
-          username: AT_USERNAME,
+          apiKey: apiKey,
+          username: username,
         });
         this.sms = at.SMS;
         this.isConfigured = true;
@@ -70,7 +73,18 @@ class AfricasTalkingService {
         credentials?.atSenderId && credentials.atSenderId !== "********"
           ? credentials.atSenderId
           : AT_SENDER_ID;
-      const normalizedTo = to.replace(/[\s\-()]/g, "");
+      let normalizedTo = to.replace(/[\s\-()]/g, "");
+      // Ugandan phone normalization for Africa's Talking
+      if (normalizedTo.startsWith("0")) {
+        normalizedTo = "+256" + normalizedTo.substring(1);
+      } else if (normalizedTo.startsWith("7") && normalizedTo.length === 9) {
+        normalizedTo = "+256" + normalizedTo;
+      } else if (normalizedTo.startsWith("256") && !normalizedTo.startsWith("+")) {
+        normalizedTo = "+" + normalizedTo;
+      } else if (!normalizedTo.startsWith("+")) {
+        // Fallback for other formats, try adding +
+        normalizedTo = "+" + normalizedTo;
+      }
       const options = {
         to: [normalizedTo],
         message: message,
@@ -79,10 +93,7 @@ class AfricasTalkingService {
 
       const response = await smsClient.send(options);
 
-      console.log(
-        "[Africa's Talking Response]:",
-        JSON.stringify(response, null, 2),
-      );
+      // SMS response received
 
       if (
         response &&
@@ -133,10 +144,7 @@ class AfricasTalkingService {
           username: username,
         });
         const data = await at.APPLICATION.fetchApplicationData();
-        console.log(
-          "[Africa's Talking Application Data]:",
-          JSON.stringify(data, null, 2),
-        );
+        // Balance data received
         return data.UserData.balance;
       } catch (error: any) {
         console.error("Failed to fetch Africa's Talking balance", error);

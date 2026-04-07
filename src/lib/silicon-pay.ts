@@ -94,12 +94,12 @@ export class SiliconPayService {
       credentials?.siliconPayPublicKey &&
       credentials.siliconPayPublicKey !== "********"
         ? credentials.siliconPayPublicKey
-        : PUBLIC_KEY;
+        : (process.env.SILICON_PAY_PUBLIC_KEY || "").trim();
     const encKey =
       credentials?.siliconPayEncryptionKey &&
       credentials.siliconPayEncryptionKey !== "********"
         ? credentials.siliconPayEncryptionKey
-        : process.env.SILICON_PAY_ENCRYPTION_KEY || "";
+        : (process.env.SILICON_PAY_ENCRYPTION_KEY || "").trim();
 
     if (!pubKey) {
       throw new Error("Silicon Pay public key not configured");
@@ -139,18 +139,7 @@ export class SiliconPayService {
       payload.phone = formattedPhone;
     }
 
-    console.log("Silicon Pay Request Details:", {
-      url: SILICON_PAY_URL,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "User-Agent": "KashaPOS/1.0",
-      },
-      body: {
-        ...payload,
-        encryption_key: "********", // REDACTED
-      },
-    });
+    // Request sent to Silicon Pay gateway
 
     const response = await fetch(SILICON_PAY_URL, {
       method: "POST",
@@ -233,14 +222,51 @@ export class SiliconPayService {
   /**
    * Verifies a transaction status
    */
-  static async getTransactionStatus(txId: string) {
-    void txId;
-    // Note: Silicon Pay usually checks via the callback or a specific status endpoint.
-    // If there's a status endpoint, we'd use it here.
-    // For now we'll assume the callback handles the truth.
-    return {
-      success: true,
-      message: "Status check not implemented as per typical callback-only flow",
-    };
+  static async getTransactionStatus(
+    txId: string,
+    credentials?: { siliconPayEncryptionKey?: string },
+  ) {
+    const encKey =
+      credentials?.siliconPayEncryptionKey &&
+      credentials.siliconPayEncryptionKey !== "********"
+        ? credentials.siliconPayEncryptionKey
+        : process.env.SILICON_PAY_ENCRYPTION_KEY || "";
+
+    if (!encKey) {
+      throw new Error("Silicon Pay encryption key not configured");
+    }
+
+    const url = `https://silicon-pay.com/transaction_status/${txId}`;
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "User-Agent": "KashaPOS/1.0",
+        },
+        body: JSON.stringify({
+          encryption_key: encKey,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return {
+          success: false,
+          message: `Status check failed: ${text}`,
+        };
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error instanceof Error ? error.message : "Status check request error",
+      };
+    }
   }
 }
