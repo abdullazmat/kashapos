@@ -86,6 +86,9 @@ async function sendViaSmtp({
     host: smtp.host,
     port: smtp.port,
     secure: smtp.port === 465,
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 5000,
     auth: { user: smtp.user, pass: smtp.pass },
   });
 
@@ -99,6 +102,49 @@ async function sendViaSmtp({
   });
 
   return { id: "smtp-success", mock: false };
+}
+
+async function sendViaResend({
+  to,
+  subject,
+  html,
+  text,
+  replyTo,
+  fromName,
+  fromEmail,
+  apiKey,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+  fromName: string;
+  fromEmail: string;
+  apiKey: string;
+}) {
+  let resendFrom = `${fromName} <${fromEmail}>`;
+  const isPublicDomain =
+    /@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail);
+  if (isPublicDomain || fromEmail.includes("example.com")) {
+    resendFrom = `${fromName} <onboarding@resend.dev>`;
+  }
+
+  const resend = new Resend(apiKey);
+  const { data, error } = await resend.emails.send({
+    from: resendFrom,
+    to: [to],
+    subject,
+    html,
+    text: text || "",
+    replyTo,
+  });
+
+  if (error) {
+    throw new Error(`Resend delivery failed: ${error.message}`);
+  }
+
+  return data;
 }
 
 export async function sendSystemEmail({
@@ -115,23 +161,71 @@ export async function sendSystemEmail({
 
   // Prefer SMTP whenever env credentials exist, even if EMAIL_PROVIDER is unset.
   if (smtp.isConfigured && provider !== "resend") {
-    return sendViaSmtp({
-      to,
-      subject,
-      html,
-      smtp,
-    });
+    try {
+      return await sendViaSmtp({
+        to,
+        subject,
+        html,
+        smtp,
+      });
+    } catch (smtpError) {
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        throw smtpError;
+      }
+
+      console.warn(
+        "SMTP delivery failed for system email, falling back to Resend:",
+        smtpError,
+      );
+      return sendViaResend({
+        to,
+        subject,
+        html,
+        fromName: smtp.fromName,
+        fromEmail:
+          smtp.fromEmail ||
+          process.env.SMTP_FROM ||
+          process.env.SMTP_USER ||
+          "",
+        apiKey,
+      });
+    }
   }
 
   // If provider is explicitly resend but SMTP is available, still use SMTP to avoid
   // Resend domain verification restrictions when no domain is configured.
   if (smtp.isConfigured && provider === "resend") {
-    return sendViaSmtp({
-      to,
-      subject,
-      html,
-      smtp,
-    });
+    try {
+      return await sendViaSmtp({
+        to,
+        subject,
+        html,
+        smtp,
+      });
+    } catch (smtpError) {
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        throw smtpError;
+      }
+
+      console.warn(
+        "SMTP delivery failed for system email, falling back to Resend:",
+        smtpError,
+      );
+      return sendViaResend({
+        to,
+        subject,
+        html,
+        fromName: smtp.fromName,
+        fromEmail:
+          smtp.fromEmail ||
+          process.env.SMTP_FROM ||
+          process.env.SMTP_USER ||
+          "",
+        apiKey,
+      });
+    }
   }
 
   // Fallback to Resend API
@@ -139,34 +233,23 @@ export async function sendSystemEmail({
   if (!apiKey) {
     throw new Error("Resend API key is not configured");
   }
-  const resend = new Resend(apiKey);
-
   const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || "";
-  const fromName = "Meka PoS";
-  let resendFrom = `${fromName} <${fromEmail}>`;
-
-  if (
-    /@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail) ||
-    fromEmail.includes("example.com")
-  ) {
-    resendFrom = `${fromName} <onboarding@resend.dev>`;
-  }
-
-  const { data, error } = await resend.emails.send({
-    from: resendFrom,
-    to: [to],
-    subject,
-    html,
-  });
-
-  if (error) {
+  try {
+    return await sendViaResend({
+      to,
+      subject,
+      html,
+      fromName: "Meka PoS",
+      fromEmail,
+      apiKey,
+    });
+  } catch (error) {
     if (process.env.NODE_ENV === "development") {
       console.log(`[MOCK EMAIL] To: ${to}\nSubject: ${subject}\nBody: ${html}`);
       return { id: "mock-success", mock: true };
     }
-    throw new Error(`Resend delivery failed: ${error.message}`);
+    throw error;
   }
-  return data;
 }
 
 export async function sendTenantEmail(input: SendTenantEmailInput) {
@@ -197,14 +280,36 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
 
   // Prefer SMTP when configured in env/settings so delivery works without a verified Resend domain.
   if (smtp.isConfigured) {
-    return sendViaSmtp({
-      to: input.to,
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-      replyTo,
-      smtp,
-    });
+    try {
+      return await sendViaSmtp({
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+        replyTo,
+        smtp,
+      });
+    } catch (smtpError) {
+      const apiKey = settings.emailApiKey || process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        throw smtpError;
+      }
+
+      console.warn(
+        `SMTP delivery failed for tenant email, falling back to Resend:`,
+        smtpError,
+      );
+      return sendViaResend({
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+        replyTo,
+        fromName,
+        fromEmail,
+        apiKey,
+      });
+    }
   }
 
   if (provider === "resend") {
@@ -284,28 +389,16 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
     );
     const resendApiKey = settings.emailApiKey || process.env.RESEND_API_KEY;
     if (resendApiKey) {
-      let resendFromFallback = `${fromName} <${fromEmail}>`;
-      const isPublicDomain =
-        /@(gmail|yahoo|outlook|hotmail|icloud|me|msn)\.com$/i.test(fromEmail);
-      if (isPublicDomain || fromEmail.includes("example.com")) {
-        resendFromFallback = `${fromName} <onboarding@resend.dev>`;
-      }
-
-      const resendFallback = new Resend(resendApiKey);
-      const { data, error } = await resendFallback.emails.send({
-        from: resendFromFallback,
-        to: [input.to],
+      return sendViaResend({
+        to: input.to,
         subject: input.subject,
         html: input.html,
-        text: input.text || "",
+        text: input.text,
         replyTo,
+        fromName,
+        fromEmail,
+        apiKey: resendApiKey,
       });
-      if (error) {
-        throw new Error(
-          `SMTP misconfigured and Resend fallback failed: ${error.message}`,
-        );
-      }
-      return data;
     }
 
     throw new Error(

@@ -10,7 +10,7 @@ import { africasTalkingService } from "@/lib/africastalking";
 import { checkOutboundMessageGuard } from "@/lib/outbound-message-guard";
 import { normalizeIdentifier } from "@/lib/auth";
 
-const PROVIDER_TIMEOUT_MS = 8000;
+const PROVIDER_TIMEOUT_MS = 20000;
 const BALANCE_TIMEOUT_MS = 3000;
 
 async function withTimeout<T>(
@@ -36,7 +36,11 @@ async function withTimeout<T>(
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
-    const { identifier: rawIdentifier, method, purpose = "signup" } = await request.json();
+    const {
+      identifier: rawIdentifier,
+      method,
+      purpose = "signup",
+    } = await request.json();
     const identifier = normalizeIdentifier(rawIdentifier);
 
     if (!identifier || !method) {
@@ -162,7 +166,9 @@ export async function POST(request: NextRequest) {
         } catch (balanceError: unknown) {
           console.warn(
             "Could not verify Africa's Talking balance:",
-            balanceError instanceof Error ? balanceError.message : String(balanceError),
+            balanceError instanceof Error
+              ? balanceError.message
+              : String(balanceError),
           );
           // Continue anyway, let the send fail if needed
         }
@@ -212,7 +218,10 @@ export async function POST(request: NextRequest) {
             twilioError,
           );
           const err = twilioError as { message?: string };
-          return apiError(`SMS Delivery Failed: ${err.message || 'Unknown provider error'}`, 502);
+          return apiError(
+            `SMS Delivery Failed: ${err.message || "Unknown provider error"}`,
+            502,
+          );
         }
       }
     } else if (method === "whatsapp") {
@@ -239,7 +248,8 @@ export async function POST(request: NextRequest) {
           PROVIDER_TIMEOUT_MS,
           "Twilio WhatsApp",
         );
-        if (!result.success) throw new Error(result.message || "WhatsApp delivery failed");
+        if (!result.success)
+          throw new Error(result.message || "WhatsApp delivery failed");
       } catch (whatsAppError: unknown) {
         console.error(
           "WhatsApp OTP delivery failed, falling back to SMS:",
@@ -268,7 +278,10 @@ export async function POST(request: NextRequest) {
             smsError,
           );
           const err = smsError as { message?: string };
-          return apiError(`WhatsApp and SMS Delivery Failed: ${err.message || 'Unknown provider error'}`, 502);
+          return apiError(
+            `WhatsApp and SMS Delivery Failed: ${err.message || "Unknown provider error"}`,
+            502,
+          );
         }
       }
     } else {
@@ -283,6 +296,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: unknown) {
     console.error("Send OTP error:", error);
-    return apiError(error instanceof Error ? error.message : "Internal server error", 500);
+    return apiError(
+      error instanceof Error ? error.message : "Internal server error",
+      500,
+    );
   }
 }
