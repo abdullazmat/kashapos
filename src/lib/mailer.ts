@@ -53,7 +53,7 @@ function resolveSmtpConfig(overrides?: {
   const fromName = overrides?.fromName || "Meka PoS";
 
   const isConfigured = Boolean(host && user && pass);
-  
+
   // Debug logging
   if (process.env.NODE_ENV !== "production") {
     if (!isConfigured) {
@@ -374,7 +374,11 @@ export async function sendTenantEmail(input: SendTenantEmailInput) {
     }
   }
 
-  if (provider === "resend") {    console.log("[Email] Using Resend (provider set to resend, no SMTP configured)");    const apiKey = settings.emailApiKey || process.env.RESEND_API_KEY;
+  if (provider === "resend") {
+    console.log(
+      "[Email] Using Resend (provider set to resend, no SMTP configured)",
+    );
+    const apiKey = settings.emailApiKey || process.env.RESEND_API_KEY;
     if (!apiKey) {
       throw new Error("Resend API key is not configured");
     }
