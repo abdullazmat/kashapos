@@ -1323,7 +1323,7 @@ export default function POSTerminalPage() {
       </div>
       {/* ── Left: Products ── */}
       <div
-        className={`${mobilePanel === "sale" ? "hidden" : "flex"} flex-1 flex-col overflow-hidden lg:flex`}
+        className={`${mobilePanel === "sale" ? "hidden" : "flex"} min-w-0 flex-1 flex-col overflow-hidden lg:flex`}
       >
         {scannerAlert && (
           <div
@@ -1466,7 +1466,7 @@ export default function POSTerminalPage() {
           <button
             type="button"
             onClick={() => setMobilePanel("sale")}
-            className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-3.5 py-2 text-white shadow-md shadow-orange-500/20 transition-transform hover:scale-[1.02]"
+            className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-3.5 py-2 text-white shadow-md shadow-orange-500/20 transition-transform hover:scale-[1.02] lg:hidden"
           >
             <ShoppingCart className="h-4 w-4" />
             <span className="text-sm font-bold">{cartCount}</span>
@@ -1520,7 +1520,7 @@ export default function POSTerminalPage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filteredProducts.map((p) => {
                 const inCartQty = cart
                   .filter((i) => i._id === p._id)
@@ -1786,7 +1786,7 @@ export default function POSTerminalPage() {
       {/* ── Right: Cart Sidebar ── */}
       <div
         ref={cartSidebarRef}
-        className={`${mobilePanel === "products" ? "hidden" : "flex"} min-h-[42vh] max-h-[calc(100vh-12rem)] w-full flex-col overflow-hidden border-t border-gray-200/80 bg-white lg:flex lg:min-h-0 lg:max-h-none lg:w-90 lg:border-l lg:border-t-0`}
+        className={`${mobilePanel === "products" ? "hidden" : "flex"} min-h-[42vh] max-h-[calc(100vh-12rem)] w-full flex-col overflow-hidden border-t border-gray-200/80 bg-white lg:flex lg:min-h-0 lg:max-h-none lg:w-96 lg:min-w-88 lg:flex-none lg:border-l lg:border-t-0 xl:w-104`}
       >
         {/* Cart Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
