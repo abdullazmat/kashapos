@@ -1783,7 +1783,7 @@ export default function POSTerminalPage() {
       {/* ── Right: Cart Sidebar ── */}
       <div
         ref={cartSidebarRef}
-        className={`${mobilePanel === "products" ? "hidden" : "flex"} min-h-[42vh] max-h-[calc(100vh-12rem)] w-full flex-col border-t border-gray-200/80 bg-white lg:flex lg:min-h-0 lg:max-h-none lg:w-90 lg:border-l lg:border-t-0`}
+        className={`${mobilePanel === "products" ? "hidden" : "flex"} min-h-[42vh] max-h-[calc(100vh-12rem)] w-full flex-col overflow-hidden border-t border-gray-200/80 bg-white lg:flex lg:min-h-0 lg:max-h-none lg:w-90 lg:border-l lg:border-t-0`}
       >
         {/* Cart Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
@@ -1988,7 +1988,7 @@ export default function POSTerminalPage() {
         </div>
 
         {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {cart.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-50">
