@@ -1293,8 +1293,8 @@ export default function POSTerminalPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] flex-col overflow-hidden rounded-[28px] border border-gray-200/70 bg-linear-to-br from-gray-50 to-gray-100/80 shadow-sm lg:h-[calc(100vh-7rem)] lg:flex-row">
-      <div className="flex items-center gap-2 border-b border-gray-200/80 bg-white/90 px-4 py-2.5 lg:hidden">
+    <div className="flex min-h-[calc(100vh-7rem)] flex-col overflow-hidden rounded-[28px] border border-gray-200/70 bg-linear-to-br from-gray-50 to-gray-100/80 shadow-sm xl:h-[calc(100vh-7rem)] xl:flex-row">
+      <div className="flex items-center gap-2 border-b border-gray-200/80 bg-white/90 px-4 py-2.5 xl:hidden">
         <button
           type="button"
           onClick={() => setMobilePanel("products")}
@@ -1323,7 +1323,7 @@ export default function POSTerminalPage() {
       </div>
       {/* ── Left: Products ── */}
       <div
-        className={`${mobilePanel === "sale" ? "hidden" : "flex"} min-w-0 flex-1 flex-col overflow-hidden lg:flex`}
+        className={`${mobilePanel === "sale" ? "hidden" : "flex"} min-w-0 flex-1 flex-col overflow-hidden xl:flex`}
       >
         {scannerAlert && (
           <div
@@ -1466,7 +1466,7 @@ export default function POSTerminalPage() {
           <button
             type="button"
             onClick={() => setMobilePanel("sale")}
-            className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-3.5 py-2 text-white shadow-md shadow-orange-500/20 transition-transform hover:scale-[1.02] lg:hidden"
+            className="flex items-center gap-1.5 rounded-xl bg-linear-to-r from-orange-500 to-amber-600 px-3.5 py-2 text-white shadow-md shadow-orange-500/20 transition-transform hover:scale-[1.02] xl:hidden"
           >
             <ShoppingCart className="h-4 w-4" />
             <span className="text-sm font-bold">{cartCount}</span>
@@ -1786,7 +1786,7 @@ export default function POSTerminalPage() {
       {/* ── Right: Cart Sidebar ── */}
       <div
         ref={cartSidebarRef}
-        className={`${mobilePanel === "products" ? "hidden" : "flex"} min-h-[42vh] max-h-[calc(100vh-12rem)] w-full flex-col overflow-hidden border-t border-gray-200/80 bg-white lg:flex lg:min-h-0 lg:max-h-none lg:w-96 lg:min-w-88 lg:flex-none lg:border-l lg:border-t-0 xl:w-104`}
+        className={`${mobilePanel === "products" ? "hidden" : "flex"} min-h-[42vh] max-h-[calc(100vh-12rem)] w-full flex-col overflow-hidden border-t border-gray-200/80 bg-white xl:flex xl:min-h-0 xl:max-h-none xl:w-96 xl:min-w-88 xl:flex-none xl:border-l xl:border-t-0 2xl:w-104`}
       >
         {/* Cart Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
@@ -1821,13 +1821,13 @@ export default function POSTerminalPage() {
             <button
               type="button"
               onClick={() => setIsCustomerSectionOpen((previous) => !previous)}
-              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40 lg:hidden"
+              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40 xl:hidden"
             >
               {isCustomerSectionOpen ? "Hide" : "Show"}
             </button>
           </div>
 
-          <div className={isCustomerSectionOpen ? "block" : "hidden lg:block"}>
+          <div className={isCustomerSectionOpen ? "block" : "hidden xl:block"}>
             <input
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
@@ -1926,7 +1926,7 @@ export default function POSTerminalPage() {
           </div>
 
           {!isCustomerSectionOpen && (
-            <p className="text-[11px] text-gray-400 lg:hidden">
+            <p className="text-[11px] text-gray-400 xl:hidden">
               Customer panel collapsed for more checkout space.
             </p>
           )}
