@@ -1786,7 +1786,7 @@ export default function POSTerminalPage() {
       {/* ── Right: Cart Sidebar ── */}
       <div
         ref={cartSidebarRef}
-        className={`${mobilePanel === "products" ? "hidden" : "flex"} min-h-[42vh] max-h-[calc(100vh-12rem)] w-full flex-col overflow-hidden border-t border-gray-200/80 bg-white xl:flex xl:min-h-0 xl:max-h-none xl:w-96 xl:min-w-88 xl:flex-none xl:border-l xl:border-t-0 2xl:w-104`}
+        className={`${mobilePanel === "products" ? "hidden" : "flex"} max-h-[calc(100vh-14rem)] w-full flex-col overflow-hidden border-t border-gray-200/80 bg-white xl:flex xl:min-h-0 xl:max-h-[calc(100vh-10rem)] xl:w-96 xl:min-w-88 xl:flex-none xl:border-l xl:border-t-0 2xl:w-104`}
       >
         {/* Cart Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
@@ -1811,260 +1811,273 @@ export default function POSTerminalPage() {
           )}
         </div>
 
-        {/* Customer Selector */}
-        <div className="border-b border-gray-100 px-5 py-3">
-          <div className="mb-1.5 flex items-center justify-between">
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-              <User className="h-3 w-3" />
-              Customer
-            </label>
-            <button
-              type="button"
-              onClick={() => setIsCustomerSectionOpen((previous) => !previous)}
-              className="rounded-md border border-gray-200 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40 xl:hidden"
-            >
-              {isCustomerSectionOpen ? "Hide" : "Show"}
-            </button>
-          </div>
-
-          <div className={isCustomerSectionOpen ? "block" : "hidden xl:block"}>
-            <input
-              value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
-              placeholder="Search customer by name, phone..."
-              className="mb-2 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-            />
-            <div className="max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+        {/* ── Scrollable Middle Section ── */}
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+          {/* Customer Selector */}
+          <div className="border-b border-gray-100 px-5 py-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                <User className="h-3 w-3" />
+                Customer
+              </label>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedCustomer("");
-                  setCustomerSearch("");
-                  setWalkInName("");
-                  setWalkInPhone("");
-                  setWalkInEmail("");
-                  if (paymentMethod === "credit") {
-                    setPaymentMethod("cash");
-                    setCreditDueDate("");
-                  }
-                }}
-                className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${!selectedCustomer ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
+                onClick={() =>
+                  setIsCustomerSectionOpen((previous) => !previous)
+                }
+                className="rounded-md border border-gray-200 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40 xl:hidden"
               >
-                <span>Walk-in Customer</span>
-                {!selectedCustomer && (
-                  <span className="text-[11px] font-semibold">Selected</span>
-                )}
+                {isCustomerSectionOpen ? "Hide" : "Show"}
               </button>
-              {filteredCustomers.length === 0 ? (
-                <div className="px-3 py-3 text-xs text-gray-400">
-                  No customers found.
+            </div>
+
+            <div
+              className={isCustomerSectionOpen ? "block" : "hidden xl:block"}
+            >
+              <input
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                placeholder="Search customer by name, phone..."
+                className="mb-2 w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+              <div className="max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomer("");
+                    setCustomerSearch("");
+                    setWalkInName("");
+                    setWalkInPhone("");
+                    setWalkInEmail("");
+                    if (paymentMethod === "credit") {
+                      setPaymentMethod("cash");
+                      setCreditDueDate("");
+                    }
+                  }}
+                  className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${!selectedCustomer ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
+                >
+                  <span>Walk-in Customer</span>
+                  {!selectedCustomer && (
+                    <span className="text-[11px] font-semibold">Selected</span>
+                  )}
+                </button>
+                {filteredCustomers.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-gray-400">
+                    No customers found.
+                  </div>
+                ) : (
+                  filteredCustomers.map((c) => {
+                    const active = selectedCustomer === c._id;
+                    return (
+                      <button
+                        key={c._id}
+                        type="button"
+                        onClick={() => handleSelectCustomer(c._id)}
+                        className={`mb-1 flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors ${active ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
+                      >
+                        <span className="text-sm font-medium">{c.name}</span>
+                        <span className="text-[11px] text-gray-400">
+                          {c.phone || c.email || "No contact details"}
+                          {(c.outstandingBalance || 0) > 0
+                            ? ` • Bal ${formatCurrency(c.outstandingBalance || 0, currency)}`
+                            : ""}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateCustomerModal(true)}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add New Customer
+              </button>
+              {!selectedCustomer && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <input
+                    value={walkInName}
+                    onChange={(e) => setWalkInName(e.target.value)}
+                    placeholder="Walk-in name"
+                    className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                  <input
+                    value={walkInPhone}
+                    onChange={(e) => setWalkInPhone(e.target.value)}
+                    placeholder="Phone (optional)"
+                    className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                  <input
+                    value={walkInEmail}
+                    onChange={(e) => setWalkInEmail(e.target.value)}
+                    placeholder="Email for payment link"
+                    className="col-span-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
                 </div>
-              ) : (
-                filteredCustomers.map((c) => {
-                  const active = selectedCustomer === c._id;
-                  return (
-                    <button
-                      key={c._id}
-                      type="button"
-                      onClick={() => handleSelectCustomer(c._id)}
-                      className={`mb-1 flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors ${active ? "bg-orange-50 text-orange-700" : "text-gray-700 hover:bg-gray-50"}`}
-                    >
-                      <span className="text-sm font-medium">{c.name}</span>
-                      <span className="text-[11px] text-gray-400">
-                        {c.phone || c.email || "No contact details"}
-                        {(c.outstandingBalance || 0) > 0
-                          ? ` • Bal ${formatCurrency(c.outstandingBalance || 0, currency)}`
-                          : ""}
-                      </span>
-                    </button>
-                  );
-                })
+              )}
+              {selectedCustomer && selectedCustomerRecord && (
+                <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] text-blue-700">
+                  {selectedCustomerOutstanding > 0
+                    ? `Existing credit due: ${formatCurrency(selectedCustomerOutstanding, currency)}`
+                    : "No existing credit due"}
+                </div>
+              )}
+              {!selectedCustomer && (
+                <p className="mt-2 text-[11px] text-amber-700">
+                  Credit is available for saved customers only.
+                </p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowCreateCustomerModal(true)}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add New Customer
-            </button>
-            {!selectedCustomer && (
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <input
-                  value={walkInName}
-                  onChange={(e) => setWalkInName(e.target.value)}
-                  placeholder="Walk-in name"
-                  className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                />
-                <input
-                  value={walkInPhone}
-                  onChange={(e) => setWalkInPhone(e.target.value)}
-                  placeholder="Phone (optional)"
-                  className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                />
-                <input
-                  value={walkInEmail}
-                  onChange={(e) => setWalkInEmail(e.target.value)}
-                  placeholder="Email for payment link"
-                  className="col-span-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-sm text-gray-700 transition-colors focus:border-orange-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                />
-              </div>
-            )}
-            {selectedCustomer && selectedCustomerRecord && (
-              <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] text-blue-700">
-                {selectedCustomerOutstanding > 0
-                  ? `Existing credit due: ${formatCurrency(selectedCustomerOutstanding, currency)}`
-                  : "No existing credit due"}
-              </div>
-            )}
-            {!selectedCustomer && (
-              <p className="mt-2 text-[11px] text-amber-700">
-                Credit is available for saved customers only.
+
+            {!isCustomerSectionOpen && (
+              <p className="text-[11px] text-gray-400 xl:hidden">
+                Customer panel collapsed for more checkout space.
               </p>
             )}
           </div>
 
-          {!isCustomerSectionOpen && (
-            <p className="text-[11px] text-gray-400 xl:hidden">
-              Customer panel collapsed for more checkout space.
+          {/* Reactive order table */}
+          <div className="border-b border-gray-100 px-5 py-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+              Order Table
             </p>
-          )}
-        </div>
-
-        {/* Reactive order table */}
-        <div className="border-b border-gray-100 px-5 py-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Order Table
-          </p>
-          <div className="max-h-36 overflow-y-auto rounded-xl border border-gray-100">
-            <table className="w-full text-[11px]">
-              <thead className="bg-gray-50 text-gray-500">
-                <tr>
-                  <th className="px-2 py-1.5 text-left font-semibold">Item</th>
-                  <th className="px-2 py-1.5 text-right font-semibold">Qty</th>
-                  <th className="px-2 py-1.5 text-right font-semibold">
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {orderItems.length === 0 ? (
+            <div className="max-h-36 overflow-y-auto rounded-xl border border-gray-100">
+              <table className="w-full text-[11px]">
+                <thead className="bg-gray-50 text-gray-500">
                   <tr>
-                    <td
-                      colSpan={3}
-                      className="px-2 py-3 text-center text-gray-400"
-                    >
-                      No items selected
-                    </td>
+                    <th className="px-2 py-1.5 text-left font-semibold">
+                      Item
+                    </th>
+                    <th className="px-2 py-1.5 text-right font-semibold">
+                      Qty
+                    </th>
+                    <th className="px-2 py-1.5 text-right font-semibold">
+                      Total
+                    </th>
                   </tr>
-                ) : (
-                  orderItems.map((item) => (
-                    <tr key={item.id} className="border-t border-gray-50">
-                      <td className="px-2 py-1.5 text-gray-700">{item.name}</td>
-                      <td className="px-2 py-1.5 text-right text-gray-600">
-                        {item.qty}
-                      </td>
-                      <td className="px-2 py-1.5 text-right font-medium text-gray-800">
-                        {formatCurrency(item.lineTotal, currency)}
+                </thead>
+                <tbody>
+                  {orderItems.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="px-2 py-3 text-center text-gray-400"
+                      >
+                        No items selected
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-2 space-y-1 text-[11px]">
-            <div className="flex justify-between text-gray-500">
-              <span>Subtotal</span>
-              <span>{formatCurrency(orderSubtotal, currency)}</span>
+                  ) : (
+                    orderItems.map((item) => (
+                      <tr key={item.id} className="border-t border-gray-50">
+                        <td className="px-2 py-1.5 text-gray-700">
+                          {item.name}
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-gray-600">
+                          {item.qty}
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-medium text-gray-800">
+                          {formatCurrency(item.lineTotal, currency)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-            <div className="flex justify-between text-gray-500">
-              <span>Tax (18%)</span>
-              <span>{formatCurrency(orderTax, currency)}</span>
-            </div>
-            <div className="flex justify-between font-semibold text-gray-700">
-              <span>Total</span>
-              <span>{formatCurrency(orderGrandTotal, currency)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Cart Items */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {cart.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-50">
-                <ShoppingCart className="h-7 w-7 text-gray-300" />
+            <div className="mt-2 space-y-1 text-[11px]">
+              <div className="flex justify-between text-gray-500">
+                <span>Subtotal</span>
+                <span>{formatCurrency(orderSubtotal, currency)}</span>
               </div>
-              <p className="font-medium text-gray-400">Cart is empty</p>
-              <p className="text-center text-[12px] text-gray-300">
-                Tap products on the left to add them
-              </p>
+              <div className="flex justify-between text-gray-500">
+                <span>Tax (18%)</span>
+                <span>{formatCurrency(orderTax, currency)}</span>
+              </div>
+              <div className="flex justify-between font-semibold text-gray-700">
+                <span>Total</span>
+                <span>{formatCurrency(orderGrandTotal, currency)}</span>
+              </div>
             </div>
-          ) : (
-            <div className="divide-y divide-gray-50 px-4 py-2">
-              {cart.map((item) => (
-                <div
-                  key={item.lineKey}
-                  className="group flex items-start gap-3 py-3"
-                >
-                  {/* Item icon */}
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-orange-50 to-amber-50">
-                    <Package className="h-4 w-4 text-orange-600" />
-                  </div>
+          </div>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-[13px] font-semibold text-gray-800">
-                      {item.name}
-                    </p>
-                    <p className="text-[12px] text-gray-400">
-                      {formatCurrency(item.price, currency)} × {item.quantity}
-                    </p>
-                  </div>
-
-                  {/* Qty controls */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => updateQty(item.lineKey, -1)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
-                    >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        setQty(item.lineKey, parseFloat(e.target.value) || 0)
-                      }
-                      className="w-12 border-none bg-transparent text-center text-xs font-bold text-gray-700 focus:outline-none focus:ring-0"
-                      step="any"
-                      min="0"
-                    />
-                    <button
-                      onClick={() => updateQty(item.lineKey, 1)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                  </div>
-
-                  {/* Total + Delete */}
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[13px] font-bold text-gray-800">
-                      {formatCurrency(item.price * item.quantity, currency)}
-                    </span>
-                    <button
-                      onClick={() => removeItem(item.lineKey)}
-                      className="text-gray-400 opacity-100 transition-all hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+          {/* Cart Items */}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {cart.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-50">
+                  <ShoppingCart className="h-7 w-7 text-gray-300" />
                 </div>
-              ))}
-            </div>
-          )}
+                <p className="font-medium text-gray-400">Cart is empty</p>
+                <p className="text-center text-[12px] text-gray-300">
+                  Tap products on the left to add them
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50 px-4 py-2">
+                {cart.map((item) => (
+                  <div
+                    key={item.lineKey}
+                    className="group flex items-start gap-3 py-3"
+                  >
+                    {/* Item icon */}
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-orange-50 to-amber-50">
+                      <Package className="h-4 w-4 text-orange-600" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[13px] font-semibold text-gray-800">
+                        {item.name}
+                      </p>
+                      <p className="text-[12px] text-gray-400">
+                        {formatCurrency(item.price, currency)} × {item.quantity}
+                      </p>
+                    </div>
+
+                    {/* Qty controls */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => updateQty(item.lineKey, -1)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          setQty(item.lineKey, parseFloat(e.target.value) || 0)
+                        }
+                        className="w-12 border-none bg-transparent text-center text-xs font-bold text-gray-700 focus:outline-none focus:ring-0"
+                        step="any"
+                        min="0"
+                      />
+                      <button
+                        onClick={() => updateQty(item.lineKey, 1)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+
+                    {/* Total + Delete */}
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-[13px] font-bold text-gray-800">
+                        {formatCurrency(item.price * item.quantity, currency)}
+                      </span>
+                      <button
+                        onClick={() => removeItem(item.lineKey)}
+                        className="text-gray-400 opacity-100 transition-all hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Cart Footer */}
